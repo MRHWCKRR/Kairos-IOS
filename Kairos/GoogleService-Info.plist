@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>63554361-8fdbr4gkufko3n0n93oejjrsjqfsgfqh.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.63554361-8fdbr4gkufko3n0n93oejjrsjqfsgfqh</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>63554361-nnveog6q3kdo2385oa0834qbvbjinve9.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyA-obkWLeUSzVw7niXDsl5UA19QB7qxJ5U</string>
+	<key>GCM_SENDER_ID</key>
+	<string>63554361</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.bytebybyte.kairos</string>
+	<key>PROJECT_ID</key>
+	<string>kairos-1a</string>
+	<key>STORAGE_BUCKET</key>
+	<string>kairos-1a.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:63554361:ios:fb19651206b6c5e1411ee8</string>
+</dict>
+</plist>
