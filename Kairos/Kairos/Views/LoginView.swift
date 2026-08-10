@@ -14,6 +14,12 @@ struct LoginView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    HStack {
+                        KairosLogo(size: 72)
+                        Spacer()
+                    }
+                    .padding(.top, 24)
+
                     VStack(alignment: .leading, spacing: 8) {
                         Text(isSignUpMode ? "Create account" : "Welcome back")
                             .font(.system(size: 34, weight: .bold, design: .rounded))
@@ -86,7 +92,7 @@ struct LoginView: View {
                         }
 
                         localErrorMessage = nil
-                        session.signIn(email: email, password: password)
+                        session.signIn(email: email, password: password, rememberEmail: rememberMe)
                     } label: {
                         Text(isSignUpMode ? "Sign Up" : "Sign In")
                             .frame(maxWidth: .infinity)
@@ -109,6 +115,12 @@ struct LoginView: View {
             }
         }
         .ignoresSafeArea()
+        .onAppear {
+            if email.isEmpty {
+                email = session.email
+                rememberMe = !session.email.isEmpty
+            }
+        }
     }
 
     private var background: some View {
@@ -196,5 +208,54 @@ private struct PrimaryButtonStyle: ButtonStyle {
             .background(Color(red: 0.54, green: 0.23, blue: 0.92), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .opacity(configuration.isPressed ? 0.88 : 1)
             .scaleEffect(configuration.isPressed ? 0.99 : 1)
+    }
+}
+
+private struct KairosLogo: View {
+    let size: CGFloat
+
+    var body: some View {
+        Canvas { context, canvasSize in
+            let scaleX = canvasSize.width / 100
+            let scaleY = canvasSize.height / 100
+            let lineWidth = 15 * min(scaleX, scaleY)
+            let strokeStyle = StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+
+            var left = Path()
+            left.move(to: CGPoint(x: 24.5 * scaleX, y: 85 * scaleY))
+            left.addLine(to: CGPoint(x: 50.5 * scaleX, y: 15 * scaleY))
+
+            var right = Path()
+            right.move(to: CGPoint(x: 49.5 * scaleX, y: 85 * scaleY))
+            right.addLine(to: CGPoint(x: 75.5 * scaleX, y: 15 * scaleY))
+
+            context.stroke(
+                left,
+                with: .linearGradient(
+                    Gradient(stops: [
+                        .init(color: Color(red: 0.85, green: 0.71, blue: 0.99), location: 0),
+                        .init(color: Color(red: 0.75, green: 0.55, blue: 0.98), location: 1)
+                    ]),
+                    startPoint: CGPoint(x: 0, y: 0),
+                    endPoint: CGPoint(x: 0, y: canvasSize.height)
+                ),
+                style: strokeStyle
+            )
+
+            context.stroke(
+                right,
+                with: .linearGradient(
+                    Gradient(stops: [
+                        .init(color: Color(red: 0.66, green: 0.34, blue: 0.97), location: 0),
+                        .init(color: Color(red: 0.49, green: 0.13, blue: 0.81), location: 1)
+                    ]),
+                    startPoint: CGPoint(x: 0, y: 0),
+                    endPoint: CGPoint(x: 0, y: canvasSize.height)
+                ),
+                style: strokeStyle
+            )
+        }
+        .frame(width: size, height: size)
+        .shadow(color: Color(red: 0.54, green: 0.23, blue: 0.92).opacity(0.35), radius: 18, x: 0, y: 10)
     }
 }
