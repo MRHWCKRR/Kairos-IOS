@@ -137,6 +137,10 @@ struct LoginView: View {
     }
 
     private func handleGoogleSignIn() {
+        if FirebaseApp.app() == nil {
+            FirebaseApp.configure()
+        }
+
         guard let clientID = FirebaseApp.app()?.options.clientID else {
             localErrorMessage = "Missing Firebase client ID."
             return
