@@ -1,4 +1,8 @@
 import SwiftUI
+import UIKit
+import FirebaseAuth
+import FirebaseCore
+import GoogleSignIn
 
 struct LoginView: View {
     @Environment(SessionStore.self) private var session
@@ -36,7 +40,7 @@ struct LoginView: View {
                             title: "Continue with Google",
                             systemImage: "g.circle.fill",
                             action: {
-                                localErrorMessage = "Google sign-in is not wired up yet."
+                                handleGoogleSignIn()
                             }
                         )
 
@@ -130,6 +134,52 @@ struct LoginView: View {
     private var background: some View {
         Color.black
         .ignoresSafeArea()
+    }
+
+    private func handleGoogleSignIn() {
+        guard let clientID = FirebaseApp.app()?.options.clientID else {
+            localErrorMessage = "Missing Firebase client ID."
+            return
+        }
+
+        guard let presentingViewController = UIApplication.shared.topMostViewController else {
+            localErrorMessage = "Unable to open Google sign-in."
+            return
+        }
+
+        localErrorMessage = nil
+        GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+
+        GIDSignIn.sharedInstance.signIn(withPresenting: presentingViewController) { result, error in
+            if let error {
+                localErrorMessage = error.localizedDescription
+                return
+            }
+
+            guard let user = result?.user,
+                  let idToken = user.idToken?.tokenString else {
+                localErrorMessage = "Google sign-in did not return an ID token."
+                return
+            }
+
+            let credential = GoogleAuthProvider.credential(
+                withIDToken: idToken,
+                accessToken: user.accessToken.tokenString
+            )
+
+            Auth.auth().signIn(with: credential) { authResult, authError in
+                if let authError {
+                    localErrorMessage = authError.localizedDescription
+                    return
+                }
+
+                let signedInEmail = authResult?.user.email ?? user.profile?.email ?? ""
+                Task { @MainActor in
+                    session.signIn(email: signedInEmail, password: idToken, rememberEmail: true)
+                    session.lastErrorMessage = nil
+                }
+            }
+        }
     }
 }
 
@@ -261,5 +311,36 @@ private struct KairosLogo: View {
         }
         .frame(width: size, height: size)
         .shadow(color: Color(red: 0.54, green: 0.23, blue: 0.92).opacity(0.35), radius: 18, x: 0, y: 10)
+    }
+}
+
+private extension UIApplication {
+    var topMostViewController: UIViewController? {
+        guard let scene = connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
+              let rootViewController = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
+            return nil
+        }
+
+        return rootViewController.topMostViewController
+    }
+}
+
+private extension UIViewController {
+    var topMostViewController: UIViewController {
+        if let presentedViewController {
+            return presentedViewController.topMostViewController
+        }
+
+        if let navigationController = self as? UINavigationController,
+           let visibleViewController = navigationController.visibleViewController {
+            return visibleViewController.topMostViewController
+        }
+
+        if let tabBarController = self as? UITabBarController,
+           let selectedViewController = tabBarController.selectedViewController {
+            return selectedViewController.topMostViewController
+        }
+
+        return self
     }
 }
