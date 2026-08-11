@@ -92,7 +92,11 @@ struct LoginView: View {
                         }
 
                         localErrorMessage = nil
-                        session.signIn(email: email, password: password, rememberEmail: rememberMe)
+                        if isSignUpMode {
+                            session.signUp(email: email, password: password, rememberEmail: rememberMe)
+                        } else {
+                            session.signIn(email: email, password: password, rememberEmail: rememberMe)
+                        }
                     } label: {
                         Text(isSignUpMode ? "Sign Up" : "Sign In")
                             .frame(maxWidth: .infinity)

@@ -23,6 +23,18 @@ final class SessionStore {
     }
 
     func signIn(email: String, password: String, rememberEmail: Bool) {
+        authenticate(email: email, password: password, rememberEmail: rememberEmail)
+    }
+
+    func signUp(email: String, password: String, rememberEmail: Bool) {
+        authenticate(email: email, password: password, rememberEmail: rememberEmail)
+    }
+
+    private func authenticate(
+        email: String,
+        password: String,
+        rememberEmail: Bool
+    ) {
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
 
