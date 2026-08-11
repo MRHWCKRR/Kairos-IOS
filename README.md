@@ -96,7 +96,7 @@ Hackclub Macondo for motivating me to finally start this project, and hopefully 
 ChatGPT, Gemini, Copilot, Claude and Deepseek for helping me solve problems and bugs, as well as teach me new things such as Google log ins and helping me around XCode.
 
 
-[contributors-shield]: https://img.sheilds.io/github/contributors/MRHWCKRR/Kairos-IOS.svg?style=for-the-badge
+[contributors-shield]: https://img.shields.io/github/contributors/MRHWCKRR/Kairos-IOS.svg?style=for-the-badge
 [contributors-url]: https://github.com/MRHWCKRR/Kairos-IOS/graphs/contributors
 [forks-shield]: https://img.shields.io/github/forks/MRHWCKRR/Kairos-IOS.svg?style=for-the-badge
 [forks-url]: https://github.com/MRHWCKRR/Kairos-IOS/network/members
