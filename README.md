@@ -9,14 +9,24 @@
 *Everyone has 24 hours a day. Plan your day before it plans you.*
 
 A smart, personalised and practical solution to school/work stressed and last minute tasks.
-**Kairos** is an Ai assisted smart schedule, allowing you to fir your tasks into an organised and optimised day.
+Kairos helps you plan your day around your activities, allowing you to fit your tasks into an organised and optimised day.
 
 ---
 
 ## Key Features
 
 *   **AI Powered Automatic Scheduling:** Saves you time and will maximise time management.
+
 *   **Powerful AI Models:** Intelligent AI Models with optimised prompts for the most uptime and results.
+
+*   **Satisfying and Effective Checklist System:** AI assisted board style checklist, with a satisfying checkmark the feels rewarding to check off.
+
+*   **Board Sharing:** Easily share created boards to others with the inbuilt discovery. Find your friend's schedule and add it to your own Kairos with the click of a button, or find your next fully optimised packed day created by others.
+
+*   **App Customisation:** Customise your Kairos app to your liking with inbuilt themes and custom ones, whether thats on the web, your phone, or tablet.
+
+*   **Automatic Sync:** Move seemlessly across your devices, with auto sync to the cloud, everything is saved, so you can pick back up where you were at anywhere, anytime.
+
 *   **Completely Open Source:** Zero paywalls and full privacy. All source code is hosted right here on GitHub, and all data can be requested at the press of a button. You can even run your own version of Kairos or make your own customisations (see *Try Kairos*)!
 
 ---
@@ -70,6 +80,7 @@ https://kairos-xi-two.vercel.app
 Check out their repos!
 
 https://github.com/MRHWCKRR/Kairos
+
 https://github.com/MRHWCKRR/Kairos-Android
 
 **APP DOWNLOADS COMING AFTER GRANT**
@@ -82,6 +93,8 @@ https://github.com/MRHWCKRR/Kairos-Android
 - If you want to contribute, send a pull request or dm me on Discord: mrhwckrr_v2
 
 ## Credits
+
+Planify (https://useplanify.com/) for the smooth checkmark and drag and drop inspiration
 
 The lovely people on the Hack Club slack for entertainment
 
