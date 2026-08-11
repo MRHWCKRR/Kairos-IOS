@@ -92,7 +92,7 @@ https://github.com/MRHWCKRR/Kairos-Android
 - Bugs will likely exist. If you do encounter one, please make an issue, or reach out to me on Discord: mrhwckrr_v2
 - If you want to contribute, send a pull request or dm me on Discord: mrhwckrr_v2
 
-## Credits
+## Acknowledgements
 
 Planify (https://useplanify.com/) for the smooth checkmark and drag and drop inspiration
 
