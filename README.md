@@ -1,3 +1,5 @@
+(Logo)
+
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
@@ -9,7 +11,7 @@
 *Everyone has 24 hours a day. Plan your day before it plans you.*
 
 A smart, personalised and practical solution to school/work stressed and last minute tasks.
-Kairos helps you plan your day around your activities, allowing you to fit your tasks into an organised and optimised day.
+Kairos helps you plan your day around *your* activities, allowing you to fit *your* tasks into an organised and optimised day.
 
 ---
 
@@ -28,6 +30,12 @@ Kairos helps you plan your day around your activities, allowing you to fit your 
 *   **Automatic Sync:** Move seemlessly across your devices, with auto sync to the cloud, everything is saved, so you can pick back up where you were at anywhere, anytime.
 
 *   **Completely Open Source:** Zero paywalls and full privacy. All source code is hosted right here on GitHub, and all data can be requested at the press of a button. You can even run your own version of Kairos or make your own customisations (see *Try Kairos*)!
+
+---
+
+# Preview
+
+(Photos)
 
 ---
 
