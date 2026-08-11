@@ -1,8 +1,8 @@
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
-[![Stargazers][star-sheild]][stars-url]
-[![Issues][issues-sheild]][issues-url]
-![MIT License][license-sheild]
+[![Stargazers][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+![MIT License][license-shield]
 
 # Kairos
 
@@ -84,10 +84,15 @@ https://github.com/MRHWCKRR/Kairos-Android
 ## Credits
 
 The lovely people on the Hack Club slack for entertainment
+
 Adriana for the motivation during the start of Kairos development
+
 My mates Matt, Bevan, Neil, Ezaan, Howen and Ethan for supporting me even though Bevan can be a lil harsh I still love him
+
 My parents who supported me during the development with Kairos, especially those long nights where I had my school assignments and tutoring homework
+
 Hackclub Macondo for motivating me to finally start this project, and hopefully grant me the chance to publish these apps on the App store and Google Play store
+
 ChatGPT, Gemini, Copilot, Claude and Deepseek for helping me solve problems and bugs, as well as teach me new things such as Google log ins and helping me around XCode.
 
 
