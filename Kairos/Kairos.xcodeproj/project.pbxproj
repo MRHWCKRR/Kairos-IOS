@@ -12,11 +12,14 @@
 		D63B99CA302A850400A20B29 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D63B99C9302A850400A20B29 /* GoogleService-Info.plist */; };
 		D63B99CF302A897100A20B29 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = D63B99CE302A897100A20B29 /* FirebaseAuth */; };
 		D63B99D3302A897100A20B29 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = D63B99D2302A897100A20B29 /* FirebaseCore */; };
+		D64E9B423035C17800DFFD26 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D64E9B413035C17800DFFD26 /* SessionStore.swift */; };
+		D64E9B443035C1EA00DFFD26 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = D64E9B433035C1EA00DFFD26 /* FirebaseFirestore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		D61BB6943029ACD600288A19 /* Kairos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kairos.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D63B99C9302A850400A20B29 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		D64E9B413035C17800DFFD26 /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -48,6 +51,7 @@
 				D63B99CF302A897100A20B29 /* FirebaseAuth in Frameworks */,
 				D63B99D3302A897100A20B29 /* FirebaseCore in Frameworks */,
 				D61C9FF8302AED8C0047B754 /* GoogleSignIn in Frameworks */,
+				D64E9B443035C1EA00DFFD26 /* FirebaseFirestore in Frameworks */,
 				D61C9FFA302AED8C0047B754 /* GoogleSignInSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -58,6 +62,7 @@
 		D61BB68B3029ACD600288A19 = {
 			isa = PBXGroup;
 			children = (
+				D64E9B413035C17800DFFD26 /* SessionStore.swift */,
 				D61BB6963029ACD600288A19 /* Kairos */,
 				D61BB6953029ACD600288A19 /* Products */,
 				D63B99C9302A850400A20B29 /* GoogleService-Info.plist */,
@@ -104,6 +109,7 @@
 				D63B99D2302A897100A20B29 /* FirebaseCore */,
 				D61C9FF7302AED8C0047B754 /* GoogleSignIn */,
 				D61C9FF9302AED8C0047B754 /* GoogleSignInSwift */,
+				D64E9B433035C1EA00DFFD26 /* FirebaseFirestore */,
 			);
 			productName = Kairos;
 			productReference = D61BB6943029ACD600288A19 /* Kairos.app */;
@@ -163,6 +169,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D64E9B423035C17800DFFD26 /* SessionStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -418,6 +425,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D63B99C8302A84D700A20B29 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCore;
+		};
+		D64E9B433035C1EA00DFFD26 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D63B99C8302A84D700A20B29 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
