@@ -1,22 +1,29 @@
-//
-//  ContentView.swift
-//  Kairos
-//
-//  Created by Yunfei Na on 10/8/2026.
-//
-
 import SwiftUI
+import FirebaseAuth
 
 struct ContentView: View {
     @Environment(SessionStore.self) private var session
+    @State private var planRepo = StudyPlanRepository()
+    @State private var profileRepo = UserProfileRepository()
 
     var body: some View {
         Group {
             if session.isAuthenticated {
-                DashboardView()
+                MainTabView()
+                    .environment(planRepo)
+                    .environment(profileRepo)
             } else {
                 LoginView()
             }
+        }
+        .task(id: session.isAuthenticated) {
+            guard session.isAuthenticated, let uid = Auth.auth().currentUser?.uid else {
+                planRepo.stopListening()
+                profileRepo.stopListening()
+                return
+            }
+            planRepo.startListening(userID: uid)
+            profileRepo.startListening(userID: uid)
         }
     }
 }

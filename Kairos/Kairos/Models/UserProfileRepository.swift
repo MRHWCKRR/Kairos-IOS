@@ -6,6 +6,8 @@ import FirebaseFirestore
 @MainActor
 final class UserProfileRepository {
     var profile: KairosUserProfile?
+    var focusData: KairosFocusData?
+    var achievementsData: KairosAchievementsData?
     var isLoading = false
     var errorMessage: String?
 
@@ -28,10 +30,14 @@ final class UserProfileRepository {
 
                 guard let data = try? snapshot?.data(as: KairosUserDocument.self) else {
                     self.profile = nil
+                    self.focusData = nil
+                    self.achievementsData = nil
                     return
                 }
 
                 self.profile = data.settings?.profile
+                self.focusData = data.focusData
+                self.achievementsData = data.achievements
                 self.errorMessage = nil
             }
     }

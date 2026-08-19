@@ -3,8 +3,9 @@ import FirebaseAuth
 
 struct DashboardView: View {
     @Environment(SessionStore.self) private var session
-    @State private var planRepo = StudyPlanRepository()
-    @State private var profileRepo = UserProfileRepository()
+    @Environment(StudyPlanRepository.self) private var planRepo
+    @Environment(UserProfileRepository.self) private var profileRepo
+    @State private var showingProfile = false
 
     private var displayName: String {
         let name = profileRepo.profile?.displayName ?? ""
@@ -48,20 +49,20 @@ struct DashboardView: View {
             .navigationTitle("Kairos")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Sign Out") {
-                        session.signOut()
+                    Button {
+                        showingProfile = true
+                    } label: {
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.purple)
                     }
                 }
             }
-        }
-        .task(id: Auth.auth().currentUser?.uid) {
-            guard let uid = Auth.auth().currentUser?.uid else { return }
-            planRepo.startListening(userID: uid)
-            profileRepo.startListening(userID: uid)
-        }
-        .onDisappear {
-            planRepo.stopListening()
-            profileRepo.stopListening()
+            .sheet(isPresented: $showingProfile) {
+                ProfileView()
+                    .environment(session)
+                    .environment(profileRepo)
+            }
         }
     }
 
@@ -152,4 +153,6 @@ struct DashboardView: View {
 #Preview {
     DashboardView()
         .environment(SessionStore())
+        .environment(StudyPlanRepository())
+        .environment(UserProfileRepository())
 }
