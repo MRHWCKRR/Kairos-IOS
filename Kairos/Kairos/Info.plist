@@ -15,5 +15,7 @@
 			</array>
 		</dict>
 	</array>
+	<key>KAIROS_RELAY_SECRET</key>
+	<string>$(KAIROS_RELAY_SECRET)</string>
 </dict>
 </plist>

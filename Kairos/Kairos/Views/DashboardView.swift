@@ -6,6 +6,7 @@ struct DashboardView: View {
     @Environment(StudyPlanRepository.self) private var planRepo
     @Environment(UserProfileRepository.self) private var profileRepo
     @State private var showingProfile = false
+    @State private var focusTimer: FocusTimerViewModel?
 
     private var displayName: String {
         let name = profileRepo.profile?.displayName ?? ""
@@ -25,6 +26,10 @@ struct DashboardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header
+
+                    if let focusTimer {
+                        FocusTimerCard(viewModel: focusTimer)
+                    }
 
                     if planRepo.isLoading {
                         ProgressView("Loading your plan…")
@@ -62,6 +67,11 @@ struct DashboardView: View {
                 ProfileView()
                     .environment(session)
                     .environment(profileRepo)
+            }
+        }
+        .task {
+            if focusTimer == nil {
+                focusTimer = FocusTimerViewModel(profileRepo: profileRepo)
             }
         }
     }
@@ -113,9 +123,15 @@ struct DashboardView: View {
     }
 
     private func taskRow(task: KairosTask, boardID: String, sectionID: String) -> some View {
-        Button {
+        let taskID = task.id
+        let willComplete = !task.completed
+
+        return Button {
             Task {
-                await planRepo.toggleTask(boardID: boardID, sectionID: sectionID, taskID: task.id)
+                await planRepo.toggleTask(boardID: boardID, sectionID: sectionID, taskID: taskID)
+                if willComplete {
+                    await profileRepo.recordTaskCompletion(taskID: taskID)
+                }
             }
         } label: {
             HStack(spacing: 10) {
@@ -147,6 +163,63 @@ struct DashboardView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 60)
+    }
+}
+
+private struct FocusTimerCard: View {
+    let viewModel: FocusTimerViewModel
+    @Environment(UserProfileRepository.self) private var profileRepo
+
+    private var longestSessionText: String {
+        FocusTimerViewModel.formatHMS(profileRepo.focusData?.longestSessionSeconds ?? 0)
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text(viewModel.isRunning ? "FOCUS ACTIVE" : "TIMER READY")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(viewModel.isRunning ? .purple : .secondary)
+                .tracking(1)
+
+            Text(FocusTimerViewModel.formatHMS(viewModel.elapsedSeconds))
+                .font(.system(size: 40, weight: .bold, design: .rounded))
+                .foregroundStyle(viewModel.isRunning ? .purple : .primary)
+
+            Text("Longest: \(longestSessionText)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 10) {
+                if viewModel.isRunning {
+                    Button {
+                        viewModel.pause()
+                    } label: {
+                        Label("Pause", systemImage: "pause.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    Button {
+                        viewModel.start()
+                    } label: {
+                        Label("Start Focus", systemImage: "play.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.purple)
+                }
+
+                Button {
+                    viewModel.stopAndLog()
+                } label: {
+                    Text("Stop")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TasksView: View {
     @Environment(StudyPlanRepository.self) private var planRepo
+    @Environment(UserProfileRepository.self) private var profileRepo
 
     @State private var showAddBoard = false
     @State private var newBoardName = ""
@@ -109,8 +110,6 @@ struct TasksView: View {
         }
     }
 
-    // MARK: - Alert confirm actions (kept out of closures to help the type-checker)
-
     private func confirmAddBoard() {
         let name = newBoardName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
@@ -156,8 +155,6 @@ struct TasksView: View {
         guard !name.isEmpty else { return }
         Task { await planRepo.renameTask(taskID: target.task.id, title: name) }
     }
-
-    // MARK: - Board card
 
     @ViewBuilder
     private func boardCard(_ board: KairosBoard) -> some View {
@@ -256,9 +253,15 @@ struct TasksView: View {
     private func taskRow(boardID: String, section: KairosSection, task: KairosTask) -> some View {
         let sectionID = section.id
         let taskID = task.id
+        let willComplete = !task.completed
 
         return Button {
-            Task { await planRepo.toggleTask(boardID: boardID, sectionID: sectionID, taskID: taskID) }
+            Task {
+                await planRepo.toggleTask(boardID: boardID, sectionID: sectionID, taskID: taskID)
+                if willComplete {
+                    await profileRepo.recordTaskCompletion(taskID: taskID)
+                }
+            }
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: task.completed ? "checkmark.circle.fill" : "circle")
@@ -305,4 +308,5 @@ struct TasksView: View {
 #Preview {
     TasksView()
         .environment(StudyPlanRepository())
+        .environment(UserProfileRepository())
 }

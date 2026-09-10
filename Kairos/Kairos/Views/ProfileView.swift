@@ -1,10 +1,3 @@
-//
-//  ProfileView.swift
-//  Kairos
-//
-//  Created by Yunfei Na on 19/8/2026.
-//
-
 import SwiftUI
 
 struct ProfileView: View {
@@ -28,11 +21,9 @@ struct ProfileView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     header
-
                     quickStats
-
-                    achievementsTeaser
-
+                    achievementsLink
+                    statisticsLink
                     settingsSection
                 }
                 .padding(20)
@@ -99,30 +90,61 @@ struct ProfileView: View {
     }
 
     private var formattedFocusTime: String {
-        let totalSeconds = profileRepo.focusData?.totalSeconds ?? 0
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
-        return hours > 0 ? "\(hours)h \(minutes)m" : "\(minutes)m"
+        FocusTimerViewModel.formatHMS(profileRepo.focusData?.totalSeconds ?? 0)
     }
 
-    private var achievementsTeaser: some View {
-        HStack {
-            Image(systemName: "trophy.fill")
-                .foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Achievements")
-                    .font(.subheadline.weight(.semibold))
-                Text("Coming soon on iOS")
+    private var achievementsLink: some View {
+        NavigationLink {
+            AchievementsView()
+                .environment(profileRepo)
+        } label: {
+            HStack {
+                Image(systemName: "trophy.fill")
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Achievements")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text("Track progress & unlock badges")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
             }
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+            .padding(16)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .buttonStyle(.plain)
+    }
+
+    private var statisticsLink: some View {
+        NavigationLink {
+            StatisticsView()
+                .environment(profileRepo)
+        } label: {
+            HStack {
+                Image(systemName: "chart.bar.fill")
+                    .foregroundStyle(.blue)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Statistics")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text("Focus time & task trends")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(16)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     private var settingsSection: some View {

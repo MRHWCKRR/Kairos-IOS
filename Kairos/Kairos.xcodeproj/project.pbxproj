@@ -14,12 +14,14 @@
 		D63B99D3302A897100A20B29 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = D63B99D2302A897100A20B29 /* FirebaseCore */; };
 		D64E9B423035C17800DFFD26 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D64E9B413035C17800DFFD26 /* SessionStore.swift */; };
 		D64E9B443035C1EA00DFFD26 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = D64E9B433035C1EA00DFFD26 /* FirebaseFirestore */; };
+		D6887324304EE2BD00C96A4C /* Config.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = D6887323304EE2BD00C96A4C /* Config.xcconfig */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		D61BB6943029ACD600288A19 /* Kairos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kairos.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D63B99C9302A850400A20B29 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		D64E9B413035C17800DFFD26 /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		D6887323304EE2BD00C96A4C /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -67,6 +69,7 @@
 				D61BB6953029ACD600288A19 /* Products */,
 				D63B99C9302A850400A20B29 /* GoogleService-Info.plist */,
 				D63B99CD302A897100A20B29 /* Frameworks */,
+				D6887323304EE2BD00C96A4C /* Config.xcconfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -158,6 +161,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D6887324304EE2BD00C96A4C /* Config.xcconfig in Resources */,
 				D63B99CA302A850400A20B29 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -178,6 +182,7 @@
 /* Begin XCBuildConfiguration section */
 		D61BB69D3029ACD800288A19 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D6887323304EE2BD00C96A4C /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -241,6 +246,7 @@
 		};
 		D61BB69E3029ACD800288A19 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D6887323304EE2BD00C96A4C /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -297,6 +303,7 @@
 		};
 		D61BB6A03029ACD800288A19 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D6887323304EE2BD00C96A4C /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -331,6 +338,7 @@
 		};
 		D61BB6A13029ACD800288A19 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D6887323304EE2BD00C96A4C /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;

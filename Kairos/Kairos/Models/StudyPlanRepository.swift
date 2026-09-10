@@ -215,4 +215,49 @@ final class StudyPlanRepository {
             }
         }
     }
+
+    // MARK: - AI plan confirmation
+    /// Applies a confirmed AI-generated plan (new board or append to an
+    /// existing one) plus any extracted recurring events, in a single write.
+    /// Kept separate from mutateBoards because it also needs to write
+    /// scheduleEvents in the same call — two sequential writes here would
+    /// risk the second one reading a stale currentPlan.id if the snapshot
+    /// listener hasn't caught up yet after the first write.
+    func applyAiPlan(sections: [KairosSection], recurringEvents: [KairosScheduleEvent], newBoardTitle: String?, existingBoardID: String?) async {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+
+        var boards = currentPlan?.boards ?? []
+        if let boardID = existingBoardID, let i = boards.firstIndex(where: { $0.id == boardID }) {
+            boards[i].sections.append(contentsOf: sections)
+        } else {
+            let trimmed = newBoardTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = (trimmed?.isEmpty == false) ? trimmed! : "AI Plan"
+            boards.append(KairosBoard(id: "board-\(Int(Date().timeIntervalSince1970 * 1000))", title: title, archived: false, sections: sections))
+        }
+
+        var events = currentPlan?.scheduleEvents ?? []
+        events.append(contentsOf: recurringEvents)
+
+        do {
+            let encoder = Firestore.Encoder()
+            let encodedBoards = try boards.map { try encoder.encode($0) }
+            let encodedEvents = try events.map { try encoder.encode($0) }
+
+            if let planID = currentPlan?.id {
+                try await db.collection("study_plans").document(planID).updateData([
+                    "boards": encodedBoards,
+                    "scheduleEvents": encodedEvents
+                ])
+            } else {
+                _ = try await db.collection("study_plans").addDocument(data: [
+                    "boards": encodedBoards,
+                    "scheduleEvents": encodedEvents,
+                    "userID": userID,
+                    "createdAt": FieldValue.serverTimestamp()
+                ])
+            }
+        } catch {
+            errorMessage = "Failed to save AI plan: \(error.localizedDescription)"
+        }
+    }
 }
