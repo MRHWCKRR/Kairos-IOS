@@ -80,8 +80,19 @@ final class UserProfileRepository {
         }
     }
 
+    func saveAccessibilitySettings(_ settings: KairosAccessibilitySettings) async {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        do {
+            let encoded = try Firestore.Encoder().encode(settings)
+            try await db.collection("users").document(uid).setData(["settings.accessibility": encoded], merge: true)
+        } catch {
+            errorMessage = "Failed to save accessibility settings: \(error.localizedDescription)"
+        }
+    }
+
     func saveNotificationSettings(_ settings: KairosNotificationSettings) async {
         guard let uid = Auth.auth().currentUser?.uid else { return }
+        notificationSettings = settings
         do {
             let encoded = try Firestore.Encoder().encode(settings)
             try await db.collection("users").document(uid).setData(["settings.notifications": encoded], merge: true)
@@ -109,6 +120,7 @@ final class UserProfileRepository {
         var goals = achievementsData?.goals ?? [nil, nil, nil]
         while goals.count <= index { goals.append(nil) }
         goals[index] = achievementID
+        achievementsData?.goals = goals
         do {
             try await db.collection("users").document(uid).setData(["achievements.goals": goals], merge: true)
         } catch {
@@ -122,6 +134,7 @@ final class UserProfileRepository {
         if achievementsData?.unlocked?[id] != nil { return false }
         var unlocked = achievementsData?.unlocked ?? [:]
         unlocked[id] = Int64(Date().timeIntervalSince1970 * 1000)
+        achievementsData?.unlocked = unlocked
         do {
             try await db.collection("users").document(uid).setData(["achievements.unlocked": unlocked], merge: true)
             return true
@@ -179,7 +192,6 @@ final class UserProfileRepository {
     }
 
     // MARK: - Focus data
-
     func logFocusSession(seconds: Int64) async {
         guard let uid = Auth.auth().currentUser?.uid, seconds >= 1 else { return }
         var focus = focusData ?? defaultFocusData()
