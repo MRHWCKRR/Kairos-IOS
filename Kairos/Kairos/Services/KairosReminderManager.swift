@@ -1,0 +1,71 @@
+import EventKit
+import Foundation
+import Observation
+
+@MainActor
+@Observable
+final class KairosReminderManager {
+    enum AuthorizationState: Equatable {
+        case notDetermined
+        case denied
+        case restricted
+        case authorized
+    }
+
+    private let store = EKEventStore()
+    private(set) var authorizationState: AuthorizationState = .notDetermined
+
+    init() {
+        refreshAuthorizationState()
+    }
+
+    func refreshAuthorizationState() {
+        switch EKEventStore.authorizationStatus(for: .reminder) {
+        case .notDetermined: authorizationState = .notDetermined
+        case .denied: authorizationState = .denied
+        case .restricted: authorizationState = .restricted
+        case .fullAccess, .writeOnly: authorizationState = .authorized
+        @unknown default: authorizationState = .notDetermined
+        }
+    }
+
+    func requestAccess() async -> Bool {
+        do {
+            let granted = try await store.requestFullAccessToReminders()
+            refreshAuthorizationState()
+            return granted
+        } catch {
+            refreshAuthorizationState()
+            return false
+        }
+    }
+
+    @discardableResult
+    func addReminder(title: String, dueDate: Date?, notes: String? = nil, list: EKCalendar? = nil) throws -> String {
+        guard authorizationState == .authorized else { throw ReminderError.notAuthorized }
+        guard let reminderList = list ?? store.defaultCalendarForNewReminders() else {
+            throw ReminderError.noWritableList
+        }
+        let reminder = EKReminder(eventStore: store)
+        reminder.title = title
+        reminder.notes = notes
+        reminder.calendar = reminderList
+        if let dueDate {
+            reminder.dueDateComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: dueDate)
+        }
+        try store.save(reminder, commit: true)
+        return reminder.calendarItemIdentifier
+    }
+
+    enum ReminderError: LocalizedError {
+        case notAuthorized
+        case noWritableList
+
+        var errorDescription: String? {
+            switch self {
+            case .notAuthorized: return "Kairos does not have access to your reminders."
+            case .noWritableList: return "No writable reminder list is available."
+            }
+        }
+    }
+}
