@@ -2,17 +2,7 @@ import ActivityKit
 import Foundation
 import Observation
 
-/// Shared data contract used by the app and the eventual WidgetKit extension.
-/// Keep the fields stable so an extension can render an already-running session.
-struct FocusTimerAttributes: ActivityAttributes {
-    struct ContentState: Codable, Hashable {
-        var isRunning: Bool
-        var elapsedSeconds: Int
-    }
-
-    var startedAt: Date
-}
-
+/// Single source of truth for the in-app focus timer and its Live Activity.
 @Observable
 @MainActor
 final class FocusTimerCoordinator {
@@ -55,9 +45,12 @@ final class FocusTimerCoordinator {
     func stopAndReset() -> Int64 {
         refreshElapsed()
         let seconds = elapsedSeconds
-        pause()
-        Task { await endLiveActivity() }
+        isRunning = false
+        tickTask?.cancel()
+        tickTask = nil
+        startedAt = nil
         elapsedSeconds = 0
+        Task { await endLiveActivity(finalElapsedSeconds: seconds) }
         return seconds
     }
 
@@ -83,13 +76,8 @@ final class FocusTimerCoordinator {
         let attributes = FocusTimerAttributes(startedAt: startedAt ?? Date())
         let content = ActivityContent(state: currentActivityState(), staleDate: nil)
         do {
-            liveActivity = try Activity.request(
-                attributes: attributes,
-                content: content,
-                pushType: nil
-            )
+            liveActivity = try Activity.request(attributes: attributes, content: content, pushType: nil)
         } catch {
-            // Live Activities are an enhancement; the in-app timer remains authoritative.
             liveActivity = nil
         }
     }
@@ -100,11 +88,11 @@ final class FocusTimerCoordinator {
         await liveActivity.update(content)
     }
 
-    private func endLiveActivity() async {
+    private func endLiveActivity(finalElapsedSeconds: Int64) async {
         guard let liveActivity else { return }
         let finalState = FocusTimerAttributes.ContentState(
             isRunning: false,
-            elapsedSeconds: Int(min(Int64(Int.max), elapsedSeconds))
+            elapsedSeconds: Int(min(Int64(Int.max), finalElapsedSeconds))
         )
         await liveActivity.end(
             ActivityContent(state: finalState, staleDate: nil),
