@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ScheduleView: View {
     @Environment(StudyPlanRepository.self) private var planRepo
+    @State private var calendarManager = KairosCalendarManager()
+    @State private var showingCalendarAccess = false
 
     private var events: [KairosScheduleEvent] {
         (planRepo.currentPlan?.scheduleEvents ?? []).sorted {
@@ -38,6 +40,26 @@ struct ScheduleView: View {
             .kairosBackground()
             .navigationTitle("Schedule")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                if !events.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showingCalendarAccess = true
+                        } label: {
+                            Image(systemName: "calendar.badge.plus")
+                        }
+                        .accessibilityLabel("Add schedule to Apple Calendar")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingCalendarAccess) {
+                CalendarAccessSheet(calendarManager: calendarManager)
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+            }
+            .task {
+                calendarManager.refreshAuthorizationState()
+            }
         }
     }
 
@@ -139,6 +161,53 @@ struct ScheduleView: View {
         case 6: return "Day 6"
         case 7: return "Day 7"
         default: return "Day \(day)"
+        }
+    }
+}
+
+private struct CalendarAccessSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Bindable var calendarManager: KairosCalendarManager
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 20) {
+                Image(systemName: "calendar.badge.plus")
+                    .font(.system(size: 42))
+                    .foregroundStyle(KairosColors.accent)
+
+                Text("Apple Calendar")
+                    .font(.title2.weight(.bold))
+
+                Text("Give Kairos calendar access to add your study schedule as real calendar events. You can change this permission later in Settings.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+
+                switch calendarManager.authorizationState {
+                case .authorized:
+                    Label("Calendar access is enabled", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                case .denied, .restricted:
+                    Label("Calendar access is unavailable", systemImage: "xmark.circle")
+                        .foregroundStyle(.secondary)
+                case .notDetermined:
+                    Button("Allow Calendar Access") {
+                        Task { _ = await calendarManager.requestAccess() }
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(KairosColors.accent)
+                }
+
+                Spacer()
+            }
+            .padding(24)
+            .navigationTitle("Calendar")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
     }
 }
