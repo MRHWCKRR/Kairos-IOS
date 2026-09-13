@@ -30,7 +30,7 @@ struct FocusTimerLiveActivity: Widget {
                         .foregroundStyle(.tint)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(context.state.elapsedSeconds.formattedElapsed)
+                    FocusElapsedText(context: context)
                         .font(.headline.monospacedDigit())
                 }
                 DynamicIslandExpandedRegion(.trailing) {
@@ -49,13 +49,13 @@ struct FocusTimerLiveActivity: Widget {
             } compactLeading: {
                 Image(systemName: "timer")
             } compactTrailing: {
-                Text(context.state.elapsedSeconds.formattedElapsed)
+                FocusElapsedText(context: context)
                     .monospacedDigit()
                     .font(.caption2)
             } minimal: {
                 Image(systemName: "timer")
             }
-            .widgetURL(URL(string: "kairos://focus"))
+            .widgetURL(KairosDeepLink.focusTimerURL)
         }
     }
 }
@@ -80,10 +80,22 @@ private struct FocusTimerLockScreenView: View {
 
             Spacer()
 
-            Text(context.state.elapsedSeconds.formattedElapsed)
+            FocusElapsedText(context: context)
                 .font(.title3.monospacedDigit().weight(.semibold))
         }
         .padding()
+    }
+}
+
+private struct FocusElapsedText: View {
+    let context: ActivityViewContext<FocusTimerAttributes>
+
+    var body: some View {
+        if context.state.isRunning {
+            Text(timerInterval: context.attributes.startedAt...Date(), countsDown: false)
+        } else {
+            Text(context.state.elapsedSeconds.formattedElapsed)
+        }
     }
 }
 
