@@ -4,6 +4,7 @@ struct DashboardView: View {
     @Environment(SessionStore.self) private var session
     @Environment(StudyPlanRepository.self) private var planRepo
     @Environment(UserProfileRepository.self) private var profileRepo
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showingProfile = false
     @State private var focusTimer: FocusTimerViewModel?
 
@@ -112,32 +113,66 @@ struct DashboardView: View {
                         }
                     }
 
-                    HStack(spacing: 10) {
-                        Button {
-                            if focusTimer.isRunning { focusTimer.pause() } else { focusTimer.start() }
-                        } label: {
-                            Label(focusTimer.isRunning ? "Pause" : "Start Focus", systemImage: focusTimer.isRunning ? "pause.fill" : "play.fill")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.white)
-                        .background(KairosColors.accent, in: Capsule())
-
-                        Button { focusTimer.stopAndLog() } label: {
-                            Image(systemName: "stop.fill")
-                                .frame(width: 46, height: 46)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.primary)
-                        .kairosGlass(cornerRadius: 23)
-                    }
+                    focusControls(focusTimer)
                 }
                 .padding(20)
                 .kairosCard(cornerRadius: 30)
             }
         }
+    }
+
+    private func focusControls(_ timer: FocusTimerViewModel) -> some View {
+        HStack(spacing: 10) {
+            Button {
+                if timer.isRunning {
+                    timer.pause()
+                } else {
+                    timer.start()
+                }
+                fireFocusHaptic()
+            } label: {
+                Label(
+                    timer.isRunning ? "Pause" : "Start Focus",
+                    systemImage: timer.isRunning ? "pause.fill" : "play.fill"
+                )
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .background(KairosColors.accent, in: Capsule())
+            .accessibilityLabel(timer.isRunning ? "Pause focus timer" : "Start focus timer")
+            .accessibilityHint(timer.isRunning ? "Pauses the current focus session" : "Starts the focus timer")
+
+            Button {
+                timer.stopAndLog()
+                fireFocusHaptic()
+            } label: {
+                Image(systemName: "stop.fill")
+                    .frame(width: 46, height: 46)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.primary)
+            .kairosGlass(cornerRadius: 23)
+            .accessibilityLabel("Stop focus timer")
+            .accessibilityHint("Stops and logs the current focus session")
+            .frame(width: timer.isRunning ? 46 : 0)
+            .opacity(timer.isRunning ? 1 : 0)
+            .clipped()
+            .allowsHitTesting(timer.isRunning)
+        }
+        .animation(
+            reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82),
+            value: timer.isRunning
+        )
+    }
+
+    private func fireFocusHaptic() {
+        guard !reduceMotion else { return }
+        #if os(iOS)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        #endif
     }
 
     private var goalsCard: some View {
