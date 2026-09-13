@@ -55,7 +55,7 @@ struct FocusTimerLiveActivity: Widget {
             } minimal: {
                 Image(systemName: "timer")
             }
-            .widgetURL(KairosDeepLink.focusTimerURL)
+            .widgetURL(URL(string: "kairos://focus"))
         }
     }
 }
