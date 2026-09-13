@@ -38,8 +38,6 @@ final class AiRepository {
         request.setValue(relaySecret, forHTTPHeaderField: "X-Kairos-Auth")
         request.timeoutInterval = 60
 
-        // Truncate to 4000 chars per message to match the proxy's limit
-        // (mirrors Android's AiRepository.sendChatRequest truncation).
         let payloadMessages = messages.map { msg -> [String: String] in
             let content = msg.content.count > 4000
                 ? String(msg.content.prefix(3997)) + "..."
@@ -158,13 +156,12 @@ final class AiRepository {
             ))
         }
 
-        // Do not allow an otherwise successful AI response to create an empty
-        // board. At least one actionable task is required to make a plan useful.
         guard !sections.isEmpty, sections.contains(where: { !$0.tasks.isEmpty }) else {
             throw AiRepositoryError.malformedResponse
         }
 
         let eventsArray = root["recurringEvents"] as? [[String: Any]] ?? []
+        let allowedCategories = Set(["sleep", "class", "tutoring", "training", "other"])
         let events: [KairosScheduleEvent] = eventsArray.enumerated().compactMap { i, evObj in
             guard let rawTitle = evObj["title"] as? String,
                   let rawStart = evObj["start"] as? String,
@@ -173,10 +170,9 @@ final class AiRepository {
             let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
             let start = rawStart.trimmingCharacters(in: .whitespacesAndNewlines)
             let end = rawEnd.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !title.isEmpty, isValidTime(start), isValidTime(end) else { return nil }
+            guard !title.isEmpty, isValidTime(start), isValidTime(end), isStartBeforeEnd(start, end) else { return nil }
 
             let category = (evObj["category"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "other"
-            let allowedCategories = Set(["sleep", "class", "tutoring", "training", "other"])
             guard allowedCategories.contains(category) else { return nil }
 
             let day: Int
@@ -199,5 +195,18 @@ final class AiRepository {
               let hour = Int(components[0]),
               let minute = Int(components[1]) else { return false }
         return (0...23).contains(hour) && (0...59).contains(minute)
+    }
+
+    private func isStartBeforeEnd(_ start: String, _ end: String) -> Bool {
+        let startMinutes = minutesSinceMidnight(start)
+        let endMinutes = minutesSinceMidnight(end)
+        guard let startMinutes, let endMinutes else { return false }
+        return startMinutes < endMinutes
+    }
+
+    private func minutesSinceMidnight(_ value: String) -> Int? {
+        let parts = value.split(separator: ":")
+        guard parts.count == 2, let hour = Int(parts[0]), let minute = Int(parts[1]) else { return nil }
+        return hour * 60 + minute
     }
 }
