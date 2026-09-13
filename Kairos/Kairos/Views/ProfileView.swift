@@ -19,16 +19,21 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 18) {
                     header
                     quickStats
-                    achievementsLink
-                    statisticsLink
-                    settingsSection
+                    profileLink("Achievements", subtitle: "Track progress & unlock badges", icon: "trophy.fill", tint: .orange) {
+                        AchievementsView().environment(profileRepo)
+                    }
+                    profileLink("Statistics", subtitle: "Focus time & task trends", icon: "chart.bar.fill", tint: .blue) {
+                        StatisticsView().environment(profileRepo)
+                    }
+                    signOutButton
                 }
-                .padding(20)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
             }
-            .background(Color(.systemGroupedBackground))
+            .kairosBackground()
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -43,41 +48,35 @@ struct ProfileView: View {
         VStack(spacing: 10) {
             ZStack {
                 Circle()
-                    .fill(Color.purple.opacity(0.15))
-                    .frame(width: 76, height: 76)
+                    .fill(KairosColors.accent.opacity(0.14))
+                    .frame(width: 82, height: 82)
                 Text(initials)
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
-                    .foregroundStyle(.purple)
+                    .font(.system(size: 27, weight: .bold, design: .rounded))
+                    .foregroundStyle(KairosColors.accent)
             }
+            .kairosGlass(cornerRadius: 42, tint: KairosColors.accent.opacity(0.12))
 
             Text(displayName)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-
+                .font(.title3.weight(.bold))
             Text(session.email)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
     }
 
     private var quickStats: some View {
         HStack(spacing: 12) {
-            statCard(
-                title: "Focus Time",
-                value: formattedFocusTime,
-                icon: "flame.fill"
-            )
-            statCard(
-                title: "Tasks Done",
-                value: "\(profileRepo.achievementsData?.lifetimeTasksCompleted ?? 0)",
-                icon: "checkmark.circle.fill"
-            )
+            statCard(title: "Focus Time", value: formattedFocusTime, icon: "flame.fill")
+            statCard(title: "Tasks Done", value: "\(profileRepo.achievementsData?.lifetimeTasksCompleted ?? 0)", icon: "checkmark.circle.fill")
         }
     }
 
     private func statCard(title: String, value: String, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Image(systemName: icon)
-                .foregroundStyle(.purple)
+                .foregroundStyle(KairosColors.accent)
             Text(value)
                 .font(.title3.weight(.bold))
             Text(title)
@@ -86,82 +85,63 @@ struct ProfileView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .kairosCard(cornerRadius: 18)
+    }
+
+    private func profileLink<Destination: View>(
+        _ title: String,
+        subtitle: String,
+        icon: String,
+        tint: Color,
+        @ViewBuilder destination: () -> Destination
+    ) -> some View {
+        NavigationLink(destination: destination) {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.headline)
+                    .foregroundStyle(tint)
+                    .frame(width: 40, height: 40)
+                    .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(14)
+            .kairosCard(cornerRadius: 18)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var signOutButton: some View {
+        Button(role: .destructive) {
+            session.signOut()
+            dismiss()
+        } label: {
+            HStack {
+                Text("Sign Out")
+                Spacer()
+                Image(systemName: "rectangle.portrait.and.arrow.right")
+            }
+            .font(.subheadline.weight(.semibold))
+            .padding(16)
+            .frame(maxWidth: .infinity)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
     }
 
     private var formattedFocusTime: String {
         FocusTimerViewModel.formatHMS(profileRepo.focusData?.totalSeconds ?? 0)
-    }
-
-    private var achievementsLink: some View {
-        NavigationLink {
-            AchievementsView()
-                .environment(profileRepo)
-        } label: {
-            HStack {
-                Image(systemName: "trophy.fill")
-                    .foregroundStyle(.orange)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Achievements")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    Text("Track progress & unlock badges")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(16)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var statisticsLink: some View {
-        NavigationLink {
-            StatisticsView()
-                .environment(profileRepo)
-        } label: {
-            HStack {
-                Image(systemName: "chart.bar.fill")
-                    .foregroundStyle(.blue)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Statistics")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    Text("Focus time & task trends")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(16)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var settingsSection: some View {
-        VStack(spacing: 0) {
-            Button(role: .destructive) {
-                session.signOut()
-                dismiss()
-            } label: {
-                HStack {
-                    Text("Sign Out")
-                    Spacer()
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
-                }
-                .padding(16)
-            }
-        }
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
