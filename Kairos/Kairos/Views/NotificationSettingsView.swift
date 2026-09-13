@@ -162,12 +162,6 @@ struct NotificationSettingsView: View {
         updated[keyPath: keyPath] = value
         profileRepo.notificationSettings = updated
         await profileRepo.saveNotificationSettings(updated)
-
-        if keyPath == \KairosNotificationSettings.enabled, value {
-            if notificationManager.authorizationState == .notDetermined {
-                _ = await notificationManager.requestAuthorization()
-            }
-        }
     }
 }
 
