@@ -19,5 +19,9 @@
 	<string>$(KAIROS_RELAY_SECRET)</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Kairos uses your calendar to add study sessions to your schedule.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Kairos uses Reminders to help you keep track of study tasks.</string>
 </dict>
 </plist>
