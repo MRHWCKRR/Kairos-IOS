@@ -22,6 +22,9 @@ struct ProfileView: View {
                 VStack(spacing: 18) {
                     header
                     quickStats
+                    profileLink("Notifications", subtitle: "Choose when Kairos can reach you", icon: "bell.badge.fill", tint: KairosColors.accent) {
+                        NotificationSettingsView().environment(profileRepo)
+                    }
                     profileLink("Achievements", subtitle: "Track progress & unlock badges", icon: "trophy.fill", tint: .orange) {
                         AchievementsView().environment(profileRepo)
                     }
