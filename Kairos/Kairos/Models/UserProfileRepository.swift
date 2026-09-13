@@ -9,6 +9,7 @@ final class UserProfileRepository {
     var profile: KairosUserProfile?
     var focusData: KairosFocusData?
     var achievementsData: KairosAchievementsData?
+    var notificationSettings: KairosNotificationSettings?
     var aiChatHistory: [ChatMessage] = []
     var isLoading = false
     var errorMessage: String?
@@ -34,6 +35,7 @@ final class UserProfileRepository {
                     self.profile = nil
                     self.focusData = nil
                     self.achievementsData = nil
+                    self.notificationSettings = nil
                     self.aiChatHistory = []
                     return
                 }
@@ -41,6 +43,7 @@ final class UserProfileRepository {
                 self.profile = data.settings?.profile
                 self.focusData = data.focusData
                 self.achievementsData = data.achievements
+                self.notificationSettings = data.settings?.notifications
                 self.aiChatHistory = data.aiChatHistory ?? []
                 self.errorMessage = nil
             }
@@ -60,6 +63,16 @@ final class UserProfileRepository {
             try await db.collection("users").document(uid).setData(["settings": encoded], merge: true)
         } catch {
             errorMessage = "Failed to save settings: \(error.localizedDescription)"
+        }
+    }
+
+    func saveNotificationSettings(_ settings: KairosNotificationSettings) async {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        do {
+            let encoded = try Firestore.Encoder().encode(settings)
+            try await db.collection("users").document(uid).setData(["settings.notifications": encoded], merge: true)
+        } catch {
+            errorMessage = "Failed to save notification settings: \(error.localizedDescription)"
         }
     }
 
