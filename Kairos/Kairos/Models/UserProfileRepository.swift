@@ -9,6 +9,7 @@ final class UserProfileRepository {
     var profile: KairosUserProfile?
     var focusData: KairosFocusData?
     var achievementsData: KairosAchievementsData?
+    var accessibilitySettings: KairosAccessibilitySettings?
     var notificationSettings: KairosNotificationSettings?
     var appearanceSettings: KairosAppearanceSettings?
     var aiChatHistory: [ChatMessage] = []
@@ -36,6 +37,7 @@ final class UserProfileRepository {
                     self.profile = nil
                     self.focusData = nil
                     self.achievementsData = nil
+                    self.accessibilitySettings = nil
                     self.notificationSettings = nil
                     self.appearanceSettings = nil
                     self.aiChatHistory = []
@@ -45,6 +47,7 @@ final class UserProfileRepository {
                 self.profile = data.settings?.profile
                 self.focusData = data.focusData
                 self.achievementsData = data.achievements
+                self.accessibilitySettings = data.settings?.accessibility
                 self.notificationSettings = data.settings?.notifications
                 self.appearanceSettings = data.settings?.appearance
                 self.aiChatHistory = data.aiChatHistory ?? []
@@ -58,7 +61,6 @@ final class UserProfileRepository {
     }
 
     // MARK: - Settings
-
     func saveSettings(_ settings: KairosUserSettings) async {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         do {
@@ -82,6 +84,7 @@ final class UserProfileRepository {
 
     func saveAccessibilitySettings(_ settings: KairosAccessibilitySettings) async {
         guard let uid = Auth.auth().currentUser?.uid else { return }
+        accessibilitySettings = settings
         do {
             let encoded = try Firestore.Encoder().encode(settings)
             try await db.collection("users").document(uid).setData(["settings.accessibility": encoded], merge: true)
@@ -102,7 +105,6 @@ final class UserProfileRepository {
     }
 
     // MARK: - AI chat history
-
     func saveAiChatHistory(_ messages: [ChatMessage]) async {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         do {
@@ -114,13 +116,15 @@ final class UserProfileRepository {
     }
 
     // MARK: - Achievements
-
     func setGoal(index: Int, achievementID: String?) async {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         var goals = achievementsData?.goals ?? [nil, nil, nil]
         while goals.count <= index { goals.append(nil) }
         goals[index] = achievementID
-        achievementsData?.goals = goals
+        if var achievements = achievementsData {
+            achievements.goals = goals
+            achievementsData = achievements
+        }
         do {
             try await db.collection("users").document(uid).setData(["achievements.goals": goals], merge: true)
         } catch {
@@ -134,7 +138,10 @@ final class UserProfileRepository {
         if achievementsData?.unlocked?[id] != nil { return false }
         var unlocked = achievementsData?.unlocked ?? [:]
         unlocked[id] = Int64(Date().timeIntervalSince1970 * 1000)
-        achievementsData?.unlocked = unlocked
+        if var achievements = achievementsData {
+            achievements.unlocked = unlocked
+            achievementsData = achievements
+        }
         do {
             try await db.collection("users").document(uid).setData(["achievements.unlocked": unlocked], merge: true)
             return true
