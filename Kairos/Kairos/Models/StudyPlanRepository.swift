@@ -57,11 +57,19 @@ final class StudyPlanRepository {
 
         plan.boards[boardIndex].sections[sectionIndex].tasks[taskIndex].completed.toggle()
 
+        // Optimistically publish the same model we are about to write. This
+        // keeps dependent UI (including board-completion celebrations) in sync
+        // immediately instead of waiting for Firestore's snapshot listener.
+        let previousPlan = currentPlan
+        currentPlan = plan
+
         do {
             let encoder = Firestore.Encoder()
             let encodedBoards = try plan.boards.map { try encoder.encode($0) }
             try await db.collection("study_plans").document(planID).updateData(["boards": encodedBoards])
         } catch {
+            // Restore the last confirmed snapshot if the optimistic write fails.
+            currentPlan = previousPlan
             errorMessage = "Failed to update task: \(error.localizedDescription)"
         }
     }
@@ -257,7 +265,7 @@ final class StudyPlanRepository {
                 ])
             }
         } catch {
-            errorMessage = "Failed to save AI plan: \(error.localizedDescription)"
+            errorMessage = "Failed to apply AI plan: \(error.localizedDescription)"
         }
     }
 }
