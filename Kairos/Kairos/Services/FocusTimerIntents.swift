@@ -36,6 +36,19 @@ struct PauseFocusTimerIntent: AppIntent {
     }
 }
 
+struct StopFocusTimerIntent: AppIntent {
+    static let title: LocalizedStringResource = "Stop Focus Timer"
+    static let description = IntentDescription("Stop and reset the Kairos focus timer.")
+    static let openAppWhenRun = false
+
+    func perform() async throws -> some IntentResult {
+        await MainActor.run {
+            _ = FocusTimerCoordinator.shared.stopAndReset()
+        }
+        return .result()
+    }
+}
+
 struct KairosAppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
@@ -65,6 +78,15 @@ struct KairosAppShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Pause Focus",
             systemImageName: "pause.circle"
+        )
+        AppShortcut(
+            intent: StopFocusTimerIntent(),
+            phrases: [
+                "Stop my focus timer in Kairos",
+                "End my focus session in Kairos"
+            ],
+            shortTitle: "Stop Focus",
+            systemImageName: "stop.circle"
         )
     }
 }
