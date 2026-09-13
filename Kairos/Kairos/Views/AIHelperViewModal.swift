@@ -76,6 +76,9 @@ final class AIHelperViewModel {
                     .joined(separator: "\n")
                 let prompt = "Extract a structured routine from this chat into raw JSON sections and tasks.\n\n" + transcript
                 let result = try await aiRepository.generatePlan(input: prompt)
+                guard !result.sections.isEmpty else {
+                    throw AiRepositoryError.malformedResponse
+                }
                 pendingPlan = result
                 showConfirmationDialog = true
             } catch {
@@ -96,16 +99,27 @@ final class AIHelperViewModel {
         let sections = plan.sections
         let events = plan.recurringEvents
         let mode = targetBoardMode
-        let newTitle = newBoardName
+        let newTitle = newBoardName.trimmingCharacters(in: .whitespacesAndNewlines)
         let existingID = selectedExistingBoardID
 
+        guard mode == .existing || !newTitle.isEmpty else {
+            errorMessage = "Give the new board a name first."
+            return
+        }
+        guard mode == .new || !existingID.isEmpty else {
+            errorMessage = "Choose an existing board first."
+            return
+        }
+
         Task {
+            isLoading = true
             await planRepo.applyAiPlan(
                 sections: sections,
                 recurringEvents: events,
                 newBoardTitle: mode == .new ? newTitle : nil,
                 existingBoardID: mode == .existing ? existingID : nil
             )
+            isLoading = false
             showConfirmationDialog = false
             pendingPlan = nil
         }

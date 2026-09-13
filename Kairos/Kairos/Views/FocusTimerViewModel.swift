@@ -1,47 +1,32 @@
 import Foundation
 import Observation
 
-/// Mirrors Android's MainViewModel focus timer (startFocusTimer/pauseFocusTimer/
-/// stopAndLogFocus): a simple running counter, not a wall-clock reconstruction.
-/// Neither Android nor this currently survive the app being backgrounded/killed
-/// mid-session — that's an accepted gap on both platforms for now, not a regression.
+/// Dashboard-facing adapter for the shared focus timer.
+/// The coordinator keeps the timer accurate while the app is backgrounded or suspended.
 @Observable
 @MainActor
 final class FocusTimerViewModel {
-    var isRunning = false
-    var elapsedSeconds: Int64 = 0
-
-    private var tickTask: Task<Void, Never>?
     private let profileRepo: UserProfileRepository
+    private let coordinator = FocusTimerCoordinator.shared
+
+    var isRunning: Bool { coordinator.isRunning }
+    var elapsedSeconds: Int64 { coordinator.elapsedSeconds }
 
     init(profileRepo: UserProfileRepository) {
         self.profileRepo = profileRepo
     }
 
     func start() {
-        guard !isRunning else { return }
-        isRunning = true
-        tickTask = Task { [weak self] in
-            while let self, self.isRunning {
-                try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled, self.isRunning else { return }
-                self.elapsedSeconds += 1
-            }
-        }
+        coordinator.start()
     }
 
     func pause() {
-        isRunning = false
-        tickTask?.cancel()
-        tickTask = nil
+        coordinator.pause()
     }
 
-    /// Mirrors Android's stopAndLogFocus(): logs the session if it's at
-    /// least 1 second, then resets the display to zero.
+    /// Logs the session if it is at least 1 second, then resets the display.
     func stopAndLog() {
-        let seconds = elapsedSeconds
-        pause()
-        elapsedSeconds = 0
+        let seconds = coordinator.stopAndReset()
         guard seconds >= 1 else { return }
         Task { await profileRepo.logFocusSession(seconds: seconds) }
     }

@@ -38,8 +38,6 @@ final class AiRepository {
         request.setValue(relaySecret, forHTTPHeaderField: "X-Kairos-Auth")
         request.timeoutInterval = 60
 
-        // Truncate to 4000 chars per message to match the proxy's limit
-        // (mirrors Android's AiRepository.sendChatRequest truncation).
         let payloadMessages = messages.map { msg -> [String: String] in
             let content = msg.content.count > 4000
                 ? String(msg.content.prefix(3997)) + "..."
@@ -124,39 +122,91 @@ final class AiRepository {
         let uniqueId = Int(Date().timeIntervalSince1970 * 1000)
 
         let sectionsArray = root["sections"] as? [[String: Any]] ?? []
-        let sections: [KairosSection] = sectionsArray.enumerated().map { sIndex, secObj in
+        var sections: [KairosSection] = []
+        sections.reserveCapacity(sectionsArray.count)
+
+        for (sIndex, secObj) in sectionsArray.enumerated() {
+            guard let rawTitle = secObj["title"] as? String else { continue }
+            let sectionTitle = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !sectionTitle.isEmpty else { continue }
+
             let tasksArray = secObj["tasks"] as? [[String: Any]] ?? []
-            let tasks: [KairosTask] = tasksArray.enumerated().map { tIndex, taskObj in
-                KairosTask(
+            var tasks: [KairosTask] = []
+            tasks.reserveCapacity(tasksArray.count)
+
+            for (tIndex, taskObj) in tasksArray.enumerated() {
+                guard let rawTaskTitle = taskObj["title"] as? String else { continue }
+                let taskTitle = rawTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !taskTitle.isEmpty else { continue }
+
+                tasks.append(KairosTask(
                     id: "ai-task-\(uniqueId)-\(sIndex)-\(tIndex)",
-                    title: (taskObj["title"] as? String) ?? "Untitled Task",
+                    title: taskTitle,
                     completed: false,
                     archived: false,
                     date: nil
-                )
+                ))
             }
-            return KairosSection(
+
+            sections.append(KairosSection(
                 id: "ai-sec-\(uniqueId)-\(sIndex)",
-                title: (secObj["title"] as? String) ?? "Untitled Section",
+                title: sectionTitle,
                 archived: false,
                 tasks: tasks
-            )
+            ))
+        }
+
+        guard !sections.isEmpty, sections.contains(where: { !$0.tasks.isEmpty }) else {
+            throw AiRepositoryError.malformedResponse
         }
 
         let eventsArray = root["recurringEvents"] as? [[String: Any]] ?? []
+        let allowedCategories = Set(["sleep", "class", "tutoring", "training", "other"])
         let events: [KairosScheduleEvent] = eventsArray.enumerated().compactMap { i, evObj in
-            guard let title = evObj["title"] as? String,
-                  let start = evObj["start"] as? String,
-                  let end = evObj["end"] as? String else { return nil }
-            let category = (evObj["category"] as? String) ?? "other"
+            guard let rawTitle = evObj["title"] as? String,
+                  let rawStart = evObj["start"] as? String,
+                  let rawEnd = evObj["end"] as? String else { return nil }
+
+            let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+            let start = rawStart.trimmingCharacters(in: .whitespacesAndNewlines)
+            let end = rawEnd.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty, isValidTime(start), isValidTime(end), isStartBeforeEnd(start, end) else { return nil }
+
+            let category = (evObj["category"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "other"
+            guard allowedCategories.contains(category) else { return nil }
+
             let day: Int
             if let d = evObj["day"] as? Int { day = d }
             else if let d = evObj["day"] as? String, let parsed = Int(d) { day = parsed }
             else { return nil }
             guard (0...6).contains(day) else { return nil }
+
             return KairosScheduleEvent(id: "ai-sched-\(uniqueId)-\(i)", title: title, category: category, day: day, start: start, end: end)
         }
 
         return AiPlanResult(sections: sections, recurringEvents: events)
+    }
+
+    private func isValidTime(_ value: String) -> Bool {
+        let components = value.split(separator: ":", omittingEmptySubsequences: false)
+        guard components.count == 2,
+              components[0].count == 2,
+              components[1].count == 2,
+              let hour = Int(components[0]),
+              let minute = Int(components[1]) else { return false }
+        return (0...23).contains(hour) && (0...59).contains(minute)
+    }
+
+    private func isStartBeforeEnd(_ start: String, _ end: String) -> Bool {
+        let startMinutes = minutesSinceMidnight(start)
+        let endMinutes = minutesSinceMidnight(end)
+        guard let startMinutes, let endMinutes else { return false }
+        return startMinutes < endMinutes
+    }
+
+    private func minutesSinceMidnight(_ value: String) -> Int? {
+        let parts = value.split(separator: ":")
+        guard parts.count == 2, let hour = Int(parts[0]), let minute = Int(parts[1]) else { return nil }
+        return hour * 60 + minute
     }
 }

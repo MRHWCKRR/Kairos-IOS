@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A70000010000000000000001 /* KairosWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A70000070000000000000007 /* KairosWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D61C9FF8302AED8C0047B754 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = D61C9FF7302AED8C0047B754 /* GoogleSignIn */; };
 		D61C9FFA302AED8C0047B754 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = D61C9FF9302AED8C0047B754 /* GoogleSignInSwift */; };
 		D63B99CA302A850400A20B29 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D63B99C9302A850400A20B29 /* GoogleService-Info.plist */; };
@@ -17,7 +18,32 @@
 		D6887324304EE2BD00C96A4C /* Config.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = D6887323304EE2BD00C96A4C /* Config.xcconfig */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		A70000090000000000000009 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D61BB68C3029ACD600288A19 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A70000080000000000000008;
+			remoteInfo = KairosWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A700000B000000000000000B /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A70000010000000000000001 /* KairosWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		A70000070000000000000007 /* KairosWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KairosWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D61BB6943029ACD600288A19 /* Kairos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kairos.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D63B99C9302A850400A20B29 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		D64E9B413035C17800DFFD26 /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
@@ -25,6 +51,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A70000030000000000000003 /* Exceptions for "KairosWidgets" folder in "KairosWidgets" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A70000080000000000000008 /* KairosWidgets */;
+		};
 		D63B99CC302A878C00A20B29 /* Exceptions for "Kairos" folder in "Kairos" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -35,6 +68,14 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		A70000040000000000000004 /* KairosWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A70000030000000000000003 /* Exceptions for "KairosWidgets" folder in "KairosWidgets" target */,
+			);
+			path = KairosWidgets;
+			sourceTree = "<group>";
+		};
 		D61BB6963029ACD600288A19 /* Kairos */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -46,6 +87,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		A70000050000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D61BB6913029ACD600288A19 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -61,11 +109,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		A70000060000000000000006 /* KairosWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				A70000040000000000000004 /* KairosWidgets */,
+			);
+			name = KairosWidgets;
+			sourceTree = "<group>";
+		};
 		D61BB68B3029ACD600288A19 = {
 			isa = PBXGroup;
 			children = (
 				D64E9B413035C17800DFFD26 /* SessionStore.swift */,
 				D61BB6963029ACD600288A19 /* Kairos */,
+				A70000060000000000000006 /* KairosWidgets */,
 				D61BB6953029ACD600288A19 /* Products */,
 				D63B99C9302A850400A20B29 /* GoogleService-Info.plist */,
 				D63B99CD302A897100A20B29 /* Frameworks */,
@@ -77,6 +134,7 @@
 			isa = PBXGroup;
 			children = (
 				D61BB6943029ACD600288A19 /* Kairos.app */,
+				A70000070000000000000007 /* KairosWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -91,6 +149,26 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		A70000080000000000000008 /* KairosWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A70000100000000000000010 /* Build configuration list for PBXNativeTarget "KairosWidgets" */;
+			buildPhases = (
+				A700000C000000000000000C /* Sources */,
+				A70000050000000000000005 /* Frameworks */,
+				A700000D000000000000000D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A70000040000000000000004 /* KairosWidgets */,
+			);
+			name = KairosWidgets;
+			productName = KairosWidgets;
+			productReference = A70000070000000000000007 /* KairosWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		D61BB6933029ACD600288A19 /* Kairos */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = D61BB69F3029ACD800288A19 /* Build configuration list for PBXNativeTarget "Kairos" */;
@@ -98,10 +176,12 @@
 				D61BB6903029ACD600288A19 /* Sources */,
 				D61BB6913029ACD600288A19 /* Frameworks */,
 				D61BB6923029ACD600288A19 /* Resources */,
+				A700000B000000000000000B /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A700000A000000000000000A /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				D61BB6963029ACD600288A19 /* Kairos */,
@@ -128,6 +208,9 @@
 				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
+					A70000080000000000000008 = {
+						CreatedOnToolsVersion = 26.6;
+					};
 					D61BB6933029ACD600288A19 = {
 						CreatedOnToolsVersion = 26.6;
 					};
@@ -152,11 +235,19 @@
 			projectRoot = "";
 			targets = (
 				D61BB6933029ACD600288A19 /* Kairos */,
+				A70000080000000000000008 /* KairosWidgets */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		A700000D000000000000000D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D61BB6923029ACD600288A19 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -169,6 +260,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		A700000C000000000000000C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D61BB6903029ACD600288A19 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -179,7 +277,64 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		A700000A000000000000000A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A70000080000000000000008 /* KairosWidgets */;
+			targetProxy = A70000090000000000000009 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		A700000E000000000000000E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = DVPRMLSVAH;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = KairosWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bytebybyte.kairos.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A700000F000000000000000F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = DVPRMLSVAH;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = KairosWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bytebybyte.kairos.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		D61BB69D3029ACD800288A19 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = D6887323304EE2BD00C96A4C /* Config.xcconfig */;
@@ -313,6 +468,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Kairos/Info.plist;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Kairos uses your calendar to add study sessions to your schedule.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Kairos uses Reminders to help you keep track of study tasks.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -348,6 +506,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Kairos/Info.plist;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Kairos uses your calendar to add study sessions to your schedule.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Kairos uses Reminders to help you keep track of study tasks.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -374,6 +535,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		A70000100000000000000010 /* Build configuration list for PBXNativeTarget "KairosWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A700000E000000000000000E /* Debug */,
+				A700000F000000000000000F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		D61BB68F3029ACD600288A19 /* Build configuration list for PBXProject "Kairos" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

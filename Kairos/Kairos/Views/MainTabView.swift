@@ -1,33 +1,43 @@
-//
-//  File.swift
-//  Kairos
-//
-//  Created by Yunfei Na on 19/8/2026.
-//
-
 import SwiftUI
 
 struct MainTabView: View {
+    @State private var selectedTab = 0
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             DashboardView()
-                .tabItem { Label("Dashboard", systemImage: "square.grid.2x2.fill") }
+                .tabItem { Label("Home", systemImage: "house.fill") }
+                .tag(0)
 
             TasksView()
-                .tabItem { Label("Tasks", systemImage: "checklist") }
+                .tabItem { Label("Boards", systemImage: "checklist") }
+                .tag(1)
 
             AIHelperView()
-                .tabItem { Label("AI Helper", systemImage: "sparkles") }
+                .tabItem { Label("AI", systemImage: "sparkles") }
+                .tag(2)
 
-            ScheduleView()
-                .tabItem { Label("Schedule", systemImage: "calendar") }
+            CalendarView()
+                .tabItem { Label("Calendar", systemImage: "calendar") }
+                .tag(3)
+
+            AchievementsView()
+                .tabItem { Label("Goals", systemImage: "trophy.fill") }
+                .tag(4)
         }
-        .tint(.purple)
+        .tint(KairosColors.accent)
+        .onOpenURL { url in
+            guard url.scheme == KairosDeepLink.scheme,
+                  url.host == KairosDeepLink.focusTimerPath else { return }
+            selectedTab = 0
+            FocusTimerCoordinator.shared.start()
+        }
     }
 }
 
 #Preview {
     MainTabView()
+        .environment(SessionStore())
         .environment(StudyPlanRepository())
         .environment(UserProfileRepository())
 }

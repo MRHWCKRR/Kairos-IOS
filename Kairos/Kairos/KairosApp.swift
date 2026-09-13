@@ -8,15 +8,18 @@
 import SwiftUI
 import FirebaseCore
 import GoogleSignIn
+import UserNotifications
 
 @main
 struct KairosApp: App {
     @State private var session = SessionStore()
+    private let notificationDelegate = KairosNotificationDelegate()
 
     init() {
         if FirebaseApp.app() == nil {
             FirebaseApp.configure()
         }
+        UNUserNotificationCenter.current().delegate = notificationDelegate
     }
 
     var body: some Scene {
