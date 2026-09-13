@@ -22,6 +22,9 @@ struct ProfileView: View {
                 VStack(spacing: 18) {
                     header
                     quickStats
+                    profileLink("Settings", subtitle: "Appearance, notifications & app preferences", icon: "gearshape.fill", tint: .secondary) {
+                        SettingsView()
+                    }
                     profileLink("Notifications", subtitle: "Choose when Kairos can reach you", icon: "bell.badge.fill", tint: KairosColors.accent) {
                         NotificationSettingsView().environment(profileRepo)
                     }
@@ -78,13 +81,9 @@ struct ProfileView: View {
 
     private func statCard(title: String, value: String, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: icon)
-                .foregroundStyle(KairosColors.accent)
-            Text(value)
-                .font(.title3.weight(.bold))
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Image(systemName: icon).foregroundStyle(KairosColors.accent)
+            Text(value).font(.title3.weight(.bold))
+            Text(title).font(.caption).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -105,20 +104,12 @@ struct ProfileView: View {
                     .foregroundStyle(tint)
                     .frame(width: 40, height: 40)
                     .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
                 }
-
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
             }
             .padding(14)
             .kairosCard(cornerRadius: 18)
