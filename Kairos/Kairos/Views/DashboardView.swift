@@ -1,5 +1,4 @@
 import SwiftUI
-import FirebaseAuth
 
 struct DashboardView: View {
     @Environment(SessionStore.self) private var session
@@ -14,55 +13,39 @@ struct DashboardView: View {
     }
 
     private var allTasks: [KairosTask] {
-        planRepo.currentPlan?.boards.flatMap { $0.sections.flatMap { $0.tasks } } ?? []
+        planRepo.currentPlan?.boards.flatMap { board in
+            board.sections.filter { !$0.archived }.flatMap { $0.tasks.filter { !$0.archived } }
+        } ?? []
     }
 
-    private var completedCount: Int {
-        allTasks.filter(\.completed).count
+    private var completedCount: Int { allTasks.filter(\.completed).count }
+
+    private var completion: Double {
+        guard !allTasks.isEmpty else { return 0 }
+        return Double(completedCount) / Double(allTasks.count)
+    }
+
+    private var activeGoals: [String?] {
+        let saved = profileRepo.achievementsData?.goals ?? []
+        return (0..<3).map { saved.indices.contains($0) ? saved[$0] : nil }
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 18) {
                     header
-
-                    if let focusTimer {
-                        FocusTimerCard(viewModel: focusTimer)
-                    }
-
-                    if planRepo.isLoading {
-                        ProgressView("Loading your plan…")
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 60)
-                    } else if let plan = planRepo.currentPlan {
-                        progressSummary
-                        boardsList(plan: plan)
-                    } else {
-                        emptyState
-                    }
-
-                    if let error = planRepo.errorMessage {
-                        Text(error)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
+                    focusCard
+                    goalsCard
+                    routineCard
+                    boardsPreview
                 }
-                .padding(20)
+                .padding(.horizontal, 18)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
             }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Kairos")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingProfile = true
-                    } label: {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(.purple)
-                    }
-                }
-            }
+            .kairosBackground()
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showingProfile) {
                 ProfileView()
                     .environment(session)
@@ -77,149 +60,228 @@ struct DashboardView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Welcome back")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Text(displayName)
-                .font(.system(size: 26, weight: .bold, design: .rounded))
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Welcome back")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Text(displayName)
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+            }
+
+            Spacer(minLength: 12)
+
+            Button { showingProfile = true } label: {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: 34))
+                    .foregroundStyle(KairosColors.accent)
+                    .symbolRenderingMode(.hierarchical)
+            }
+            .accessibilityLabel("Open profile")
+            .kairosGlass(cornerRadius: 18, tint: KairosColors.accent.opacity(0.10))
         }
     }
 
-    private var progressSummary: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(completedCount) of \(allTasks.count) tasks done")
-                    .font(.subheadline.weight(.semibold))
-                ProgressView(value: allTasks.isEmpty ? 0 : Double(completedCount), total: Double(max(allTasks.count, 1)))
-                    .tint(.purple)
+    private var focusCard: some View {
+        Group {
+            if let focusTimer {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack {
+                        Label("FOCUS TIMER", systemImage: "timer")
+                            .font(.caption.weight(.bold))
+                            .tracking(1)
+                            .foregroundStyle(KairosColors.accent)
+                        Spacer()
+                        Text(focusTimer.isRunning ? "ACTIVE" : "READY")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(focusTimer.isRunning ? KairosColors.accent : .secondary)
+                    }
+
+                    HStack(alignment: .lastTextBaseline) {
+                        Text(FocusTimerViewModel.formatHMS(focusTimer.elapsedSeconds))
+                            .font(.system(size: 46, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 3) {
+                            Text("Longest")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(FocusTimerViewModel.formatHMS(profileRepo.focusData?.longestSessionSeconds ?? 0))
+                                .font(.caption.weight(.semibold))
+                        }
+                    }
+
+                    HStack(spacing: 10) {
+                        Button {
+                            if focusTimer.isRunning { focusTimer.pause() } else { focusTimer.start() }
+                        } label: {
+                            Label(focusTimer.isRunning ? "Pause" : "Start Focus", systemImage: focusTimer.isRunning ? "pause.fill" : "play.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.white)
+                        .background(KairosColors.accent, in: Capsule())
+
+                        Button { focusTimer.stopAndLog() } label: {
+                            Image(systemName: "stop.fill")
+                                .frame(width: 46, height: 46)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.primary)
+                        .kairosGlass(cornerRadius: 23)
+                    }
+                }
+                .padding(20)
+                .kairosCard(cornerRadius: 30)
             }
         }
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
-    private func boardsList(plan: KairosStudyPlan) -> some View {
-        ForEach(plan.boards.filter { !$0.archived }) { board in
-            VStack(alignment: .leading, spacing: 12) {
-                Text(board.title)
-                    .font(.headline)
+    private var goalsCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Active Goals")
+                    .font(.headline.weight(.bold))
+                Spacer()
+                Image(systemName: "trophy.fill")
+                    .foregroundStyle(KairosColors.accent)
+            }
 
-                ForEach(board.sections.filter { !$0.archived }) { section in
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(section.title)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.secondary)
+            ForEach(Array(activeGoals.enumerated()), id: \.offset) { index, goalID in
+                goalRow(index: index, achievementID: goalID)
+            }
+        }
+        .padding(18)
+        .kairosCard(cornerRadius: 26)
+    }
 
-                        ForEach(section.tasks.filter { !$0.archived }) { task in
-                            taskRow(task: task, boardID: board.id, sectionID: section.id)
+    private func goalRow(index: Int, achievementID: String?) -> some View {
+        let fallback = ["Adept", "Novice", "Task Titan"][index]
+        let def = KAIROS_ACHIEVEMENTS.first(where: { $0.id == achievementID })
+        let title = def?.name ?? fallback
+        let progress = def.map(goalProgress(for:)) ?? 0
+
+        return VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 10) {
+                Text(def?.icon ?? ["🌀", "🔥", "🗿"][index])
+                    .font(.title3)
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("\(Int(progress * 100))%")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            ProgressView(value: progress)
+                .tint(KairosColors.accent)
+        }
+    }
+
+    private func goalProgress(for def: AchievementDef) -> Double {
+        let current: Int64
+        switch def.type {
+        case "focus_seconds": current = profileRepo.focusData?.totalSeconds ?? 0
+        case "tasks_completed": current = Int64(profileRepo.achievementsData?.lifetimeTasksCompleted ?? 0)
+        default: current = profileRepo.achievementsData?.unlocked?[def.id] != nil ? 1 : 0
+        }
+        guard def.threshold > 0 else { return current > 0 ? 1 : 0 }
+        return min(Double(current) / Double(def.threshold), 1)
+    }
+
+    private var routineCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Routine Stats")
+                        .font(.headline.weight(.bold))
+                    Text("Today’s progress")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("\(Int(completion * 100))%")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(KairosColors.accent)
+            }
+
+            ProgressView(value: completion)
+                .tint(KairosColors.accent)
+                .scaleEffect(y: 1.5)
+                .padding(.vertical, 4)
+
+            HStack {
+                Text("\(completedCount) of \(allTasks.count) tasks completed")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(KairosColors.accent)
+            }
+        }
+        .padding(18)
+        .kairosCard(cornerRadius: 26)
+    }
+
+    @ViewBuilder
+    private var boardsPreview: some View {
+        if planRepo.isLoading {
+            ProgressView("Loading your plan…")
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 28)
+        } else if let plan = planRepo.currentPlan {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("Your Boards")
+                        .font(.headline.weight(.bold))
+                    Spacer()
+                    Text("\(plan.boards.filter { !$0.archived }.count)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                }
+
+                ForEach(plan.boards.filter { !$0.archived }.prefix(2)) { board in
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(board.title)
+                            .font(.subheadline.weight(.bold))
+                        ForEach(board.sections.filter { !$0.archived }.prefix(2)) { section in
+                            HStack(spacing: 9) {
+                                Image(systemName: "square.stack.3d.up")
+                                    .foregroundStyle(KairosColors.accent)
+                                Text(section.title)
+                                    .font(.caption.weight(.medium))
+                                    .lineLimit(1)
+                                Spacer()
+                                Text("\(section.tasks.filter { !$0.archived && $0.completed }.count)/\(section.tasks.filter { !$0.archived }.count)")
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                     .padding(14)
-                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
             }
-        }
-    }
-
-    private func taskRow(task: KairosTask, boardID: String, sectionID: String) -> some View {
-        let taskID = task.id
-        let willComplete = !task.completed
-
-        return Button {
-            Task {
-                await planRepo.toggleTask(boardID: boardID, sectionID: sectionID, taskID: taskID)
-                if willComplete {
-                    await profileRepo.recordTaskCompletion(taskID: taskID)
-                }
+            .padding(18)
+            .kairosCard(cornerRadius: 26)
+        } else {
+            VStack(spacing: 8) {
+                Image(systemName: "sparkles.rectangle.stack")
+                    .font(.system(size: 30))
+                    .foregroundStyle(KairosColors.accent)
+                Text("No study plan yet")
+                    .font(.headline)
+                Text("Create a plan on Kairos web or Android to see it here.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: task.completed ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(task.completed ? .purple : .secondary)
-
-                Text(task.title)
-                    .font(.body)
-                    .foregroundStyle(task.completed ? .secondary : .primary)
-                    .strikethrough(task.completed)
-
-                Spacer()
-            }
+            .frame(maxWidth: .infinity)
+            .padding(24)
+            .kairosCard(cornerRadius: 26)
         }
-        .buttonStyle(.plain)
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "tray")
-                .font(.system(size: 36))
-                .foregroundStyle(.secondary)
-            Text("No study plan yet")
-                .font(.headline)
-            Text("Create one on Kairos web or Android to see it here.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 60)
-    }
-}
-
-private struct FocusTimerCard: View {
-    let viewModel: FocusTimerViewModel
-    @Environment(UserProfileRepository.self) private var profileRepo
-
-    private var longestSessionText: String {
-        FocusTimerViewModel.formatHMS(profileRepo.focusData?.longestSessionSeconds ?? 0)
-    }
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Text(viewModel.isRunning ? "FOCUS ACTIVE" : "TIMER READY")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(viewModel.isRunning ? .purple : .secondary)
-                .tracking(1)
-
-            Text(FocusTimerViewModel.formatHMS(viewModel.elapsedSeconds))
-                .font(.system(size: 40, weight: .bold, design: .rounded))
-                .foregroundStyle(viewModel.isRunning ? .purple : .primary)
-
-            Text("Longest: \(longestSessionText)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: 10) {
-                if viewModel.isRunning {
-                    Button {
-                        viewModel.pause()
-                    } label: {
-                        Label("Pause", systemImage: "pause.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                } else {
-                    Button {
-                        viewModel.start()
-                    } label: {
-                        Label("Start Focus", systemImage: "play.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.purple)
-                }
-
-                Button {
-                    viewModel.stopAndLog()
-                } label: {
-                    Text("Stop")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-            }
-        }
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
