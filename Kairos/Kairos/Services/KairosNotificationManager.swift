@@ -1,4 +1,6 @@
 import Foundation
+import Observation
+import UIKit
 import UserNotifications
 
 @MainActor
@@ -38,7 +40,7 @@ final class KairosNotificationManager {
     }
 
     func openSystemSettings() {
-        guard let url = URL(string: "app-settings:") else { return }
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
     }
 
