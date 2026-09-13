@@ -1,10 +1,6 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @Environment(UserProfileRepository.self) private var profileRepo
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var showingAppearance = false
-
     var body: some View {
         NavigationStack {
             List {
@@ -15,10 +11,10 @@ struct SettingsView: View {
                         Label("Notifications", systemImage: "bell.badge")
                     }
 
-                    Button {
-                        showingAppearance = true
+                    NavigationLink {
+                        AppearanceSettingsView()
                     } label: {
-                        Label("Appearance", systemImage: colorScheme == .dark ? "moon.fill" : "sun.max.fill")
+                        Label("Appearance", systemImage: "circle.lefthalf.filled")
                     }
                 }
 
@@ -54,11 +50,6 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .kairosBackground()
             .navigationTitle("Settings")
-            .sheet(isPresented: $showingAppearance) {
-                AppearanceSettingsView()
-                    .presentationDetents([.medium])
-                    .presentationDragIndicator(.visible)
-            }
         }
     }
 }
