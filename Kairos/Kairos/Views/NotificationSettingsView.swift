@@ -17,6 +17,10 @@ struct NotificationSettingsView: View {
         )
     }
 
+    private var bedtimeScheduleID: String {
+        "\(settings.enabled)-\(settings.bedtimeReminders)-\(notificationManager.authorizationState)"
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
@@ -47,7 +51,7 @@ struct NotificationSettingsView: View {
             notificationManager.refreshAuthorizationState()
             reminderManager.refreshAuthorizationState()
         }
-        .task(id: settings.bedtimeReminders && settings.enabled) {
+        .task(id: bedtimeScheduleID) {
             await KairosBedtimeReminderScheduler.refresh(
                 enabled: settings.bedtimeReminders,
                 notificationsEnabled: settings.enabled && notificationManager.authorizationState != .denied
