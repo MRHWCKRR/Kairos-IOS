@@ -7,6 +7,14 @@ struct ContentView: View {
     @State private var profileRepo = UserProfileRepository()
     @State private var networkMonitor = KairosNetworkMonitor.shared
 
+    private var preferredScheme: ColorScheme? {
+        switch profileRepo.appearanceSettings?.mode {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
+
     var body: some View {
         Group {
             if session.isAuthenticated {
@@ -23,6 +31,7 @@ struct ContentView: View {
                 LoginView()
             }
         }
+        .preferredColorScheme(preferredScheme)
         .animation(.easeInOut(duration: 0.25), value: networkMonitor.isConnected)
         .task(id: session.isAuthenticated) {
             guard session.isAuthenticated, let uid = Auth.auth().currentUser?.uid else {
