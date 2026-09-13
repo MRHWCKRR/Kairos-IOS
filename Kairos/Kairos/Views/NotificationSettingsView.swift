@@ -1,9 +1,12 @@
 import SwiftUI
+import UIKit
 
 struct NotificationSettingsView: View {
     @Environment(UserProfileRepository.self) private var profileRepo
     @State private var notificationManager = KairosNotificationManager()
+    @State private var reminderManager = KairosReminderManager()
     @State private var showingPermissionAlert = false
+    @State private var showingReminderAlert = false
 
     private var settings: KairosNotificationSettings {
         profileRepo.notificationSettings ?? KairosNotificationSettings(
@@ -19,6 +22,7 @@ struct NotificationSettingsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 introCard
                 permissionCard
+                remindersCard
                 preferencesCard
             }
             .padding(.horizontal, 18)
@@ -33,7 +37,16 @@ struct NotificationSettingsView: View {
         } message: {
             Text("Allow Kairos notifications in iOS Settings to receive local reminders.")
         }
-        .onAppear { notificationManager.refreshAuthorizationState() }
+        .alert("Reminders access", isPresented: $showingReminderAlert) {
+            Button("Open Settings") { openSystemSettings() }
+            Button("Not Now", role: .cancel) {}
+        } message: {
+            Text("Allow Kairos access to Reminders in iOS Settings before exporting study tasks.")
+        }
+        .onAppear {
+            notificationManager.refreshAuthorizationState()
+            reminderManager.refreshAuthorizationState()
+        }
     }
 
     private var introCard: some View {
@@ -84,6 +97,61 @@ struct NotificationSettingsView: View {
         .kairosCard(cornerRadius: 24)
     }
 
+    private var remindersCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Apple Reminders", systemImage: "checklist")
+                    .font(.headline)
+                Spacer()
+                Text(reminderPermissionLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("Connect Kairos to Reminders so study tasks can become native iOS reminders with their planned date.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            if reminderManager.authorizationState == .notDetermined {
+                Button {
+                    Task {
+                        let granted = await reminderManager.requestAccess()
+                        if !granted { showingReminderAlert = true }
+                    }
+                } label: {
+                    Label("Allow Reminders Access", systemImage: "checklist")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(KairosColors.accent)
+            } else if reminderManager.authorizationState == .denied {
+                Button("Open iOS Settings", systemImage: "gear") {
+                    openSystemSettings()
+                }
+                .buttonStyle(.glass)
+            } else if reminderManager.authorizationState == .authorized {
+                Label("Ready for task export", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .font(.subheadline.weight(.semibold))
+            } else {
+                Label("Reminders access is restricted", systemImage: "lock.fill")
+                    .foregroundStyle(.secondary)
+                    .font(.subheadline.weight(.semibold))
+            }
+        }
+        .padding(18)
+        .kairosCard(cornerRadius: 24)
+    }
+
+    private var reminderPermissionLabel: String {
+        switch reminderManager.authorizationState {
+        case .notDetermined: return "Not set"
+        case .denied: return "Off"
+        case .restricted: return "Restricted"
+        case .authorized: return "On"
+        }
+    }
+
     private var statusBadge: some View {
         Text(permissionLabel)
             .font(.caption.weight(.semibold))
@@ -104,64 +172,40 @@ struct NotificationSettingsView: View {
                 .font(.headline)
                 .padding(.bottom, 4)
 
-            settingRow(
-                title: "Notifications",
-                subtitle: "Allow Kairos to surface local updates.",
-                keyPath: \KairosNotificationSettings.enabled
-            )
-            settingRow(
-                title: "Board completion",
-                subtitle: "Celebrate when every task on a board is complete.",
-                keyPath: \KairosNotificationSettings.boardCompletion
-            )
-            settingRow(
-                title: "Bedtime reminders",
-                subtitle: "Keep the existing cross-platform preference ready for scheduling.",
-                keyPath: \KairosNotificationSettings.bedtimeReminders
-            )
-            settingRow(
-                title: "Browser push",
-                subtitle: "Preserve the shared account preference for web notifications.",
-                keyPath: \KairosNotificationSettings.browserPush
-            )
+            settingRow(title: "Notifications", subtitle: "Allow Kairos to surface local updates.", keyPath: \KairosNotificationSettings.enabled)
+            settingRow(title: "Board completion", subtitle: "Celebrate when every task on a board is complete.", keyPath: \KairosNotificationSettings.boardCompletion)
+            settingRow(title: "Bedtime reminders", subtitle: "Keep the existing cross-platform preference ready for scheduling.", keyPath: \KairosNotificationSettings.bedtimeReminders)
+            settingRow(title: "Browser push", subtitle: "Preserve the shared account preference for web notifications.", keyPath: \KairosNotificationSettings.browserPush)
         }
         .padding(18)
         .kairosCard(cornerRadius: 24)
     }
 
-    private func settingRow(
-        title: String,
-        subtitle: String,
-        keyPath: WritableKeyPath<KairosNotificationSettings, Bool>
-    ) -> some View {
+    private func settingRow(title: String, subtitle: String, keyPath: WritableKeyPath<KairosNotificationSettings, Bool>) -> some View {
         let isOn = Binding<Bool>(
             get: { settings[keyPath: keyPath] },
-            set: { newValue in
-                Task { await saveSetting(keyPath: keyPath, value: newValue) }
-            }
+            set: { newValue in Task { await saveSetting(keyPath: keyPath, value: newValue) } }
         )
-
         return Toggle(isOn: isOn) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(title).font(.subheadline.weight(.semibold))
+                Text(subtitle).font(.caption).foregroundStyle(.secondary)
             }
         }
         .tint(KairosColors.accent)
         .padding(.vertical, 8)
     }
 
-    private func saveSetting(
-        keyPath: WritableKeyPath<KairosNotificationSettings, Bool>,
-        value: Bool
-    ) async {
+    private func saveSetting(keyPath: WritableKeyPath<KairosNotificationSettings, Bool>, value: Bool) async {
         var updated = settings
         updated[keyPath: keyPath] = value
         profileRepo.notificationSettings = updated
         await profileRepo.saveNotificationSettings(updated)
+    }
+
+    private func openSystemSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 }
 
