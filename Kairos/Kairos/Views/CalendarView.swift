@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct CalendarView: View {
     @Environment(StudyPlanRepository.self) private var planRepo
@@ -123,7 +124,9 @@ struct CalendarView: View {
     private func dates(for event: KairosScheduleEvent) -> (start: Date, end: Date)? {
         let partsStart = event.start.split(separator: ":").compactMap { Int($0) }
         let partsEnd = event.end.split(separator: ":").compactMap { Int($0) }
-        guard partsStart.count == 2, partsEnd.count == 2 else { return nil }
+        guard partsStart.count == 2, partsEnd.count == 2,
+              (0...23).contains(partsStart[0]), (0...59).contains(partsStart[1]),
+              (0...23).contains(partsEnd[0]), (0...59).contains(partsEnd[1]) else { return nil }
         let dayOffset = max(event.day - 1, 0)
         let base = Calendar.current.date(byAdding: .day, value: dayOffset, to: Calendar.current.startOfDay(for: selectedDate)) ?? selectedDate
         let start = Calendar.current.date(bySettingHour: partsStart[0], minute: partsStart[1], second: 0, of: base)
