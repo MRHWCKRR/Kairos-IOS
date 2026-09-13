@@ -108,17 +108,33 @@ struct CalendarView: View {
 
     private func export(_ event: KairosScheduleEvent) {
         guard let dates = dates(for: event) else { show("This session has an invalid time format."); return }
-        do { _ = try calendarManager.addEvent(title: event.title, start: dates.start, end: dates.end, notes: "Created from Kairos · \(event.category)"); show("Added “\(event.title)” to Apple Calendar.") }
-        catch { show(error.localizedDescription) }
+        do {
+            let created = try calendarManager.addEventIfNeeded(title: event.title, start: dates.start, end: dates.end, notes: "Created from Kairos · \(event.category)")
+            show(created ? "Added “\(event.title)” to Apple Calendar." : "“\(event.title)” is already in Apple Calendar.")
+        } catch { show(error.localizedDescription) }
     }
 
     private func exportAll() {
         var added = 0
+        var skipped = 0
+        var failed = 0
         for event in events {
-            guard let dates = dates(for: event) else { continue }
-            do { _ = try calendarManager.addEvent(title: event.title, start: dates.start, end: dates.end, notes: "Created from Kairos · \(event.category)"); added += 1 } catch { break }
+            guard let dates = dates(for: event) else { failed += 1; continue }
+            do {
+                if try calendarManager.addEventIfNeeded(title: event.title, start: dates.start, end: dates.end, notes: "Created from Kairos · \(event.category)") {
+                    added += 1
+                } else {
+                    skipped += 1
+                }
+            } catch {
+                failed += 1
+            }
         }
-        show(added == events.count ? "Added \(added) Kairos sessions to Apple Calendar." : "Added \(added) of \(events.count) sessions. Some could not be exported.")
+        if failed == 0 {
+            show(skipped == 0 ? "Added \(added) Kairos sessions to Apple Calendar." : "Added \(added) sessions. \(skipped) were already in Apple Calendar.")
+        } else {
+            show("Added \(added) sessions. \(skipped) were already there and \(failed) could not be exported.")
+        }
     }
 
     private func dates(for event: KairosScheduleEvent) -> (start: Date, end: Date)? {
