@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CalendarView: View {
     @Environment(StudyPlanRepository.self) private var planRepo
+    @Environment(\.scenePhase) private var scenePhase
     @State private var calendarManager = KairosCalendarManager()
     @State private var selectedDate = Date()
     @State private var message: String?
@@ -30,6 +31,10 @@ struct CalendarView: View {
             .navigationBarTitleDisplayMode(.inline)
             .alert("Calendar", isPresented: $showingMessage) { Button("OK", role: .cancel) {} } message: { Text(message ?? "") }
             .onAppear { calendarManager.refreshAuthorizationState() }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                calendarManager.refreshAuthorizationState()
+            }
         }
     }
 
@@ -49,8 +54,10 @@ struct CalendarView: View {
                 Text(calendarManager.authorizationState == .authorized ? "You can add Kairos sessions to your calendar." : "Kairos only asks when you choose to export a session.").font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            if calendarManager.authorizationState != .authorized {
+            if calendarManager.authorizationState == .notDetermined {
                 Button("Allow") { requestCalendarAccess() }.buttonStyle(.glassProminent).tint(KairosColors.accent)
+            } else if calendarManager.authorizationState == .denied {
+                Button("Settings", systemImage: "gear") { openSystemSettings() }.buttonStyle(.glass)
             }
         }
         .padding(16).kairosCard(cornerRadius: 22)
@@ -123,6 +130,11 @@ struct CalendarView: View {
         let end = Calendar.current.date(bySettingHour: partsEnd[0], minute: partsEnd[1], second: 0, of: base)
         guard let start, let end, end > start else { return nil }
         return (start, end)
+    }
+
+    private func openSystemSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 
     private func show(_ text: String) { message = text; showingMessage = true }
