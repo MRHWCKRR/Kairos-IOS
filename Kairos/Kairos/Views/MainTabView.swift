@@ -1,33 +1,30 @@
-//
-//  File.swift
-//  Kairos
-//
-//  Created by Yunfei Na on 19/8/2026.
-//
-
 import SwiftUI
 
 struct MainTabView: View {
     var body: some View {
         TabView {
             DashboardView()
-                .tabItem { Label("Dashboard", systemImage: "square.grid.2x2.fill") }
+                .tabItem { Label("Home", systemImage: "house.fill") }
 
             TasksView()
-                .tabItem { Label("Tasks", systemImage: "checklist") }
+                .tabItem { Label("Boards", systemImage: "checklist") }
 
             AIHelperView()
-                .tabItem { Label("AI Helper", systemImage: "sparkles") }
+                .tabItem { Label("AI", systemImage: "sparkles") }
 
             ScheduleView()
                 .tabItem { Label("Schedule", systemImage: "calendar") }
+
+            AchievementsView()
+                .tabItem { Label("Goals", systemImage: "trophy.fill") }
         }
-        .tint(.purple)
+        .tint(KairosColors.accent)
     }
 }
 
 #Preview {
     MainTabView()
+        .environment(SessionStore())
         .environment(StudyPlanRepository())
         .environment(UserProfileRepository())
 }
