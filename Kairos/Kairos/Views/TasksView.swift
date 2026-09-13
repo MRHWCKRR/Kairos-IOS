@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct TasksView: View {
     @Environment(StudyPlanRepository.self) private var planRepo
@@ -56,6 +57,7 @@ struct TasksView: View {
                 Button {
                     newBoardName = ""
                     showAddBoard = true
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 } label: {
                     Image(systemName: "plus")
                         .font(.title2.weight(.semibold))
@@ -65,6 +67,8 @@ struct TasksView: View {
                 .background(KairosColors.accent, in: Circle())
                 .shadow(color: KairosColors.accent.opacity(0.25), radius: 18, y: 8)
                 .padding(.bottom, 4)
+                .accessibilityLabel("Add board")
+                .accessibilityHint("Creates a new study board")
             }
             .alert("New Board", isPresented: $showAddBoard) {
                 TextField("Board name", text: $newBoardName)
@@ -134,6 +138,8 @@ struct TasksView: View {
         }
         .padding(18)
         .kairosCard(cornerRadius: 26)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(board.title)
     }
 
     @ViewBuilder
@@ -150,6 +156,8 @@ struct TasksView: View {
                 .foregroundStyle(.secondary)
                 .kairosGlass(cornerRadius: 16)
         }
+        .accessibilityLabel("Board actions")
+        .accessibilityHint("Rename, add a section, or archive this board")
     }
 
     private func sectionBlock(board: KairosBoard, section: KairosSection) -> some View {
@@ -190,11 +198,18 @@ struct TasksView: View {
             Image(systemName: "ellipsis")
                 .foregroundStyle(.tertiary)
         }
+        .accessibilityLabel("Section actions")
+        .accessibilityHint("Rename, add a task, or archive this section")
     }
 
     private func taskRow(boardID: String, section: KairosSection, task: KairosTask) -> some View {
         Button {
             let willComplete = !task.completed
+            if willComplete {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            } else {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
             Task {
                 await planRepo.toggleTask(boardID: boardID, sectionID: section.id, taskID: task.id)
                 if willComplete {
@@ -216,6 +231,9 @@ struct TasksView: View {
             .padding(.vertical, 2)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(task.title)
+        .accessibilityValue(task.completed ? "Completed" : "Not completed")
+        .accessibilityHint(task.completed ? "Double tap to mark incomplete" : "Double tap to complete")
         .swipeActions(edge: .trailing) {
             Button("Rename") { renameTaskText = task.title; taskToRename = (section, task) }.tint(.blue)
             Button("Archive", role: .destructive) { Task { await planRepo.setTaskArchived(taskID: task.id, archived: true) } }
