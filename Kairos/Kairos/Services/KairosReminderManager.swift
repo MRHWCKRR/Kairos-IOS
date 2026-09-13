@@ -40,6 +40,35 @@ final class KairosReminderManager {
         }
     }
 
+    /// Creates a reminder only when an equivalent Kairos reminder is not already present.
+    /// Matching uses the title, due date components, and the Kairos marker in notes.
+    @discardableResult
+    func addReminderIfNeeded(title: String, dueDate: Date?, notes: String? = nil, list: EKCalendar? = nil) throws -> Bool {
+        guard authorizationState == .authorized else { throw ReminderError.notAuthorized }
+        guard let reminderList = list ?? store.defaultCalendarForNewReminders() else {
+            throw ReminderError.noWritableList
+        }
+
+        let existing = store.reminders(matching: store.predicateForReminders(in: [reminderList])) ?? []
+        let targetComponents = dueDate.map {
+            Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: $0)
+        }
+        let duplicate = existing.contains { reminder in
+            guard reminder.title == title, reminder.calendar?.calendarIdentifier == reminderList.calendarIdentifier else { return false }
+            guard let notes else { return reminder.dueDateComponents == targetComponents }
+            return reminder.notes == notes && reminder.dueDateComponents == targetComponents
+        }
+        if duplicate { return false }
+
+        let reminder = EKReminder(eventStore: store)
+        reminder.title = title
+        reminder.notes = notes
+        reminder.calendar = reminderList
+        reminder.dueDateComponents = targetComponents
+        try store.save(reminder, commit: true)
+        return true
+    }
+
     @discardableResult
     func addReminder(title: String, dueDate: Date?, notes: String? = nil, list: EKCalendar? = nil) throws -> String {
         guard authorizationState == .authorized else { throw ReminderError.notAuthorized }
