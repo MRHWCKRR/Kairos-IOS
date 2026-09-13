@@ -47,6 +47,12 @@ struct NotificationSettingsView: View {
             notificationManager.refreshAuthorizationState()
             reminderManager.refreshAuthorizationState()
         }
+        .task(id: settings.bedtimeReminders && settings.enabled) {
+            await KairosBedtimeReminderScheduler.refresh(
+                enabled: settings.bedtimeReminders,
+                notificationsEnabled: settings.enabled && notificationManager.authorizationState != .denied
+            )
+        }
     }
 
     private var introCard: some View {
@@ -174,7 +180,7 @@ struct NotificationSettingsView: View {
 
             settingRow(title: "Notifications", subtitle: "Allow Kairos to surface local updates.", keyPath: \KairosNotificationSettings.enabled)
             settingRow(title: "Board completion", subtitle: "Celebrate when every task on a board is complete.", keyPath: \KairosNotificationSettings.boardCompletion)
-            settingRow(title: "Bedtime reminders", subtitle: "Keep the existing cross-platform preference ready for scheduling.", keyPath: \KairosNotificationSettings.bedtimeReminders)
+            settingRow(title: "Bedtime reminders", subtitle: "Get a gentle 9:00 PM local reminder to wind down.", keyPath: \KairosNotificationSettings.bedtimeReminders)
             settingRow(title: "Browser push", subtitle: "Preserve the shared account preference for web notifications.", keyPath: \KairosNotificationSettings.browserPush)
         }
         .padding(18)
@@ -201,6 +207,10 @@ struct NotificationSettingsView: View {
         updated[keyPath: keyPath] = value
         profileRepo.notificationSettings = updated
         await profileRepo.saveNotificationSettings(updated)
+        await KairosBedtimeReminderScheduler.refresh(
+            enabled: updated.bedtimeReminders,
+            notificationsEnabled: updated.enabled && notificationManager.authorizationState != .denied
+        )
     }
 
     private func openSystemSettings() {
