@@ -3,7 +3,6 @@ import SwiftUI
 struct AIHelperView: View {
     @Environment(UserProfileRepository.self) private var profileRepo
     @Environment(StudyPlanRepository.self) private var planRepo
-
     @State private var viewModel: AIHelperViewModel?
 
     var body: some View {
@@ -13,6 +12,7 @@ struct AIHelperView: View {
                     content(viewModel)
                 } else {
                     ProgressView()
+                        .tint(KairosColors.accent)
                 }
             }
             .navigationTitle("AI Helper")
@@ -51,23 +51,27 @@ struct AIHelperView: View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 16) {
+                    LazyVStack(alignment: .leading, spacing: 14) {
                         if vm.chatMessages.isEmpty {
                             emptyState
                         }
+
                         ForEach(Array(vm.chatMessages.enumerated()), id: \.offset) { index, message in
                             ChatBubble(message: message)
                                 .id(index)
                         }
+
                         if vm.isLoading && !vm.isGeneratingBoard {
                             TypingIndicator()
                         }
                     }
-                    .padding(16)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 18)
                 }
+                .scrollDismissesKeyboard(.interactively)
                 .onChange(of: vm.chatMessages.count) { _, _ in
                     guard vm.chatMessages.count > 0 else { return }
-                    withAnimation {
+                    withAnimation(.easeOut(duration: 0.2)) {
                         proxy.scrollTo(vm.chatMessages.count - 1, anchor: .bottom)
                     }
                 }
@@ -78,21 +82,29 @@ struct AIHelperView: View {
                     .font(.footnote)
                     .foregroundStyle(.red)
                     .padding(.horizontal, 16)
+                    .padding(.bottom, 6)
             }
 
             inputBar(vm)
         }
+        .kairosBackground()
         .overlay {
             if vm.isGeneratingBoard {
                 ZStack {
-                    Color.black.opacity(0.3).ignoresSafeArea()
-                    VStack(spacing: 16) {
+                    Color.black.opacity(0.22).ignoresSafeArea()
+                    VStack(spacing: 14) {
                         ProgressView()
-                        Text("Architecting your board...")
+                            .tint(KairosColors.accent)
+                        Text("Architecting your board…")
                             .font(.headline)
+                        Text("Turning the conversation into a study plan")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
+                    .multilineTextAlignment(.center)
                     .padding(24)
-                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+                    .frame(maxWidth: 300)
+                    .kairosCard(cornerRadius: 22)
                 }
             }
         }
@@ -108,42 +120,58 @@ struct AIHelperView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 40))
-                .foregroundStyle(.purple.opacity(0.5))
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(KairosColors.accent.opacity(0.12))
+                    .frame(width: 72, height: 72)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(KairosColors.accent)
+            }
+
             Text("Your AI Study Coach")
-                .font(.headline)
+                .font(.title3.weight(.bold))
+            Text("Ask a question, describe an assignment, or tell Kairos what you want to study.")
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text("Ask me anything — or tell me about an assignment.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 340)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 60)
+        .padding(.top, 72)
+        .padding(.bottom, 30)
     }
 
     private func inputBar(_ vm: AIHelperViewModel) -> some View {
         HStack(alignment: .bottom, spacing: 10) {
             TextField(
-                "Ask anything...",
+                "Ask anything…",
                 text: Binding(get: { vm.userInput }, set: { vm.userInput = $0 }),
                 axis: .vertical
             )
-            .lineLimit(1...4)
+            .lineLimit(1...5)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+            }
 
             Button {
                 vm.handleSend()
             } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 32))
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 16, weight: .bold))
+                    .frame(width: 42, height: 42)
             }
+            .buttonStyle(.glassProminent)
+            .tint(KairosColors.accent)
             .disabled(vm.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vm.isLoading)
         }
-        .padding(12)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .background(.bar)
     }
 }
@@ -154,15 +182,28 @@ private struct ChatBubble: View {
 
     var body: some View {
         VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
-            Text(message.content)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(isUser ? Color.purple : Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .foregroundStyle(isUser ? .white : .primary)
+            HStack(alignment: .bottom, spacing: 8) {
+                if !isUser {
+                    Image(systemName: "sparkles")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(KairosColors.accent)
+                }
+
+                Text(message.content)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 15)
+                    .padding(.vertical, 11)
+                    .background(
+                        isUser ? KairosColors.accent : Color(.secondarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    )
+                    .foregroundStyle(isUser ? .white : .primary)
+            }
 
             Text(isUser ? "You" : "Kairos AI")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
         }
         .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
     }
@@ -170,13 +211,20 @@ private struct ChatBubble: View {
 
 private struct TypingIndicator: View {
     var body: some View {
-        HStack {
-            Text("…")
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        HStack(spacing: 8) {
+            Image(systemName: "sparkles")
+                .foregroundStyle(KairosColors.accent)
+            ProgressView()
+                .controlSize(.small)
+            Text("Kairos is thinking…")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             Spacer()
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.regularMaterial, in: Capsule())
+        .frame(maxWidth: 190, alignment: .leading)
     }
 }
 
@@ -216,18 +264,22 @@ private struct PlanConfirmationSheet: View {
                 if let plan = viewModel.pendingPlan {
                     Section("Board Preview") {
                         ForEach(plan.sections) { section in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(section.title).font(.subheadline.weight(.semibold))
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(section.title)
+                                    .font(.subheadline.weight(.semibold))
                                 ForEach(section.tasks) { task in
-                                    Label(task.title, systemImage: "checkmark")
+                                    Label(task.title, systemImage: "circle")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                             }
+                            .padding(.vertical, 3)
                         }
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.clear)
             .navigationTitle("Configure Board")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -236,9 +288,12 @@ private struct PlanConfirmationSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add to Boards") { viewModel.confirmPlan() }
+                        .fontWeight(.semibold)
                 }
             }
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 
