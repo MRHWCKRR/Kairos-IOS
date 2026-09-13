@@ -72,9 +72,6 @@ final class StudyPlanRepository {
     }
 
     // MARK: - Optimistic board mutation
-    // Publish local changes immediately, then persist the complete board
-    // collection. If Firestore rejects the write, restore the last confirmed
-    // plan so the UI never gets stuck showing an unpersisted mutation.
     private func mutateBoards(_ transform: (inout [KairosBoard]) -> Void) async {
         guard let userID = Auth.auth().currentUser?.uid else {
             errorMessage = "You must be signed in to edit boards."
@@ -90,8 +87,6 @@ final class StudyPlanRepository {
             optimisticPlan.boards = boards
             currentPlan = optimisticPlan
         } else {
-            // Keep the first locally-created board visible immediately while
-            // the initial Firestore document is being created.
             currentPlan = KairosStudyPlan(
                 id: nil,
                 userID: userID,
@@ -114,8 +109,6 @@ final class StudyPlanRepository {
                     "userID": userID,
                     "createdAt": FieldValue.serverTimestamp()
                 ])
-                // Preserve the optimistic board data and attach the newly
-                // created document ID until the snapshot listener confirms it.
                 currentPlan?.id = reference.documentID
             }
             errorMessage = nil
@@ -252,11 +245,17 @@ final class StudyPlanRepository {
 
     // MARK: - AI plan confirmation
     /// Applies a confirmed AI-generated plan (new board or append to an
-    /// existing one) plus any extracted recurring events, in a single write.
+    /// existing one) plus extracted schedule events. The UI is updated before
+    /// Firestore responds, and the previous plan is restored if the write fails.
     func applyAiPlan(sections: [KairosSection], recurringEvents: [KairosScheduleEvent], newBoardTitle: String?, existingBoardID: String?) async {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+        guard let userID = Auth.auth().currentUser?.uid else {
+            errorMessage = "You must be signed in to apply an AI plan."
+            return
+        }
 
+        let previousPlan = currentPlan
         var boards = currentPlan?.boards ?? []
+
         if let boardID = existingBoardID, let i = boards.firstIndex(where: { $0.id == boardID }) {
             boards[i].sections.append(contentsOf: sections)
         } else {
@@ -268,25 +267,46 @@ final class StudyPlanRepository {
         var events = currentPlan?.scheduleEvents ?? []
         events.append(contentsOf: recurringEvents)
 
+        // Publish immediately so the newly generated board and schedule appear
+        // without waiting for the realtime listener round-trip.
+        if let plan = currentPlan {
+            var optimisticPlan = plan
+            optimisticPlan.boards = boards
+            optimisticPlan.scheduleEvents = events
+            currentPlan = optimisticPlan
+        } else {
+            currentPlan = KairosStudyPlan(
+                id: nil,
+                userID: userID,
+                createdAt: nil,
+                boards: boards,
+                dayInsights: nil,
+                scheduleEvents: events
+            )
+        }
+
         do {
             let encoder = Firestore.Encoder()
             let encodedBoards = try boards.map { try encoder.encode($0) }
             let encodedEvents = try events.map { try encoder.encode($0) }
 
-            if let planID = currentPlan?.id {
+            if let planID = previousPlan?.id {
                 try await db.collection("study_plans").document(planID).updateData([
                     "boards": encodedBoards,
                     "scheduleEvents": encodedEvents
                 ])
             } else {
-                _ = try await db.collection("study_plans").addDocument(data: [
+                let reference = try await db.collection("study_plans").addDocument(data: [
                     "boards": encodedBoards,
                     "scheduleEvents": encodedEvents,
                     "userID": userID,
                     "createdAt": FieldValue.serverTimestamp()
                 ])
+                currentPlan?.id = reference.documentID
             }
+            errorMessage = nil
         } catch {
+            currentPlan = previousPlan
             errorMessage = "Failed to apply AI plan: \(error.localizedDescription)"
         }
     }
