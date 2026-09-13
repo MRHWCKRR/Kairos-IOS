@@ -35,7 +35,7 @@ struct AppearanceSettingsView: View {
 
                 HStack(spacing: 12) {
                     Circle()
-                        .fill(KairosColors.accent.gradient)
+                        .fill(themeColor.gradient)
                         .frame(width: 34, height: 34)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Kairos accent")
@@ -73,29 +73,50 @@ struct AppearanceSettingsView: View {
         .task { load() }
     }
 
+    private var themeColor: Color {
+        switch theme {
+        case "blue": return Color(red: 0.20, green: 0.45, blue: 0.95)
+        case "green": return Color(red: 0.18, green: 0.62, blue: 0.40)
+        default: return KairosColors.accent
+        }
+    }
+
     private func load() {
-        guard let settings = profileRepo.appearanceSettings else { return }
-        mode = settings.mode.isEmpty ? "system" : settings.mode
-        theme = settings.theme.isEmpty ? "purple" : settings.theme
+        if let settings = profileRepo.appearanceSettings {
+            mode = modes.contains(settings.mode) ? settings.mode : "system"
+            theme = themes.contains(settings.theme) ? settings.theme : "purple"
+        }
+        reduceMotion = profileRepo.accessibilitySettings?.reduceMotion ?? false
     }
 
     private func save() async {
         isSaving = true
-        let existing = profileRepo.appearanceSettings
-        let settings = KairosAppearanceSettings(
+
+        let existingAppearance = profileRepo.appearanceSettings
+        let appearance = KairosAppearanceSettings(
             mode: mode,
             theme: theme,
-            textColor: existing?.textColor ?? "default",
-            font: existing?.font ?? "system",
-            background: existing?.background ?? "gradient",
-            customBackground: existing?.customBackground,
-            cursor: existing?.cursor ?? "default",
-            ambientSound: existing?.ambientSound ?? "none",
-            ambientVolume: existing?.ambientVolume ?? 50,
-            customAmbientYoutubeUrl: existing?.customAmbientYoutubeUrl ?? "",
-            confetti: existing?.confetti ?? true
+            textColor: existingAppearance?.textColor ?? "default",
+            font: existingAppearance?.font ?? "system",
+            background: existingAppearance?.background ?? "gradient",
+            customBackground: existingAppearance?.customBackground,
+            cursor: existingAppearance?.cursor ?? "default",
+            ambientSound: existingAppearance?.ambientSound ?? "none",
+            ambientVolume: existingAppearance?.ambientVolume ?? 50,
+            customAmbientYoutubeUrl: existingAppearance?.customAmbientYoutubeUrl ?? "",
+            confetti: existingAppearance?.confetti ?? true
         )
-        await profileRepo.saveAppearanceSettings(settings)
+
+        let existingAccessibility = profileRepo.accessibilitySettings
+        let accessibility = KairosAccessibilitySettings(
+            density: existingAccessibility?.density ?? "comfortable",
+            timeFormat: existingAccessibility?.timeFormat ?? "24h",
+            reduceMotion: reduceMotion,
+            language: existingAccessibility?.language ?? "en"
+        )
+
+        await profileRepo.saveAppearanceSettings(appearance)
+        await profileRepo.saveAccessibilitySettings(accessibility)
         isSaving = false
     }
 }
