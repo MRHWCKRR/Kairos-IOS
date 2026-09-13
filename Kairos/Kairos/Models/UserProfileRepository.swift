@@ -22,37 +22,28 @@ final class UserProfileRepository {
     func startListening(userID: String) {
         stopListening()
         isLoading = true
-
-        listener = db.collection("users").document(userID)
-            .addSnapshotListener { [weak self] snapshot, error in
-                guard let self else { return }
-                self.isLoading = false
-
-                if let error {
-                    self.errorMessage = error.localizedDescription
-                    return
-                }
-
-                guard let data = try? snapshot?.data(as: KairosUserDocument.self) else {
-                    self.profile = nil
-                    self.focusData = nil
-                    self.achievementsData = nil
-                    self.accessibilitySettings = nil
-                    self.notificationSettings = nil
-                    self.appearanceSettings = nil
-                    self.aiChatHistory = []
-                    return
-                }
-
-                self.profile = data.settings?.profile
-                self.focusData = data.focusData
-                self.achievementsData = data.achievements
-                self.accessibilitySettings = data.settings?.accessibility
-                self.notificationSettings = data.settings?.notifications
-                self.appearanceSettings = data.settings?.appearance
-                self.aiChatHistory = data.aiChatHistory ?? []
-                self.errorMessage = nil
+        listener = db.collection("users").document(userID).addSnapshotListener { [weak self] snapshot, error in
+            guard let self else { return }
+            self.isLoading = false
+            if let error {
+                self.errorMessage = error.localizedDescription
+                return
             }
+            guard let data = try? snapshot?.data(as: KairosUserDocument.self) else {
+                self.profile = nil; self.focusData = nil; self.achievementsData = nil
+                self.accessibilitySettings = nil; self.notificationSettings = nil
+                self.appearanceSettings = nil; self.aiChatHistory = []
+                return
+            }
+            self.profile = data.settings?.profile
+            self.focusData = data.focusData
+            self.achievementsData = data.achievements
+            self.accessibilitySettings = data.settings?.accessibility
+            self.notificationSettings = data.settings?.notifications
+            self.appearanceSettings = data.settings?.appearance
+            self.aiChatHistory = data.aiChatHistory ?? []
+            self.errorMessage = nil
+        }
     }
 
     func stopListening() {
@@ -66,40 +57,44 @@ final class UserProfileRepository {
         do {
             let encoded = try Firestore.Encoder().encode(settings)
             try await db.collection("users").document(uid).setData(["settings": encoded], merge: true)
-        } catch {
-            errorMessage = "Failed to save settings: \(error.localizedDescription)"
-        }
+        } catch { errorMessage = "Failed to save settings: \(error.localizedDescription)" }
     }
 
     func saveAppearanceSettings(_ settings: KairosAppearanceSettings) async {
         guard let uid = Auth.auth().currentUser?.uid else { return }
+        let previous = appearanceSettings
         appearanceSettings = settings
         do {
             let encoded = try Firestore.Encoder().encode(settings)
             try await db.collection("users").document(uid).setData(["settings.appearance": encoded], merge: true)
         } catch {
+            appearanceSettings = previous
             errorMessage = "Failed to save appearance settings: \(error.localizedDescription)"
         }
     }
 
     func saveAccessibilitySettings(_ settings: KairosAccessibilitySettings) async {
         guard let uid = Auth.auth().currentUser?.uid else { return }
+        let previous = accessibilitySettings
         accessibilitySettings = settings
         do {
             let encoded = try Firestore.Encoder().encode(settings)
             try await db.collection("users").document(uid).setData(["settings.accessibility": encoded], merge: true)
         } catch {
+            accessibilitySettings = previous
             errorMessage = "Failed to save accessibility settings: \(error.localizedDescription)"
         }
     }
 
     func saveNotificationSettings(_ settings: KairosNotificationSettings) async {
         guard let uid = Auth.auth().currentUser?.uid else { return }
+        let previous = notificationSettings
         notificationSettings = settings
         do {
             let encoded = try Firestore.Encoder().encode(settings)
             try await db.collection("users").document(uid).setData(["settings.notifications": encoded], merge: true)
         } catch {
+            notificationSettings = previous
             errorMessage = "Failed to save notification settings: \(error.localizedDescription)"
         }
     }
@@ -110,14 +105,13 @@ final class UserProfileRepository {
         do {
             let encoded = try messages.map { try Firestore.Encoder().encode($0) }
             try await db.collection("users").document(uid).setData(["aiChatHistory": encoded], merge: true)
-        } catch {
-            errorMessage = "Failed to save chat history: \(error.localizedDescription)"
-        }
+        } catch { errorMessage = "Failed to save chat history: \(error.localizedDescription)" }
     }
 
     // MARK: - Achievements
     func setGoal(index: Int, achievementID: String?) async {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
+        guard let uid = Auth.auth().currentUser?.uid, index >= 0 else { return }
+        let previous = achievementsData
         var goals = achievementsData?.goals ?? [nil, nil, nil]
         while goals.count <= index { goals.append(nil) }
         goals[index] = achievementID
@@ -128,6 +122,7 @@ final class UserProfileRepository {
         do {
             try await db.collection("users").document(uid).setData(["achievements.goals": goals], merge: true)
         } catch {
+            achievementsData = previous
             errorMessage = "Failed to set goal: \(error.localizedDescription)"
         }
     }
@@ -136,6 +131,7 @@ final class UserProfileRepository {
     func unlockAchievement(id: String) async -> Bool {
         guard let uid = Auth.auth().currentUser?.uid else { return false }
         if achievementsData?.unlocked?[id] != nil { return false }
+        let previous = achievementsData
         var unlocked = achievementsData?.unlocked ?? [:]
         unlocked[id] = Int64(Date().timeIntervalSince1970 * 1000)
         if var achievements = achievementsData {
@@ -146,6 +142,7 @@ final class UserProfileRepository {
             try await db.collection("users").document(uid).setData(["achievements.unlocked": unlocked], merge: true)
             return true
         } catch {
+            achievementsData = previous
             errorMessage = "Failed to unlock achievement: \(error.localizedDescription)"
             return false
         }
@@ -168,23 +165,21 @@ final class UserProfileRepository {
     // MARK: - Task completion accounting
     func recordTaskCompletion(taskID: String) async {
         guard let uid = Auth.auth().currentUser?.uid else { return }
-
+        let previousAchievements = achievementsData
+        let previousFocus = focusData
         var ach = achievementsData ?? defaultAchievementsData()
         var counted = ach.countedTaskIds ?? []
         guard !counted.contains(taskID) else { return }
-
         counted.append(taskID)
         ach.countedTaskIds = counted
         ach.lifetimeTasksCompleted += 1
         achievementsData = ach
-
         var focus = focusData ?? defaultFocusData()
         let dateKey = KairosDate.dayKey(for: Date())
         var tasksLog = focus.dailyTasksLog ?? [:]
         tasksLog[dateKey] = (tasksLog[dateKey] ?? 0) + 1
         focus.dailyTasksLog = tasksLog
         focusData = focus
-
         do {
             try await db.collection("users").document(uid).setData([
                 "achievements.countedTaskIds": counted,
@@ -192,15 +187,18 @@ final class UserProfileRepository {
                 "focusData.dailyTasksLog": tasksLog
             ], merge: true)
         } catch {
+            achievementsData = previousAchievements
+            focusData = previousFocus
             errorMessage = "Failed to record task completion: \(error.localizedDescription)"
+            return
         }
-
         await checkAchievements()
     }
 
     // MARK: - Focus data
     func logFocusSession(seconds: Int64) async {
         guard let uid = Auth.auth().currentUser?.uid, seconds >= 1 else { return }
+        let previous = focusData
         var focus = focusData ?? defaultFocusData()
         focus.totalSeconds += seconds
         focus.longestSessionSeconds = max(focus.longestSessionSeconds, seconds)
@@ -209,12 +207,13 @@ final class UserProfileRepository {
         log[dateKey] = (log[dateKey] ?? 0) + seconds
         focus.dailyFocusLog = log
         focusData = focus
-
         do {
             let encoded = try Firestore.Encoder().encode(focus)
             try await db.collection("users").document(uid).setData(["focusData": encoded], merge: true)
         } catch {
+            focusData = previous
             errorMessage = "Failed to save focus data: \(error.localizedDescription)"
+            return
         }
         await checkAchievements()
     }
