@@ -10,6 +10,7 @@ final class UserProfileRepository {
     var focusData: KairosFocusData?
     var achievementsData: KairosAchievementsData?
     var notificationSettings: KairosNotificationSettings?
+    var appearanceSettings: KairosAppearanceSettings?
     var aiChatHistory: [ChatMessage] = []
     var isLoading = false
     var errorMessage: String?
@@ -36,6 +37,7 @@ final class UserProfileRepository {
                     self.focusData = nil
                     self.achievementsData = nil
                     self.notificationSettings = nil
+                    self.appearanceSettings = nil
                     self.aiChatHistory = []
                     return
                 }
@@ -44,6 +46,7 @@ final class UserProfileRepository {
                 self.focusData = data.focusData
                 self.achievementsData = data.achievements
                 self.notificationSettings = data.settings?.notifications
+                self.appearanceSettings = data.settings?.appearance
                 self.aiChatHistory = data.aiChatHistory ?? []
                 self.errorMessage = nil
             }
@@ -63,6 +66,17 @@ final class UserProfileRepository {
             try await db.collection("users").document(uid).setData(["settings": encoded], merge: true)
         } catch {
             errorMessage = "Failed to save settings: \(error.localizedDescription)"
+        }
+    }
+
+    func saveAppearanceSettings(_ settings: KairosAppearanceSettings) async {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        appearanceSettings = settings
+        do {
+            let encoded = try Firestore.Encoder().encode(settings)
+            try await db.collection("users").document(uid).setData(["settings.appearance": encoded], merge: true)
+        } catch {
+            errorMessage = "Failed to save appearance settings: \(error.localizedDescription)"
         }
     }
 
@@ -132,15 +146,6 @@ final class UserProfileRepository {
     }
 
     // MARK: - Task completion accounting
-    // Mirrors Android's MainViewModel.toggleTask side-effect: increments
-    // lifetimeTasksCompleted and logs today's dailyTasksLog entry, but only
-    // the FIRST time a given taskID is completed (countedTaskIds guards
-    // against re-counting if a task is unchecked then rechecked).
-    //
-    // Simplification vs Android: no "stability lock" debounce against the
-    // snapshot listener overwriting this optimistic update — acceptable for
-    // now since writes are small and infrequent, but worth revisiting if
-    // rapid double-taps ever cause a visible flicker/undercount.
     func recordTaskCompletion(taskID: String) async {
         guard let uid = Auth.auth().currentUser?.uid else { return }
 
@@ -151,7 +156,7 @@ final class UserProfileRepository {
         counted.append(taskID)
         ach.countedTaskIds = counted
         ach.lifetimeTasksCompleted += 1
-        achievementsData = ach // optimistic local update so checkAchievements() sees fresh numbers
+        achievementsData = ach
 
         var focus = focusData ?? defaultFocusData()
         let dateKey = KairosDate.dayKey(for: Date())
@@ -184,7 +189,7 @@ final class UserProfileRepository {
         var log = focus.dailyFocusLog ?? [:]
         log[dateKey] = (log[dateKey] ?? 0) + seconds
         focus.dailyFocusLog = log
-        focusData = focus // optimistic, same reasoning as above
+        focusData = focus
 
         do {
             let encoded = try Firestore.Encoder().encode(focus)
