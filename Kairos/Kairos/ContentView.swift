@@ -15,6 +15,18 @@ struct ContentView: View {
         }
     }
 
+    private var accentColor: Color {
+        switch profileRepo.appearanceSettings?.theme {
+        case "blue": return Color(red: 0.20, green: 0.45, blue: 0.95)
+        case "green": return Color(red: 0.18, green: 0.62, blue: 0.40)
+        default: return KairosColors.accent
+        }
+    }
+
+    private var reduceMotion: Bool {
+        profileRepo.accessibilitySettings?.reduceMotion ?? false
+    }
+
     var body: some View {
         Group {
             if session.isAuthenticated {
@@ -24,7 +36,11 @@ struct ContentView: View {
                     .safeAreaInset(edge: .top, spacing: 0) {
                         if !networkMonitor.isConnected {
                             OfflineBanner()
-                                .transition(.move(edge: .top).combined(with: .opacity))
+                                .transition(
+                                    reduceMotion
+                                    ? .opacity
+                                    : .move(edge: .top).combined(with: .opacity)
+                                )
                         }
                     }
             } else {
@@ -32,7 +48,16 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(preferredScheme)
-        .animation(.easeInOut(duration: 0.25), value: networkMonitor.isConnected)
+        .tint(accentColor)
+        .transaction { transaction in
+            if reduceMotion {
+                transaction.animation = nil
+            }
+        }
+        .animation(
+            reduceMotion ? nil : .easeInOut(duration: 0.25),
+            value: networkMonitor.isConnected
+        )
         .task(id: session.isAuthenticated) {
             guard session.isAuthenticated, let uid = Auth.auth().currentUser?.uid else {
                 planRepo.stopListening()
@@ -54,7 +79,7 @@ private struct OfflineBanner: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("You're offline")
                     .font(.subheadline.weight(.semibold))
-                Text("Changes will sync when you're back online.")
+                Text("Changes may sync when you're back online.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -70,7 +95,7 @@ private struct OfflineBanner: View {
                 .frame(height: 0.5)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("You're offline. Changes will sync when you're back online.")
+        .accessibilityLabel("You're offline. Changes may sync when you're back online.")
     }
 }
 
