@@ -130,7 +130,11 @@ struct TasksView: View {
             }
             guard reminderManager.authorizationState == .authorized else { showReminderMessage("Kairos does not have access to Reminders. Enable it in iOS Settings and try again."); return }
             do {
-                let created = try reminderManager.addReminderIfNeeded(title: task.title, dueDate: reminderDueDate(for: task), notes: "Created from Kairos")
+                let created = try await reminderManager.addReminderIfNeeded(
+                    title: task.title,
+                    dueDate: reminderDueDate(for: task),
+                    notes: "Created from Kairos"
+                )
                 showReminderMessage(created ? "Added “\(task.title)” to Apple Reminders." : "“\(task.title)” is already in Apple Reminders.")
             } catch { showReminderMessage(error.localizedDescription) }
         }

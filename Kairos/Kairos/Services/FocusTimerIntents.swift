@@ -54,36 +54,39 @@ struct KairosAppShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: OpenKairosIntent(),
             phrases: [
-                "Open Kairos",
-                "Open my Kairos study planner"
+                "Open \(.applicationName)",
+                "Open my study planner in \(.applicationName)"
             ],
             shortTitle: "Open Kairos",
             systemImageName: "calendar"
         )
+
         AppShortcut(
             intent: StartFocusTimerIntent(),
             phrases: [
-                "Start my focus timer in Kairos",
-                "Start a focus session in Kairos",
-                "Resume my focus timer in Kairos"
+                "Start my focus timer in \(.applicationName)",
+                "Start a focus session in \(.applicationName)",
+                "Resume my focus timer in \(.applicationName)"
             ],
             shortTitle: "Start Focus",
             systemImageName: "timer"
         )
+
         AppShortcut(
             intent: PauseFocusTimerIntent(),
             phrases: [
-                "Pause my focus timer in Kairos",
-                "Pause my focus session in Kairos"
+                "Pause my focus timer in \(.applicationName)",
+                "Pause my focus session in \(.applicationName)"
             ],
             shortTitle: "Pause Focus",
             systemImageName: "pause.circle"
         )
+
         AppShortcut(
             intent: StopFocusTimerIntent(),
             phrases: [
-                "Stop my focus timer in Kairos",
-                "End my focus session in Kairos"
+                "Stop my focus timer in \(.applicationName)",
+                "End my focus session in \(.applicationName)"
             ],
             shortTitle: "Stop Focus",
             systemImageName: "stop.circle"

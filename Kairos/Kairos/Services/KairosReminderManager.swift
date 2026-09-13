@@ -5,6 +5,7 @@ import Observation
 @MainActor
 @Observable
 final class KairosReminderManager {
+
     enum AuthorizationState: Equatable {
         case notDetermined
         case denied
@@ -21,11 +22,20 @@ final class KairosReminderManager {
 
     func refreshAuthorizationState() {
         switch EKEventStore.authorizationStatus(for: .reminder) {
-        case .notDetermined: authorizationState = .notDetermined
-        case .denied: authorizationState = .denied
-        case .restricted: authorizationState = .restricted
-        case .fullAccess, .writeOnly: authorizationState = .authorized
-        @unknown default: authorizationState = .notDetermined
+        case .notDetermined:
+            authorizationState = .notDetermined
+
+        case .denied:
+            authorizationState = .denied
+
+        case .restricted:
+            authorizationState = .restricted
+
+        case .fullAccess, .writeOnly:
+            authorizationState = .authorized
+
+        @unknown default:
+            authorizationState = .notDetermined
         }
     }
 
@@ -41,48 +51,103 @@ final class KairosReminderManager {
     }
 
     /// Creates a reminder only when an equivalent Kairos reminder is not already present.
-    /// Matching uses the title, due date components, and the Kairos marker in notes.
+    ///
+    /// Matching uses:
+    /// - reminder title
+    /// - reminder list
+    /// - due date components
+    /// - Kairos notes marker when supplied
     @discardableResult
-    func addReminderIfNeeded(title: String, dueDate: Date?, notes: String? = nil, list: EKCalendar? = nil) throws -> Bool {
-        guard authorizationState == .authorized else { throw ReminderError.notAuthorized }
+    func addReminderIfNeeded(
+        title: String,
+        dueDate: Date?,
+        notes: String? = nil,
+        list: EKCalendar? = nil
+    ) async throws -> Bool {
+
+        guard authorizationState == .authorized else {
+            throw ReminderError.notAuthorized
+        }
+
         guard let reminderList = list ?? store.defaultCalendarForNewReminders() else {
             throw ReminderError.noWritableList
         }
 
-        let existing = store.reminders(matching: store.predicateForReminders(in: [reminderList])) ?? []
+        let predicate = store.predicateForReminders(in: [reminderList])
+
+        let existing: [EKReminder] = await withCheckedContinuation { continuation in
+            store.fetchReminders(matching: predicate) { reminders in
+                continuation.resume(returning: reminders ?? [])
+            }
+        }
+
         let targetComponents = dueDate.map {
-            Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: $0)
+            Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: $0
+            )
         }
+
         let duplicate = existing.contains { reminder in
-            guard reminder.title == title, reminder.calendar?.calendarIdentifier == reminderList.calendarIdentifier else { return false }
-            guard let notes else { return reminder.dueDateComponents == targetComponents }
-            return reminder.notes == notes && reminder.dueDateComponents == targetComponents
+            guard reminder.title == title,
+                  reminder.calendar?.calendarIdentifier == reminderList.calendarIdentifier
+            else {
+                return false
+            }
+
+            guard let notes else {
+                return reminder.dueDateComponents == targetComponents
+            }
+
+            return reminder.notes == notes &&
+                   reminder.dueDateComponents == targetComponents
         }
-        if duplicate { return false }
+
+        if duplicate {
+            return false
+        }
 
         let reminder = EKReminder(eventStore: store)
         reminder.title = title
         reminder.notes = notes
         reminder.calendar = reminderList
         reminder.dueDateComponents = targetComponents
+
         try store.save(reminder, commit: true)
+
         return true
     }
 
     @discardableResult
-    func addReminder(title: String, dueDate: Date?, notes: String? = nil, list: EKCalendar? = nil) throws -> String {
-        guard authorizationState == .authorized else { throw ReminderError.notAuthorized }
+    func addReminder(
+        title: String,
+        dueDate: Date?,
+        notes: String? = nil,
+        list: EKCalendar? = nil
+    ) throws -> String {
+
+        guard authorizationState == .authorized else {
+            throw ReminderError.notAuthorized
+        }
+
         guard let reminderList = list ?? store.defaultCalendarForNewReminders() else {
             throw ReminderError.noWritableList
         }
+
         let reminder = EKReminder(eventStore: store)
         reminder.title = title
         reminder.notes = notes
         reminder.calendar = reminderList
+
         if let dueDate {
-            reminder.dueDateComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: dueDate)
+            reminder.dueDateComponents = Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: dueDate
+            )
         }
+
         try store.save(reminder, commit: true)
+
         return reminder.calendarItemIdentifier
     }
 
@@ -92,8 +157,11 @@ final class KairosReminderManager {
 
         var errorDescription: String? {
             switch self {
-            case .notAuthorized: return "Kairos does not have access to your reminders."
-            case .noWritableList: return "No writable reminder list is available."
+            case .notAuthorized:
+                return "Kairos does not have access to your reminders."
+
+            case .noWritableList:
+                return "No writable reminder list is available."
             }
         }
     }
