@@ -54,6 +54,29 @@ final class KairosCalendarManager {
         return event.eventIdentifier
     }
 
+    /// Exports only when the same Kairos event is not already present.
+    /// Matching uses the event's title, start/end times, and Kairos marker in notes.
+    @discardableResult
+    func addEventIfNeeded(title: String, start: Date, end: Date, calendar: EKCalendar? = nil, notes: String? = nil) throws -> Bool {
+        guard authorizationState == .authorized else { throw CalendarError.notAuthorized }
+        let targetCalendar = calendar ?? store.defaultCalendarForNewEvents
+        guard let targetCalendar else { throw CalendarError.noWritableCalendar }
+
+        let searchStart = start.addingTimeInterval(-1)
+        let searchEnd = end.addingTimeInterval(1)
+        let predicate = store.predicateForEvents(withStart: searchStart, end: searchEnd, calendars: [targetCalendar])
+        let duplicate = store.events(matching: predicate).contains { event in
+            event.title == title &&
+            event.startDate == start &&
+            event.endDate == end &&
+            (notes == nil || event.notes == notes)
+        }
+        if duplicate { return false }
+
+        _ = try addEvent(title: title, start: start, end: end, calendar: targetCalendar, notes: notes)
+        return true
+    }
+
     enum CalendarError: LocalizedError {
         case notAuthorized
         case noWritableCalendar
