@@ -12,8 +12,8 @@ struct MainTabView: View {
             AIHelperView()
                 .tabItem { Label("AI", systemImage: "sparkles") }
 
-            ScheduleView()
-                .tabItem { Label("Schedule", systemImage: "calendar") }
+            CalendarView()
+                .tabItem { Label("Calendar", systemImage: "calendar") }
 
             AchievementsView()
                 .tabItem { Label("Goals", systemImage: "trophy.fill") }
