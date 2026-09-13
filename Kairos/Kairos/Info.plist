@@ -17,5 +17,7 @@
 	</array>
 	<key>KAIROS_RELAY_SECRET</key>
 	<string>$(KAIROS_RELAY_SECRET)</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 </dict>
 </plist>
