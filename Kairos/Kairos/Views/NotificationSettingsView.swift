@@ -3,6 +3,7 @@ import UIKit
 
 struct NotificationSettingsView: View {
     @Environment(UserProfileRepository.self) private var profileRepo
+    @Environment(\.scenePhase) private var scenePhase
     @State private var notificationManager = KairosNotificationManager()
     @State private var reminderManager = KairosReminderManager()
     @State private var showingPermissionAlert = false
@@ -47,9 +48,10 @@ struct NotificationSettingsView: View {
         } message: {
             Text("Allow Kairos access to Reminders in iOS Settings before exporting study tasks.")
         }
-        .onAppear {
-            notificationManager.refreshAuthorizationState()
-            reminderManager.refreshAuthorizationState()
+        .onAppear { refreshPermissions() }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            refreshPermissions()
         }
         .task(id: bedtimeScheduleID) {
             await KairosBedtimeReminderScheduler.refresh(
@@ -57,6 +59,11 @@ struct NotificationSettingsView: View {
                 notificationsEnabled: settings.enabled && notificationManager.authorizationState != .denied
             )
         }
+    }
+
+    private func refreshPermissions() {
+        notificationManager.refreshAuthorizationState()
+        reminderManager.refreshAuthorizationState()
     }
 
     private var introCard: some View {
@@ -182,10 +189,10 @@ struct NotificationSettingsView: View {
                 .font(.headline)
                 .padding(.bottom, 4)
 
-            settingRow(title: "Notifications", subtitle: "Allow Kairos to surface local updates.", keyPath: \KairosNotificationSettings.enabled)
-            settingRow(title: "Board completion", subtitle: "Celebrate when every task on a board is complete.", keyPath: \KairosNotificationSettings.boardCompletion)
-            settingRow(title: "Bedtime reminders", subtitle: "Get a gentle 9:00 PM local reminder to wind down.", keyPath: \KairosNotificationSettings.bedtimeReminders)
-            settingRow(title: "Browser push", subtitle: "Preserve the shared account preference for web notifications.", keyPath: \KairosNotificationSettings.browserPush)
+            settingRow(title: "Notifications", subtitle: "Allow Kairos to surface local updates.", keyPath: \.enabled)
+            settingRow(title: "Board completion", subtitle: "Celebrate when every task on a board is complete.", keyPath: \.boardCompletion)
+            settingRow(title: "Bedtime reminders", subtitle: "Get a gentle 9:00 PM local reminder to wind down.", keyPath: \.bedtimeReminders)
+            settingRow(title: "Browser push", subtitle: "Preserve the shared account preference for web notifications.", keyPath: \.browserPush)
         }
         .padding(18)
         .kairosCard(cornerRadius: 24)
