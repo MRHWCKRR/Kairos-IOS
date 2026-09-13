@@ -31,9 +31,11 @@ final class KairosNotificationManager {
     func requestAuthorization() async -> Bool {
         do {
             let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
+            authorizationState = granted ? .authorized : .denied
             refreshAuthorizationState()
             return granted
         } catch {
+            authorizationState = .denied
             refreshAuthorizationState()
             return false
         }
