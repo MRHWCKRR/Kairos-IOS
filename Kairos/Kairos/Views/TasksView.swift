@@ -49,7 +49,7 @@ struct TasksView: View {
             .alert("New Task", isPresented: Binding(get: { sectionForNewTask != nil }, set: { if !$0 { sectionForNewTask = nil } })) { TextField("Task name", text: $newTaskName); Button("Cancel", role: .cancel) { sectionForNewTask = nil }; Button("Add") { confirmAddTask() } }
             .alert("Rename Board", isPresented: Binding(get: { boardToRename != nil }, set: { if !$0 { boardToRename = nil } })) { TextField("Board name", text: $renameBoardText); Button("Cancel", role: .cancel) { boardToRename = nil }; Button("Save") { confirmRenameBoard() } }
             .alert("Rename Section", isPresented: Binding(get: { sectionToRename != nil }, set: { if !$0 { sectionToRename = nil } })) { TextField("Section name", text: $renameSectionText); Button("Cancel", role: .cancel) { sectionToRename = nil }; Button("Save") { confirmRenameSection() } }
-            .alert("Rename Task", isPresented: Binding(get: { taskToRename != nil }, set: { if !$0 { taskToRename = nil } })) { TextField("Task name", text: $renameTaskText); Button("Cancel", role: .cancel) { taskToRename = nil }; Button("Save") { confirmRenameTask() } }
+            .alert("Rename Task", isPresented: Binding(get: { taskToRename != nil }, set: { if !$0 { taskToRename = nil } })) { TextField("Task name", text: $renameTaskText); Button("Cancel", role: .cancel) {}; Button("Save") { confirmRenameTask() } }
             .alert("Add to Reminders", isPresented: $showingReminderAlert) { Button("OK", role: .cancel) {} } message: { Text(reminderMessage) }
             .onAppear { reminderManager.refreshAuthorizationState() }
         }
@@ -130,8 +130,8 @@ struct TasksView: View {
             }
             guard reminderManager.authorizationState == .authorized else { showReminderMessage("Kairos does not have access to Reminders. Enable it in iOS Settings and try again."); return }
             do {
-                _ = try reminderManager.addReminder(title: task.title, dueDate: reminderDueDate(for: task), notes: "Created from Kairos")
-                showReminderMessage("Added “\(task.title)” to Apple Reminders.")
+                let created = try reminderManager.addReminderIfNeeded(title: task.title, dueDate: reminderDueDate(for: task), notes: "Created from Kairos")
+                showReminderMessage(created ? "Added “\(task.title)” to Apple Reminders." : "“\(task.title)” is already in Apple Reminders.")
             } catch { showReminderMessage(error.localizedDescription) }
         }
     }
