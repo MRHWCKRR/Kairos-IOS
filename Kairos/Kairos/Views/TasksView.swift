@@ -16,6 +16,7 @@ struct TasksView: View {
     @State private var renameSectionText = ""
     @State private var taskToRename: (section: KairosSection, task: KairosTask)?
     @State private var renameTaskText = ""
+    @State private var notificationManager = KairosNotificationManager()
 
     private var visibleBoards: [KairosBoard] {
         planRepo.currentPlan?.boards.filter { !$0.archived } ?? []
@@ -196,7 +197,10 @@ struct TasksView: View {
             let willComplete = !task.completed
             Task {
                 await planRepo.toggleTask(boardID: boardID, sectionID: section.id, taskID: task.id)
-                if willComplete { await profileRepo.recordTaskCompletion(taskID: task.id) }
+                if willComplete {
+                    await profileRepo.recordTaskCompletion(taskID: task.id)
+                    await notifyIfBoardCompleted(boardID: boardID)
+                }
             }
         } label: {
             HStack(spacing: 10) {
@@ -216,6 +220,19 @@ struct TasksView: View {
             Button("Rename") { renameTaskText = task.title; taskToRename = (section, task) }.tint(.blue)
             Button("Archive", role: .destructive) { Task { await planRepo.setTaskArchived(taskID: task.id, archived: true) } }
         }
+    }
+
+    private func notifyIfBoardCompleted(boardID: String) async {
+        guard profileRepo.notificationSettings?.enabled != false,
+              profileRepo.notificationSettings?.boardCompletion != false,
+              let board = planRepo.currentPlan?.boards.first(where: { $0.id == boardID }) else { return }
+
+        let tasks = board.sections
+            .filter { !$0.archived }
+            .flatMap { $0.tasks.filter { !$0.archived } }
+        guard !tasks.isEmpty, tasks.allSatisfy(\.completed) else { return }
+
+        await notificationManager.postBoardCompletion(boardTitle: board.title)
     }
 
     private func confirmAddBoard() {
