@@ -41,8 +41,12 @@ struct AppearanceSettingsView: View {
     private var hasUnsavedChanges: Bool {
         mode != savedMode || theme != savedTheme || textColor != savedTextColor ||
         font != savedFont || background != savedBackground || customBackground != savedCustomBackground ||
+<<<<<<< HEAD
         ambientSound != savedAmbientSound ||
         Int(ambientVolume.rounded()) != Int(savedAmbientVolume.rounded()) ||
+=======
+        ambientSound != savedAmbientSound || Int(ambientVolume.rounded()) != Int(savedAmbientVolume.rounded()) ||
+>>>>>>> appearance-functional
         customAmbientURL != savedCustomAmbientURL || confetti != savedConfetti ||
         reduceMotion != savedReduceMotion
     }
@@ -56,11 +60,7 @@ struct AppearanceSettingsView: View {
                     Text("Dark").tag("dark")
                 }
                 .pickerStyle(.navigationLink)
-            } header: {
-                Text("Appearance")
-            } footer: {
-                Text("Changes stay pending until you tap Save appearance.")
-            }
+            } header: { Text("Appearance") }
 
             Section("Accent") {
                 Picker("Theme", selection: $theme) {
@@ -71,15 +71,11 @@ struct AppearanceSettingsView: View {
                 .pickerStyle(.navigationLink)
 
                 HStack(spacing: 12) {
-                    Circle()
-                        .fill(themeColor.gradient)
-                        .frame(width: 34, height: 34)
+                    Circle().fill(themeColor.gradient).frame(width: 34, height: 34)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Kairos accent")
-                            .font(.subheadline.weight(.semibold))
-                        Text("Used for primary actions and progress")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Text("Kairos accent").font(.subheadline.weight(.semibold))
+                        Text("Updates the app tint and visual atmosphere")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
             }
@@ -93,6 +89,7 @@ struct AppearanceSettingsView: View {
                 .pickerStyle(.navigationLink)
 
                 Picker("Font", selection: $font) {
+<<<<<<< HEAD
                     Text("Aa  System")
                         .font(fontPreview("system"))
                         .tag("system")
@@ -105,8 +102,18 @@ struct AppearanceSettingsView: View {
                     Text("Aa  Monospaced")
                         .font(fontPreview("monospaced"))
                         .tag("monospaced")
+=======
+                    fontRow("System", "system")
+                    fontRow("Rounded", "rounded")
+                    fontRow("Serif", "serif")
+                    fontRow("Monospaced", "monospaced")
+>>>>>>> appearance-functional
                 }
                 .pickerStyle(.navigationLink)
+
+                Text("Aa — The quick brown fox")
+                    .font(kairosFont(font).weight(.medium))
+                    .padding(.vertical, 4)
             }
 
             Section("Background") {
@@ -117,6 +124,7 @@ struct AppearanceSettingsView: View {
                 }
                 .pickerStyle(.navigationLink)
 
+<<<<<<< HEAD
                 if background == "solid" {
                     TextField("Custom background URL (optional)", text: $customBackground)
                         .textInputAutocapitalization(.never)
@@ -125,6 +133,14 @@ struct AppearanceSettingsView: View {
                 }
 
                 Text("Bundled backgrounds belong in Kairos/Resources/Backgrounds. See that folder's README for the naming convention.")
+=======
+                TextField("Image name or direct image URL (optional)", text: $customBackground)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+
+                Text("For bundled images, add the file to Kairos/Resources/Backgrounds and enter its filename without the extension.")
+>>>>>>> appearance-functional
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -150,10 +166,14 @@ struct AppearanceSettingsView: View {
                         Slider(value: $ambientVolume, in: 0...100, step: 1)
                     }
 
-                    TextField("Custom YouTube URL (optional)", text: $customAmbientURL)
+                    TextField("Direct audio file URL (optional)", text: $customAmbientURL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
+
+                    Text("Built-in sounds are loaded from Kairos/Resources/AmbientSounds as rain, forest, or ocean audio files. The custom URL is retained for future remote playback support.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Text("Bundled sounds belong in Kairos/Resources/AmbientSounds. See that folder's README for the naming convention.")
@@ -165,15 +185,12 @@ struct AppearanceSettingsView: View {
 
             Section("Accessibility") {
                 Toggle("Reduce motion", isOn: $reduceMotion)
-                Text("Reduce animated transitions and other motion where supported.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("Disables Kairos animated transitions where supported.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section {
-                Button {
-                    Task { await save() }
-                } label: {
+                Button { Task { await save() } } label: {
                     HStack {
                         Text(isSaving ? "Saving…" : "Save appearance")
                         Spacer()
@@ -190,22 +207,13 @@ struct AppearanceSettingsView: View {
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    attemptLeave()
-                } label: {
-                    Label("Back", systemImage: "chevron.left")
-                }
-                .disabled(isSaving)
+                Button { attemptLeave() } label: { Label("Back", systemImage: "chevron.left") }
+                    .disabled(isSaving)
             }
         }
         .alert("Unsaved changes", isPresented: $showingUnsavedChanges) {
-            Button("Save Changes") {
-                Task { await saveAndLeave() }
-            }
-            Button("Discard Changes", role: .destructive) {
-                discardChanges()
-                dismiss()
-            }
+            Button("Save Changes") { Task { await saveAndLeave() } }
+            Button("Discard Changes", role: .destructive) { discardChanges(); dismiss() }
             Button("Keep Editing", role: .cancel) {}
         } message: {
             Text("You have changes that haven't been saved. Save them or discard them before leaving Appearance.")
@@ -213,12 +221,12 @@ struct AppearanceSettingsView: View {
         .task { load() }
     }
 
-    private var themeColor: Color {
-        switch theme {
-        case "blue": return Color(red: 0.20, green: 0.45, blue: 0.95)
-        case "green": return Color(red: 0.18, green: 0.62, blue: 0.40)
-        default: return KairosColors.accent
-        }
+    private var themeColor: Color { KairosColors.accent(for: theme) }
+
+    @ViewBuilder
+    private func fontRow(_ title: String, _ value: String) -> some View {
+        Text(title).font(kairosFont(value))
+            .tag(value)
     }
 
     private func fontPreview(_ value: String) -> Font {
@@ -263,10 +271,7 @@ struct AppearanceSettingsView: View {
     }
 
     private func attemptLeave() {
-        guard hasUnsavedChanges else {
-            dismiss()
-            return
-        }
+        guard hasUnsavedChanges else { dismiss(); return }
         showingUnsavedChanges = true
     }
 
@@ -295,23 +300,26 @@ struct AppearanceSettingsView: View {
         isSaving = true
         let didSave = await persistDraft()
         isSaving = false
-        if didSave {
-            syncSavedValues()
-            dismiss()
-        }
+        if didSave { syncSavedValues(); dismiss() }
     }
 
     @discardableResult
     private func persistDraft() async -> Bool {
+        let existingAppearance = profileRepo.appearanceSettings
         let appearance = KairosAppearanceSettings(
             mode: mode,
             theme: theme,
             textColor: textColor,
             font: font,
             background: background,
+<<<<<<< HEAD
             customBackground: customBackground.isEmpty ? nil : customBackground,
             // Kept for Firestore schema compatibility with older clients. iOS does not expose a cursor setting.
             cursor: profileRepo.appearanceSettings?.cursor ?? "default",
+=======
+            customBackground: customBackground.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : customBackground.trimmingCharacters(in: .whitespacesAndNewlines),
+            cursor: existingAppearance?.cursor ?? "default",
+>>>>>>> appearance-functional
             ambientSound: ambientSound,
             ambientVolume: Int(ambientVolume.rounded()),
             customAmbientYoutubeUrl: customAmbientURL,
@@ -338,12 +346,10 @@ struct AppearanceSettingsView: View {
             profileRepo.accessibilitySettings = originalAccessibility
             return false
         }
-
         return true
     }
 }
 
 #Preview {
-    AppearanceSettingsView()
-        .environment(UserProfileRepository())
+    AppearanceSettingsView().environment(UserProfileRepository())
 }
