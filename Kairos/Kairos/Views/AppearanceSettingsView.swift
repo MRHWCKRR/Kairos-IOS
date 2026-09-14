@@ -34,7 +34,7 @@ struct AppearanceSettingsView: View {
             } header: {
                 Text("Appearance")
             } footer: {
-                Text("Changes are previewed immediately and saved only when you tap Save appearance.")
+                Text("Changes stay pending until you tap Save appearance.")
             }
 
             Section("Accent") {
@@ -106,9 +106,6 @@ struct AppearanceSettingsView: View {
         } message: {
             Text("You have changes that haven't been saved. Save them or discard them before leaving Appearance.")
         }
-        .onChange(of: mode) { _, _ in applyPreview() }
-        .onChange(of: theme) { _, _ in applyPreview() }
-        .onChange(of: reduceMotion) { _, _ in applyPreview() }
         .task { load() }
     }
 
@@ -141,16 +138,25 @@ struct AppearanceSettingsView: View {
     }
 
     private func discardChanges() {
+        // Draft values never modify the shared profile, so discarding simply
+        // restores the controls to their last saved values before leaving.
         mode = savedMode
         theme = savedTheme
         reduceMotion = savedReduceMotion
-        restoreSavedPreview()
     }
 
     private func save() async {
         isSaving = true
-        await persistDraft()
+        let didSave = await persistDraft()
         isSaving = false
+        if didSave {
+            // The shared profile is updated by the repository only after the
+            // Firestore write succeeds, so one Save commits both persistence
+            // and the app-wide appearance.
+            savedMode = mode
+            savedTheme = theme
+            savedReduceMotion = reduceMotion
+        }
     }
 
     private func saveAndLeave() async {
@@ -158,65 +164,18 @@ struct AppearanceSettingsView: View {
         let didSave = await persistDraft()
         isSaving = false
         if didSave {
+            savedMode = mode
+            savedTheme = theme
+            savedReduceMotion = reduceMotion
             dismiss()
         }
     }
 
-    // Apply the draft to the shared in-memory settings so ContentView previews
-    // mode/theme changes immediately. Nothing is written to Firestore here.
-    private func applyPreview() {
-        guard hasUnsavedChanges else { return }
-        let existingAppearance = profileRepo.appearanceSettings
-        profileRepo.appearanceSettings = KairosAppearanceSettings(
-            mode: mode,
-            theme: theme,
-            textColor: existingAppearance?.textColor ?? "default",
-            font: existingAppearance?.font ?? "system",
-            background: existingAppearance?.background ?? "gradient",
-            customBackground: existingAppearance?.customBackground,
-            cursor: existingAppearance?.cursor ?? "default",
-            ambientSound: existingAppearance?.ambientSound ?? "none",
-            ambientVolume: existingAppearance?.ambientVolume ?? 50,
-            customAmbientYoutubeUrl: existingAppearance?.customAmbientYoutubeUrl ?? "",
-            confetti: existingAppearance?.confetti ?? true
-        )
-
-        let existingAccessibility = profileRepo.accessibilitySettings
-        profileRepo.accessibilitySettings = KairosAccessibilitySettings(
-            density: existingAccessibility?.density ?? "comfortable",
-            timeFormat: existingAccessibility?.timeFormat ?? "24h",
-            reduceMotion: reduceMotion,
-            language: existingAccessibility?.language ?? "en"
-        )
-    }
-
-    private func restoreSavedPreview() {
-        let existingAppearance = profileRepo.appearanceSettings
-        profileRepo.appearanceSettings = KairosAppearanceSettings(
-            mode: savedMode,
-            theme: savedTheme,
-            textColor: existingAppearance?.textColor ?? "default",
-            font: existingAppearance?.font ?? "system",
-            background: existingAppearance?.background ?? "gradient",
-            customBackground: existingAppearance?.customBackground,
-            cursor: existingAppearance?.cursor ?? "default",
-            ambientSound: existingAppearance?.ambientSound ?? "none",
-            ambientVolume: existingAppearance?.ambientVolume ?? 50,
-            customAmbientYoutubeUrl: existingAppearance?.customAmbientYoutubeUrl ?? "",
-            confetti: existingAppearance?.confetti ?? true
-        )
-
-        let existingAccessibility = profileRepo.accessibilitySettings
-        profileRepo.accessibilitySettings = KairosAccessibilitySettings(
-            density: existingAccessibility?.density ?? "comfortable",
-            timeFormat: existingAccessibility?.timeFormat ?? "24h",
-            reduceMotion: savedReduceMotion,
-            language: existingAccessibility?.language ?? "en"
-        )
-    }
-
     @discardableResult
     private func persistDraft() async -> Bool {
+        // Build the appearance from the draft controls without mutating the
+        // shared repository first. The app therefore stays on the currently
+        // saved theme until the user explicitly commits the change.
         let existingAppearance = profileRepo.appearanceSettings
         let appearance = KairosAppearanceSettings(
             mode: mode,
@@ -240,16 +199,21 @@ struct AppearanceSettingsView: View {
             language: existingAccessibility?.language ?? "en"
         )
 
+        let originalAppearance = profileRepo.appearanceSettings
+        let originalAccessibility = profileRepo.accessibilitySettings
+
         await profileRepo.saveAppearanceSettings(appearance)
+        guard profileRepo.appearanceSettings == appearance else { return false }
+
         await profileRepo.saveAccessibilitySettings(accessibility)
+        guard profileRepo.accessibilitySettings == accessibility else {
+            // If the second write fails, restore the previously committed
+            // in-memory appearance so the UI doesn't claim both settings saved.
+            profileRepo.appearanceSettings = originalAppearance
+            profileRepo.accessibilitySettings = originalAccessibility
+            return false
+        }
 
-        let appearanceSaved = profileRepo.appearanceSettings == appearance
-        let accessibilitySaved = profileRepo.accessibilitySettings == accessibility
-        guard appearanceSaved && accessibilitySaved else { return false }
-
-        savedMode = mode
-        savedTheme = theme
-        savedReduceMotion = reduceMotion
         return true
     }
 }
