@@ -145,18 +145,13 @@ struct AppearanceSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Text("Bundled sounds belong in Kairos/Resources/AmbientSounds. See that folder's documentation for the naming convention.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
                 Toggle("Confetti", isOn: $confetti)
             }
 
             Section("Accessibility") {
                 Toggle("Reduce motion", isOn: $reduceMotion)
                 Text("Disables Kairos animated transitions where supported.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section {
@@ -195,7 +190,8 @@ struct AppearanceSettingsView: View {
 
     @ViewBuilder
     private func fontRow(_ title: String, _ value: String) -> some View {
-        Text(title).font(kairosFont(value)).tag(value)
+        Text(title).font(kairosFont(value))
+            .tag(value)
     }
 
     private func load() {
