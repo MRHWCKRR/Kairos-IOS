@@ -34,22 +34,46 @@ final class UserProfileRepository {
                 return
             }
 
-            do {
-                let data = try snapshot.data(as: KairosUserDocument.self)
-                self.profile = data.settings?.profile
-                self.focusData = data.focusData
-                self.achievementsData = data.achievements
-                self.accessibilitySettings = data.settings?.accessibility
-                self.notificationSettings = data.settings?.notifications
-                self.appearanceSettings = data.settings?.appearance
-                self.aiChatHistory = data.aiChatHistory ?? []
-                self.errorMessage = nil
-            } catch {
-                // Do not clear valid in-memory settings when an unrelated field in
-                // the user document fails to decode. This used to make a saved
-                // appearance fall back to the device theme after task updates.
-                self.errorMessage = "Some account data could not be refreshed. Your current settings were kept."
+            // Decode each top-level section independently. A legacy or malformed
+            // field elsewhere in the user document must not prevent saved settings
+            // from being restored after a cold launch.
+            let raw = snapshot.data() ?? [:]
+            let decoder = Firestore.Decoder()
+
+            if let settings = raw["settings"] as? [String: Any] {
+                if let map = settings["profile"] as? [String: Any],
+                   let value = try? decoder.decode(KairosUserProfile.self, from: map) {
+                    self.profile = value
+                }
+                if let map = settings["accessibility"] as? [String: Any],
+                   let value = try? decoder.decode(KairosAccessibilitySettings.self, from: map) {
+                    self.accessibilitySettings = value
+                }
+                if let map = settings["appearance"] as? [String: Any],
+                   let value = try? decoder.decode(KairosAppearanceSettings.self, from: map) {
+                    self.appearanceSettings = value
+                }
+                if let map = settings["notifications"] as? [String: Any],
+                   let value = try? decoder.decode(KairosNotificationSettings.self, from: map) {
+                    self.notificationSettings = value
+                }
             }
+
+            if let map = raw["focusData"] as? [String: Any],
+               let value = try? decoder.decode(KairosFocusData.self, from: map) {
+                self.focusData = value
+            }
+            if let map = raw["achievements"] as? [String: Any],
+               let value = try? decoder.decode(KairosAchievementsData.self, from: map) {
+                self.achievementsData = value
+            }
+            if let history = raw["aiChatHistory"] as? [[String: Any]] {
+                self.aiChatHistory = history.compactMap {
+                    try? decoder.decode(ChatMessage.self, from: $0)
+                }
+            }
+
+            self.errorMessage = nil
         }
     }
 
@@ -73,9 +97,6 @@ final class UserProfileRepository {
         appearanceSettings = settings
         do {
             let encoded = try Firestore.Encoder().encode(settings)
-            // Use updateData for the nested field path. This guarantees that
-            // `settings.appearance` is written as a nested map rather than relying
-            // on setData's dictionary-key interpretation.
             try await db.collection("users").document(uid).updateData([
                 "settings.appearance": encoded
             ])
