@@ -72,18 +72,17 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 30) {
                     header
-                    dailyOverview
                     focusCard
                     todayTasksCard
                     goalsCard
                     routineCard
                     boardsPreview
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 10)
-                .padding(.bottom, 28)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 34)
             }
             .kairosBackground()
             .toolbar(.hidden, for: .navigationBar)
@@ -102,7 +101,7 @@ struct DashboardView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(greeting)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
@@ -129,49 +128,6 @@ struct DashboardView: View {
             .accessibilityLabel("Open profile")
             .kairosGlass(cornerRadius: 18, tint: KairosColors.accent.opacity(0.10))
         }
-    }
-
-    private var dailyOverview: some View {
-        HStack(spacing: 10) {
-            overviewMetric(
-                title: "Focus today",
-                value: formatCompactDuration(todayFocusSeconds),
-                systemImage: "timer"
-            )
-
-            overviewMetric(
-                title: "Tasks done",
-                value: "\(completedCount)/\(allTasks.count)",
-                systemImage: "checkmark.circle.fill"
-            )
-
-            overviewMetric(
-                title: "Progress",
-                value: "\(Int(completion * 100))%",
-                systemImage: "chart.line.uptrend.xyaxis"
-            )
-        }
-    }
-
-    private func overviewMetric(title: String, value: String, systemImage: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: systemImage)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(KairosColors.accent)
-
-            Text(value)
-                .font(.system(size: 17, weight: .bold, design: .rounded))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-
-            Text(title)
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(13)
-        .kairosCard(cornerRadius: 20)
     }
 
     private var focusCard: some View {
@@ -214,7 +170,7 @@ struct DashboardView: View {
 
                     focusControls(focusTimer)
                 }
-                .padding(20)
+                .padding(22)
                 .kairosCard(cornerRadius: 30)
             }
         }
@@ -326,7 +282,7 @@ struct DashboardView: View {
                 }
             }
             .padding(18)
-            .kairosCard(cornerRadius: 26)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         }
     }
 
@@ -360,7 +316,7 @@ struct DashboardView: View {
             }
         }
         .padding(18)
-        .kairosCard(cornerRadius: 26)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
     }
 
     private func goalRow(index: Int, achievementID: String?) -> some View {
@@ -435,7 +391,7 @@ struct DashboardView: View {
             }
         }
         .padding(18)
-        .kairosCard(cornerRadius: 26)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
     }
 
     @ViewBuilder
@@ -449,7 +405,7 @@ struct DashboardView: View {
                 Spacer()
             }
             .padding(20)
-            .kairosCard(cornerRadius: 26)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         } else if let plan = planRepo.currentPlan {
             let boards = plan.boards.filter { !$0.archived }
 
@@ -488,7 +444,7 @@ struct DashboardView: View {
                 }
             }
             .padding(18)
-            .kairosCard(cornerRadius: 26)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         } else {
             VStack(spacing: 10) {
                 Image(systemName: "square.stack.3d.up")
@@ -512,7 +468,7 @@ struct DashboardView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(24)
-            .kairosCard(cornerRadius: 26)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         }
     }
 
