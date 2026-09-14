@@ -2,13 +2,25 @@ import SwiftUI
 
 struct AppearanceSettingsView: View {
     @Environment(UserProfileRepository.self) private var profileRepo
+    @Environment(\.dismiss) private var dismiss
+
     @State private var mode = "system"
     @State private var theme = "purple"
     @State private var reduceMotion = false
+
+    @State private var savedMode = "system"
+    @State private var savedTheme = "purple"
+    @State private var savedReduceMotion = false
+
     @State private var isSaving = false
+    @State private var showingUnsavedChanges = false
 
     private let modes = ["system", "light", "dark"]
     private let themes = ["purple", "blue", "green"]
+
+    private var hasUnsavedChanges: Bool {
+        mode != savedMode || theme != savedTheme || reduceMotion != savedReduceMotion
+    }
 
     var body: some View {
         List {
@@ -22,7 +34,7 @@ struct AppearanceSettingsView: View {
             } header: {
                 Text("Appearance")
             } footer: {
-                Text("System follows your iPhone's Light or Dark Mode setting.")
+                Text("Changes are saved only when you tap Save appearance.")
             }
 
             Section("Accent") {
@@ -64,12 +76,36 @@ struct AppearanceSettingsView: View {
                         if isSaving { ProgressView() }
                     }
                 }
-                .disabled(isSaving)
+                .disabled(isSaving || !hasUnsavedChanges)
             }
         }
         .scrollContentBackground(.hidden)
         .kairosBackground()
         .navigationTitle("Appearance")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    attemptLeave()
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                }
+                .disabled(isSaving)
+            }
+        }
+        .alert("Unsaved changes", isPresented: $showingUnsavedChanges) {
+            Button("Save Changes") {
+                Task { await saveAndLeave() }
+            }
+            Button("Discard Changes", role: .destructive) {
+                discardChanges()
+                dismiss()
+            }
+            Button("Keep Editing", role: .cancel) {}
+        } message: {
+            Text("You have changes that haven't been saved. Save them or discard them before leaving Appearance.")
+        }
         .task { load() }
     }
 
@@ -82,16 +118,48 @@ struct AppearanceSettingsView: View {
     }
 
     private func load() {
+        guard !hasUnsavedChanges else { return }
         if let settings = profileRepo.appearanceSettings {
             mode = modes.contains(settings.mode) ? settings.mode : "system"
             theme = themes.contains(settings.theme) ? settings.theme : "purple"
         }
         reduceMotion = profileRepo.accessibilitySettings?.reduceMotion ?? false
+        savedMode = mode
+        savedTheme = theme
+        savedReduceMotion = reduceMotion
+    }
+
+    private func attemptLeave() {
+        guard hasUnsavedChanges else {
+            dismiss()
+            return
+        }
+        showingUnsavedChanges = true
+    }
+
+    private func discardChanges() {
+        mode = savedMode
+        theme = savedTheme
+        reduceMotion = savedReduceMotion
     }
 
     private func save() async {
         isSaving = true
+        await persistDraft()
+        isSaving = false
+    }
 
+    private func saveAndLeave() async {
+        isSaving = true
+        let didSave = await persistDraft()
+        isSaving = false
+        if didSave {
+            dismiss()
+        }
+    }
+
+    @discardableResult
+    private func persistDraft() async -> Bool {
         let existingAppearance = profileRepo.appearanceSettings
         let appearance = KairosAppearanceSettings(
             mode: mode,
@@ -117,7 +185,15 @@ struct AppearanceSettingsView: View {
 
         await profileRepo.saveAppearanceSettings(appearance)
         await profileRepo.saveAccessibilitySettings(accessibility)
-        isSaving = false
+
+        let appearanceSaved = profileRepo.appearanceSettings == appearance
+        let accessibilitySaved = profileRepo.accessibilitySettings == accessibility
+        guard appearanceSaved && accessibilitySaved else { return false }
+
+        savedMode = mode
+        savedTheme = theme
+        savedReduceMotion = reduceMotion
+        return true
     }
 }
 
