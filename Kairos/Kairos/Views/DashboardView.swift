@@ -237,6 +237,13 @@ struct DashboardView: View {
             Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(.white.opacity(0.26), lineWidth: 0.8)
+        }
     }
 
     private func sectionHeader(title: String, action: String, actionHandler: @escaping () -> Void) -> some View {
