@@ -29,20 +29,27 @@ final class UserProfileRepository {
                 self.errorMessage = error.localizedDescription
                 return
             }
-            guard let data = try? snapshot?.data(as: KairosUserDocument.self) else {
-                self.profile = nil; self.focusData = nil; self.achievementsData = nil
-                self.accessibilitySettings = nil; self.notificationSettings = nil
-                self.appearanceSettings = nil; self.aiChatHistory = []
+            guard let snapshot else {
+                self.errorMessage = "Kairos could not read your profile right now."
                 return
             }
-            self.profile = data.settings?.profile
-            self.focusData = data.focusData
-            self.achievementsData = data.achievements
-            self.accessibilitySettings = data.settings?.accessibility
-            self.notificationSettings = data.settings?.notifications
-            self.appearanceSettings = data.settings?.appearance
-            self.aiChatHistory = data.aiChatHistory ?? []
-            self.errorMessage = nil
+
+            do {
+                let data = try snapshot.data(as: KairosUserDocument.self)
+                self.profile = data.settings?.profile
+                self.focusData = data.focusData
+                self.achievementsData = data.achievements
+                self.accessibilitySettings = data.settings?.accessibility
+                self.notificationSettings = data.settings?.notifications
+                self.appearanceSettings = data.settings?.appearance
+                self.aiChatHistory = data.aiChatHistory ?? []
+                self.errorMessage = nil
+            } catch {
+                // Do not clear valid in-memory settings when an unrelated field in
+                // the user document fails to decode. This used to make a saved
+                // appearance fall back to the device theme after task updates.
+                self.errorMessage = "Some account data could not be refreshed. Your current settings were kept."
+            }
         }
     }
 
