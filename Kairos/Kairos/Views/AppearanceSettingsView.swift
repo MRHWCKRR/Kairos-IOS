@@ -291,7 +291,6 @@ struct AppearanceSettingsView: View {
 
     @discardableResult
     private func persistDraft() async -> Bool {
-        let existingAppearance = profileRepo.appearanceSettings
         let appearance = KairosAppearanceSettings(
             mode: mode,
             theme: theme,
@@ -327,9 +326,6 @@ struct AppearanceSettingsView: View {
             return false
         }
 
-        // Keep the UI stable when a custom URL is cleared while a built-in
-        // background/sound is selected: the persisted field remains empty.
-        _ = existingAppearance
         return true
     }
 }
