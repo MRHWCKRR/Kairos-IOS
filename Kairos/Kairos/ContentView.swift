@@ -1,11 +1,13 @@
 import SwiftUI
 import FirebaseAuth
+import AVFoundation
 
 struct ContentView: View {
     @Environment(SessionStore.self) private var session
     @State private var planRepo = StudyPlanRepository()
     @State private var profileRepo = UserProfileRepository()
     @State private var networkMonitor = KairosNetworkMonitor.shared
+    @State private var ambientAudio = KairosAmbientAudioController()
 
     private var preferredScheme: ColorScheme? {
         switch profileRepo.appearanceSettings?.mode {
@@ -15,17 +17,9 @@ struct ContentView: View {
         }
     }
 
-    private var accentColor: Color {
-        switch profileRepo.appearanceSettings?.theme {
-        case "blue": return Color(red: 0.20, green: 0.45, blue: 0.95)
-        case "green": return Color(red: 0.18, green: 0.62, blue: 0.40)
-        default: return KairosColors.accent
-        }
-    }
-
-    private var reduceMotion: Bool {
-        profileRepo.accessibilitySettings?.reduceMotion ?? false
-    }
+    private var appearance: KairosAppearanceSettings? { profileRepo.appearanceSettings }
+    private var accentColor: Color { KairosColors.accent(for: appearance?.theme) }
+    private var reduceMotion: Bool { profileRepo.accessibilitySettings?.reduceMotion ?? false }
 
     var body: some View {
         Group {
@@ -49,10 +43,10 @@ struct ContentView: View {
         }
         .preferredColorScheme(preferredScheme)
         .tint(accentColor)
+        .font(kairosFont(appearance?.font))
+        .foregroundStyle(kairosTextColor(appearance?.textColor))
         .transaction { transaction in
-            if reduceMotion {
-                transaction.animation = nil
-            }
+            if reduceMotion { transaction.animation = nil }
         }
         .animation(
             reduceMotion ? nil : .easeInOut(duration: 0.25),
@@ -62,11 +56,59 @@ struct ContentView: View {
             guard session.isAuthenticated, let uid = Auth.auth().currentUser?.uid else {
                 planRepo.stopListening()
                 profileRepo.stopListening()
+                ambientAudio.stop()
                 return
             }
             planRepo.startListening(userID: uid)
             profileRepo.startListening(userID: uid)
         }
+        .task(id: ambientAudioKey) {
+            await ambientAudio.apply(appearance)
+        }
+    }
+
+    private var ambientAudioKey: String {
+        guard let appearance else { return "none" }
+        return "\(appearance.ambientSound)-\(appearance.ambientVolume)-\(appearance.customAmbientYoutubeUrl)"
+    }
+}
+
+@MainActor
+final class KairosAmbientAudioController {
+    private var player: AVAudioPlayer?
+
+    func apply(_ settings: KairosAppearanceSettings?) async {
+        stop()
+        guard let settings, settings.ambientSound != "none", settings.ambientVolume > 0 else { return }
+
+        let candidates = [
+            settings.ambientSound,
+            settings.ambientSound.lowercased()
+        ]
+        let url = candidates.lazy.compactMap { name in
+            Bundle.main.url(forResource: name, withExtension: "mp3")
+                ?? Bundle.main.url(forResource: name, withExtension: "m4a")
+                ?? Bundle.main.url(forResource: name, withExtension: "wav")
+        }.first
+
+        guard let url else { return }
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default, options: [.mixWithOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+            let audioPlayer = try AVAudioPlayer(contentsOf: url)
+            audioPlayer.numberOfLoops = -1
+            audioPlayer.volume = Float(settings.ambientVolume) / 100
+            audioPlayer.prepareToPlay()
+            audioPlayer.play()
+            player = audioPlayer
+        } catch {
+            player = nil
+        }
+    }
+
+    func stop() {
+        player?.stop()
+        player = nil
     }
 }
 
@@ -75,7 +117,6 @@ private struct OfflineBanner: View {
         HStack(spacing: 10) {
             Image(systemName: "wifi.slash")
                 .font(.subheadline.weight(.semibold))
-
             VStack(alignment: .leading, spacing: 1) {
                 Text("You're offline")
                     .font(.subheadline.weight(.semibold))
@@ -83,16 +124,13 @@ private struct OfflineBanner: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(.regularMaterial)
         .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(.primary.opacity(0.08))
-                .frame(height: 0.5)
+            Rectangle().fill(.primary.opacity(0.08)).frame(height: 0.5)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("You're offline. Changes may sync when you're back online.")
@@ -100,6 +138,5 @@ private struct OfflineBanner: View {
 }
 
 #Preview {
-    ContentView()
-        .environment(SessionStore())
+    ContentView().environment(SessionStore())
 }
