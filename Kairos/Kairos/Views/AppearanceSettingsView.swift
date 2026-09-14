@@ -6,10 +6,28 @@ struct AppearanceSettingsView: View {
 
     @State private var mode = "system"
     @State private var theme = "purple"
+    @State private var textColor = "default"
+    @State private var font = "system"
+    @State private var background = "gradient"
+    @State private var customBackground = ""
+    @State private var cursor = "default"
+    @State private var ambientSound = "none"
+    @State private var ambientVolume = 50.0
+    @State private var customAmbientURL = ""
+    @State private var confetti = true
     @State private var reduceMotion = false
 
     @State private var savedMode = "system"
     @State private var savedTheme = "purple"
+    @State private var savedTextColor = "default"
+    @State private var savedFont = "system"
+    @State private var savedBackground = "gradient"
+    @State private var savedCustomBackground = ""
+    @State private var savedCursor = "default"
+    @State private var savedAmbientSound = "none"
+    @State private var savedAmbientVolume = 50.0
+    @State private var savedCustomAmbientURL = ""
+    @State private var savedConfetti = true
     @State private var savedReduceMotion = false
 
     @State private var isSaving = false
@@ -17,9 +35,19 @@ struct AppearanceSettingsView: View {
 
     private let modes = ["system", "light", "dark"]
     private let themes = ["purple", "blue", "green"]
+    private let textColors = ["default", "white", "black"]
+    private let fonts = ["system", "rounded", "serif", "monospaced"]
+    private let backgrounds = ["gradient", "solid", "minimal"]
+    private let cursors = ["default", "line", "block"]
+    private let ambientSounds = ["none", "rain", "forest", "ocean"]
 
     private var hasUnsavedChanges: Bool {
-        mode != savedMode || theme != savedTheme || reduceMotion != savedReduceMotion
+        mode != savedMode || theme != savedTheme || textColor != savedTextColor ||
+        font != savedFont || background != savedBackground || customBackground != savedCustomBackground ||
+        cursor != savedCursor || ambientSound != savedAmbientSound ||
+        Int(ambientVolume.rounded()) != Int(savedAmbientVolume.rounded()) ||
+        customAmbientURL != savedCustomAmbientURL || confetti != savedConfetti ||
+        reduceMotion != savedReduceMotion
     }
 
     var body: some View {
@@ -57,6 +85,76 @@ struct AppearanceSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+            }
+
+            Section("Typography") {
+                Picker("Text color", selection: $textColor) {
+                    Text("Default").tag("default")
+                    Text("White").tag("white")
+                    Text("Black").tag("black")
+                }
+                .pickerStyle(.navigationLink)
+
+                Picker("Font", selection: $font) {
+                    Text("System").tag("system")
+                    Text("Rounded").tag("rounded")
+                    Text("Serif").tag("serif")
+                    Text("Monospaced").tag("monospaced")
+                }
+                .pickerStyle(.navigationLink)
+            }
+
+            Section("Background") {
+                Picker("Style", selection: $background) {
+                    Text("Gradient").tag("gradient")
+                    Text("Solid").tag("solid")
+                    Text("Minimal").tag("minimal")
+                }
+                .pickerStyle(.navigationLink)
+
+                if background == "solid" {
+                    TextField("Custom background URL (optional)", text: $customBackground)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                }
+            }
+
+            Section("Focus") {
+                Picker("Cursor", selection: $cursor) {
+                    Text("Default").tag("default")
+                    Text("Line").tag("line")
+                    Text("Block").tag("block")
+                }
+                .pickerStyle(.navigationLink)
+
+                Picker("Ambient sound", selection: $ambientSound) {
+                    Text("None").tag("none")
+                    Text("Rain").tag("rain")
+                    Text("Forest").tag("forest")
+                    Text("Ocean").tag("ocean")
+                }
+                .pickerStyle(.navigationLink)
+
+                if ambientSound != "none" {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Volume")
+                            Spacer()
+                            Text("\(Int(ambientVolume.rounded()))%")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        Slider(value: $ambientVolume, in: 0...100, step: 1)
+                    }
+
+                    TextField("Custom YouTube URL (optional)", text: $customAmbientURL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                }
+
+                Toggle("Confetti", isOn: $confetti)
             }
 
             Section("Accessibility") {
@@ -122,10 +220,32 @@ struct AppearanceSettingsView: View {
         if let settings = profileRepo.appearanceSettings {
             mode = modes.contains(settings.mode) ? settings.mode : "system"
             theme = themes.contains(settings.theme) ? settings.theme : "purple"
+            textColor = textColors.contains(settings.textColor) ? settings.textColor : "default"
+            font = fonts.contains(settings.font) ? settings.font : "system"
+            background = backgrounds.contains(settings.background) ? settings.background : "gradient"
+            customBackground = settings.customBackground ?? ""
+            cursor = cursors.contains(settings.cursor) ? settings.cursor : "default"
+            ambientSound = ambientSounds.contains(settings.ambientSound) ? settings.ambientSound : "none"
+            ambientVolume = min(max(Double(settings.ambientVolume), 0), 100)
+            customAmbientURL = settings.customAmbientYoutubeUrl
+            confetti = settings.confetti
         }
         reduceMotion = profileRepo.accessibilitySettings?.reduceMotion ?? false
+        syncSavedValues()
+    }
+
+    private func syncSavedValues() {
         savedMode = mode
         savedTheme = theme
+        savedTextColor = textColor
+        savedFont = font
+        savedBackground = background
+        savedCustomBackground = customBackground
+        savedCursor = cursor
+        savedAmbientSound = ambientSound
+        savedAmbientVolume = ambientVolume
+        savedCustomAmbientURL = customAmbientURL
+        savedConfetti = confetti
         savedReduceMotion = reduceMotion
     }
 
@@ -138,10 +258,17 @@ struct AppearanceSettingsView: View {
     }
 
     private func discardChanges() {
-        // Draft values never modify the shared profile, so discarding simply
-        // restores the controls to their last saved values before leaving.
         mode = savedMode
         theme = savedTheme
+        textColor = savedTextColor
+        font = savedFont
+        background = savedBackground
+        customBackground = savedCustomBackground
+        cursor = savedCursor
+        ambientSound = savedAmbientSound
+        ambientVolume = savedAmbientVolume
+        customAmbientURL = savedCustomAmbientURL
+        confetti = savedConfetti
         reduceMotion = savedReduceMotion
     }
 
@@ -149,14 +276,7 @@ struct AppearanceSettingsView: View {
         isSaving = true
         let didSave = await persistDraft()
         isSaving = false
-        if didSave {
-            // The shared profile is updated by the repository only after the
-            // Firestore write succeeds, so one Save commits both persistence
-            // and the app-wide appearance.
-            savedMode = mode
-            savedTheme = theme
-            savedReduceMotion = reduceMotion
-        }
+        if didSave { syncSavedValues() }
     }
 
     private func saveAndLeave() async {
@@ -164,31 +284,26 @@ struct AppearanceSettingsView: View {
         let didSave = await persistDraft()
         isSaving = false
         if didSave {
-            savedMode = mode
-            savedTheme = theme
-            savedReduceMotion = reduceMotion
+            syncSavedValues()
             dismiss()
         }
     }
 
     @discardableResult
     private func persistDraft() async -> Bool {
-        // Build the appearance from the draft controls without mutating the
-        // shared repository first. The app therefore stays on the currently
-        // saved theme until the user explicitly commits the change.
         let existingAppearance = profileRepo.appearanceSettings
         let appearance = KairosAppearanceSettings(
             mode: mode,
             theme: theme,
-            textColor: existingAppearance?.textColor ?? "default",
-            font: existingAppearance?.font ?? "system",
-            background: existingAppearance?.background ?? "gradient",
-            customBackground: existingAppearance?.customBackground,
-            cursor: existingAppearance?.cursor ?? "default",
-            ambientSound: existingAppearance?.ambientSound ?? "none",
-            ambientVolume: existingAppearance?.ambientVolume ?? 50,
-            customAmbientYoutubeUrl: existingAppearance?.customAmbientYoutubeUrl ?? "",
-            confetti: existingAppearance?.confetti ?? true
+            textColor: textColor,
+            font: font,
+            background: background,
+            customBackground: customBackground.isEmpty ? nil : customBackground,
+            cursor: cursor,
+            ambientSound: ambientSound,
+            ambientVolume: Int(ambientVolume.rounded()),
+            customAmbientYoutubeUrl: customAmbientURL,
+            confetti: confetti
         )
 
         let existingAccessibility = profileRepo.accessibilitySettings
@@ -207,13 +322,14 @@ struct AppearanceSettingsView: View {
 
         await profileRepo.saveAccessibilitySettings(accessibility)
         guard profileRepo.accessibilitySettings == accessibility else {
-            // If the second write fails, restore the previously committed
-            // in-memory appearance so the UI doesn't claim both settings saved.
             profileRepo.appearanceSettings = originalAppearance
             profileRepo.accessibilitySettings = originalAccessibility
             return false
         }
 
+        // Keep the UI stable when a custom URL is cleared while a built-in
+        // background/sound is selected: the persisted field remains empty.
+        _ = existingAppearance
         return true
     }
 }
