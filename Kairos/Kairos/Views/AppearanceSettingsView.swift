@@ -34,7 +34,7 @@ struct AppearanceSettingsView: View {
             } header: {
                 Text("Appearance")
             } footer: {
-                Text("Changes are saved only when you tap Save appearance.")
+                Text("Changes are previewed immediately and saved only when you tap Save appearance.")
             }
 
             Section("Accent") {
@@ -106,6 +106,9 @@ struct AppearanceSettingsView: View {
         } message: {
             Text("You have changes that haven't been saved. Save them or discard them before leaving Appearance.")
         }
+        .onChange(of: mode) { _, _ in applyPreview() }
+        .onChange(of: theme) { _, _ in applyPreview() }
+        .onChange(of: reduceMotion) { _, _ in applyPreview() }
         .task { load() }
     }
 
@@ -141,6 +144,7 @@ struct AppearanceSettingsView: View {
         mode = savedMode
         theme = savedTheme
         reduceMotion = savedReduceMotion
+        restoreSavedPreview()
     }
 
     private func save() async {
@@ -156,6 +160,59 @@ struct AppearanceSettingsView: View {
         if didSave {
             dismiss()
         }
+    }
+
+    // Apply the draft to the shared in-memory settings so ContentView previews
+    // mode/theme changes immediately. Nothing is written to Firestore here.
+    private func applyPreview() {
+        guard hasUnsavedChanges else { return }
+        let existingAppearance = profileRepo.appearanceSettings
+        profileRepo.appearanceSettings = KairosAppearanceSettings(
+            mode: mode,
+            theme: theme,
+            textColor: existingAppearance?.textColor ?? "default",
+            font: existingAppearance?.font ?? "system",
+            background: existingAppearance?.background ?? "gradient",
+            customBackground: existingAppearance?.customBackground,
+            cursor: existingAppearance?.cursor ?? "default",
+            ambientSound: existingAppearance?.ambientSound ?? "none",
+            ambientVolume: existingAppearance?.ambientVolume ?? 50,
+            customAmbientYoutubeUrl: existingAppearance?.customAmbientYoutubeUrl ?? "",
+            confetti: existingAppearance?.confetti ?? true
+        )
+
+        let existingAccessibility = profileRepo.accessibilitySettings
+        profileRepo.accessibilitySettings = KairosAccessibilitySettings(
+            density: existingAccessibility?.density ?? "comfortable",
+            timeFormat: existingAccessibility?.timeFormat ?? "24h",
+            reduceMotion: reduceMotion,
+            language: existingAccessibility?.language ?? "en"
+        )
+    }
+
+    private func restoreSavedPreview() {
+        let existingAppearance = profileRepo.appearanceSettings
+        profileRepo.appearanceSettings = KairosAppearanceSettings(
+            mode: savedMode,
+            theme: savedTheme,
+            textColor: existingAppearance?.textColor ?? "default",
+            font: existingAppearance?.font ?? "system",
+            background: existingAppearance?.background ?? "gradient",
+            customBackground: existingAppearance?.customBackground,
+            cursor: existingAppearance?.cursor ?? "default",
+            ambientSound: existingAppearance?.ambientSound ?? "none",
+            ambientVolume: existingAppearance?.ambientVolume ?? 50,
+            customAmbientYoutubeUrl: existingAppearance?.customAmbientYoutubeUrl ?? "",
+            confetti: existingAppearance?.confetti ?? true
+        )
+
+        let existingAccessibility = profileRepo.accessibilitySettings
+        profileRepo.accessibilitySettings = KairosAccessibilitySettings(
+            density: existingAccessibility?.density ?? "comfortable",
+            timeFormat: existingAccessibility?.timeFormat ?? "24h",
+            reduceMotion: savedReduceMotion,
+            language: existingAccessibility?.language ?? "en"
+        )
     }
 
     @discardableResult
