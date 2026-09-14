@@ -1,22 +1,50 @@
 import SwiftUI
+import UIKit
 
 struct DashboardView: View {
     @Environment(SessionStore.self) private var session
     @Environment(StudyPlanRepository.self) private var planRepo
     @Environment(UserProfileRepository.self) private var profileRepo
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Lets the dashboard send the user to another top-level Kairos surface
+    /// without coupling the dashboard to TabView state.
+    var onNavigate: ((Int) -> Void)? = nil
+
     @State private var showingProfile = false
     @State private var focusTimer: FocusTimerViewModel?
 
     private var displayName: String {
-        let name = profileRepo.profile?.displayName ?? ""
+        let name = profileRepo.profile?.displayName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return name.isEmpty ? session.email : name
     }
 
+    private var greeting: String {
+        switch Calendar.current.component(.hour, from: .now) {
+        case 5..<12: return "Good morning"
+        case 12..<18: return "Good afternoon"
+        case 18..<23: return "Good evening"
+        default: return "Welcome back"
+        }
+    }
+
+    private var todayKey: String {
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: .now)
+        return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
+    }
+
+    private var activeTasks: [KairosTask] {
+        planRepo.currentPlan?.boards
+            .filter { !$0.archived }
+            .flatMap { $0.sections.filter { !$0.archived } }
+            .flatMap { $0.tasks.filter { !$0.archived && !$0.completed } } ?? []
+    }
+
     private var allTasks: [KairosTask] {
-        planRepo.currentPlan?.boards.flatMap { board in
-            board.sections.filter { !$0.archived }.flatMap { $0.tasks.filter { !$0.archived } }
-        } ?? []
+        planRepo.currentPlan?.boards
+            .filter { !$0.archived }
+            .flatMap { $0.sections.filter { !$0.archived } }
+            .flatMap { $0.tasks.filter { !$0.archived } } ?? []
     }
 
     private var completedCount: Int { allTasks.filter(\.completed).count }
@@ -24,6 +52,16 @@ struct DashboardView: View {
     private var completion: Double {
         guard !allTasks.isEmpty else { return 0 }
         return Double(completedCount) / Double(allTasks.count)
+    }
+
+    private var todayTasks: [KairosTask] {
+        let scheduled = activeTasks.filter { $0.date == todayKey }
+        if !scheduled.isEmpty { return Array(scheduled.prefix(4)) }
+        return Array(activeTasks.filter { $0.date == nil }.prefix(4))
+    }
+
+    private var todayFocusSeconds: Int64 {
+        profileRepo.focusData?.dailyFocusLog?[todayKey] ?? 0
     }
 
     private var activeGoals: [String?] {
@@ -34,15 +72,17 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 16) {
                     header
+                    dailyOverview
                     focusCard
+                    todayTasksCard
                     goalsCard
                     routineCard
                     boardsPreview
                 }
                 .padding(.horizontal, 18)
-                .padding(.top, 12)
+                .padding(.top, 10)
                 .padding(.bottom, 28)
             }
             .kairosBackground()
@@ -62,13 +102,19 @@ struct DashboardView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Welcome back")
+            VStack(alignment: .leading, spacing: 4) {
+                Text(greeting)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
+
                 Text(displayName)
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Text(.now, format: .dateTime.weekday(.wide).month(.wide).day())
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 12)
@@ -78,32 +124,85 @@ struct DashboardView: View {
                     .font(.system(size: 34))
                     .foregroundStyle(KairosColors.accent)
                     .symbolRenderingMode(.hierarchical)
+                    .frame(width: 44, height: 44)
             }
             .accessibilityLabel("Open profile")
             .kairosGlass(cornerRadius: 18, tint: KairosColors.accent.opacity(0.10))
         }
     }
 
+    private var dailyOverview: some View {
+        HStack(spacing: 10) {
+            overviewMetric(
+                title: "Focus today",
+                value: formatCompactDuration(todayFocusSeconds),
+                systemImage: "timer"
+            )
+
+            overviewMetric(
+                title: "Tasks done",
+                value: "\(completedCount)/\(allTasks.count)",
+                systemImage: "checkmark.circle.fill"
+            )
+
+            overviewMetric(
+                title: "Progress",
+                value: "\(Int(completion * 100))%",
+                systemImage: "chart.line.uptrend.xyaxis"
+            )
+        }
+    }
+
+    private func overviewMetric(title: String, value: String, systemImage: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(KairosColors.accent)
+
+            Text(value)
+                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+
+            Text(title)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(13)
+        .kairosCard(cornerRadius: 20)
+    }
+
     private var focusCard: some View {
         Group {
             if let focusTimer {
                 VStack(alignment: .leading, spacing: 18) {
-                    HStack {
+                    HStack(alignment: .center) {
                         Label("FOCUS TIMER", systemImage: "timer")
                             .font(.caption.weight(.bold))
                             .tracking(1)
                             .foregroundStyle(KairosColors.accent)
+
                         Spacer()
-                        Text(focusTimer.isRunning ? "ACTIVE" : "READY")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(focusTimer.isRunning ? KairosColors.accent : .secondary)
+
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(focusTimer.isRunning ? KairosColors.accent : .secondary)
+                                .frame(width: 6, height: 6)
+                            Text(focusTimer.isRunning ? "ACTIVE" : "READY")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(focusTimer.isRunning ? KairosColors.accent : .secondary)
+                        }
                     }
 
                     HStack(alignment: .lastTextBaseline) {
                         Text(FocusTimerViewModel.formatHMS(focusTimer.elapsedSeconds))
                             .font(.system(size: 46, weight: .bold, design: .rounded))
                             .monospacedDigit()
+
                         Spacer()
+
                         VStack(alignment: .trailing, spacing: 3) {
                             Text("Longest")
                                 .font(.caption)
@@ -175,14 +274,85 @@ struct DashboardView: View {
         #endif
     }
 
+    @ViewBuilder
+    private var todayTasksCard: some View {
+        if !todayTasks.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Up next")
+                            .font(.headline.weight(.bold))
+                        Text(todayTasks.count == 1 ? "One task ready when you are" : "A few things to move forward")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button("See all") {
+                        onNavigate?(1)
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(KairosColors.accent)
+                    .kairosGlass(cornerRadius: 16, tint: KairosColors.accent.opacity(0.08))
+                }
+
+                VStack(spacing: 0) {
+                    ForEach(Array(todayTasks.enumerated()), id: \.element.id) { index, task in
+                        HStack(spacing: 12) {
+                            Image(systemName: "circle")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundStyle(KairosColors.accent)
+
+                            Text(task.title)
+                                .font(.subheadline.weight(.medium))
+                                .lineLimit(2)
+
+                            Spacer(minLength: 8)
+
+                            if task.date == todayKey {
+                                Text("Today")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 11)
+
+                        if index < todayTasks.count - 1 {
+                            Divider()
+                                .opacity(0.45)
+                        }
+                    }
+                }
+            }
+            .padding(18)
+            .kairosCard(cornerRadius: 26)
+        }
+    }
+
     private var goalsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Active Goals")
-                    .font(.headline.weight(.bold))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Active Goals")
+                        .font(.headline.weight(.bold))
+                    Text("Keep the momentum going")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Spacer()
-                Image(systemName: "trophy.fill")
-                    .foregroundStyle(KairosColors.accent)
+
+                Button {
+                    onNavigate?(4)
+                } label: {
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption.weight(.bold))
+                        .frame(width: 34, height: 34)
+                }
+                .foregroundStyle(KairosColors.accent)
+                .kairosGlass(cornerRadius: 17, tint: KairosColors.accent.opacity(0.08))
+                .accessibilityLabel("Open goals")
             }
 
             ForEach(Array(activeGoals.enumerated()), id: \.offset) { index, goalID in
@@ -203,13 +373,17 @@ struct DashboardView: View {
             HStack(spacing: 10) {
                 Text(def?.icon ?? ["🌀", "🔥", "🗿"][index])
                     .font(.title3)
+
                 Text(title)
                     .font(.subheadline.weight(.semibold))
+
                 Spacer()
+
                 Text("\(Int(progress * 100))%")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
             }
+
             ProgressView(value: progress)
                 .tint(KairosColors.accent)
         }
@@ -236,7 +410,9 @@ struct DashboardView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
                 Spacer()
+
                 Text("\(Int(completion * 100))%")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundStyle(KairosColors.accent)
@@ -251,8 +427,10 @@ struct DashboardView: View {
                 Text("\(completedCount) of \(allTasks.count) tasks completed")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
+
                 Spacer()
-                Image(systemName: "checkmark.circle.fill")
+
+                Image(systemName: completion >= 1 ? "checkmark.seal.fill" : "checkmark.circle.fill")
                     .foregroundStyle(KairosColors.accent)
             }
         }
@@ -263,60 +441,127 @@ struct DashboardView: View {
     @ViewBuilder
     private var boardsPreview: some View {
         if planRepo.isLoading {
-            ProgressView("Loading your plan…")
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 28)
+            HStack {
+                ProgressView()
+                Text("Loading your plan…")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(20)
+            .kairosCard(cornerRadius: 26)
         } else if let plan = planRepo.currentPlan {
+            let boards = plan.boards.filter { !$0.archived }
+
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text("Your Boards")
-                        .font(.headline.weight(.bold))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Your Boards")
+                            .font(.headline.weight(.bold))
+                        Text(boards.isEmpty ? "Nothing here yet" : "A quick look at your work")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
                     Spacer()
-                    Text("\(plan.boards.filter { !$0.archived }.count)")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
+
+                    Button {
+                        onNavigate?(1)
+                    } label: {
+                        Text("Open")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(KairosColors.accent)
+                    .kairosGlass(cornerRadius: 16, tint: KairosColors.accent.opacity(0.08))
                 }
 
-                ForEach(plan.boards.filter { !$0.archived }.prefix(2)) { board in
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(board.title)
-                            .font(.subheadline.weight(.bold))
-                        ForEach(board.sections.filter { !$0.archived }.prefix(2)) { section in
-                            HStack(spacing: 9) {
-                                Image(systemName: "square.stack.3d.up")
-                                    .foregroundStyle(KairosColors.accent)
-                                Text(section.title)
-                                    .font(.caption.weight(.medium))
-                                    .lineLimit(1)
-                                Spacer()
-                                Text("\(section.tasks.filter { !$0.archived && $0.completed }.count)/\(section.tasks.filter { !$0.archived }.count)")
-                                    .font(.caption2.monospacedDigit())
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .padding(14)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                ForEach(Array(boards.prefix(2))) { board in
+                    boardPreview(board)
+                }
+
+                if boards.count > 2 {
+                    Text("+\(boards.count - 2) more boards")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 2)
                 }
             }
             .padding(18)
             .kairosCard(cornerRadius: 26)
         } else {
-            VStack(spacing: 8) {
-                Image(systemName: "sparkles.rectangle.stack")
-                    .font(.system(size: 30))
+            VStack(spacing: 10) {
+                Image(systemName: "square.stack.3d.up")
+                    .font(.system(size: 28, weight: .medium))
                     .foregroundStyle(KairosColors.accent)
-                Text("No study plan yet")
+
+                Text("Your workspace is waiting")
                     .font(.headline)
-                Text("Create a plan on Kairos web or Android to see it here.")
+
+                Text("Create a plan on Kairos web or Android to see your boards here.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+
+                Button("Open Boards") {
+                    onNavigate?(1)
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(KairosColors.accent)
+                .padding(.top, 2)
             }
             .frame(maxWidth: .infinity)
             .padding(24)
             .kairosCard(cornerRadius: 26)
         }
+    }
+
+    private func boardPreview(_ board: KairosBoard) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 9) {
+                Image(systemName: "square.stack.3d.up.fill")
+                    .font(.caption)
+                    .foregroundStyle(KairosColors.accent)
+
+                Text(board.title)
+                    .font(.subheadline.weight(.bold))
+                    .lineLimit(1)
+
+                Spacer()
+            }
+
+            ForEach(Array(board.sections.filter { !$0.archived }.prefix(2))) { section in
+                let visibleTasks = section.tasks.filter { !$0.archived }
+
+                HStack(spacing: 9) {
+                    Image(systemName: "circle.dotted")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+
+                    Text(section.title)
+                        .font(.caption.weight(.medium))
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    Text("\(visibleTasks.filter(\.completed).count)/\(visibleTasks.count)")
+                        .font(.caption2.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(14)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private func formatCompactDuration(_ seconds: Int64) -> String {
+        guard seconds > 0 else { return "0m" }
+        let hours = seconds / 3600
+        let minutes = (seconds % 3600) / 60
+        if hours > 0 {
+            return minutes > 0 ? "\(hours)h \(minutes)m" : "\(hours)h"
+        }
+        return "\(max(minutes, 1))m"
     }
 }
 

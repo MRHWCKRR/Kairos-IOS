@@ -5,9 +5,13 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            DashboardView()
-                .tabItem { Label("Home", systemImage: "house.fill") }
-                .tag(0)
+            DashboardView { tab in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    selectedTab = tab
+                }
+            }
+            .tabItem { Label("Home", systemImage: "house.fill") }
+            .tag(0)
 
             TasksView()
                 .tabItem { Label("Boards", systemImage: "checklist") }
