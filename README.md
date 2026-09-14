@@ -112,7 +112,7 @@ My mates Matt, Bevan, Neil, Ezaan, Howen and Ethan for supporting me even though
 
 My parents who supported me during the development with Kairos, especially those long nights where I had my school assignments and tutoring homework
 
-Hackclub Macondo for motivating me to finally start this project, and hopefully grant me the chance to publish these apps on the App store and Google Play store
+Hackclub Macondo for motivating me to finally start this project, even though I never got to fully participate
 
 ChatGPT, Gemini, Copilot, Claude and Deepseek for helping me solve problems and bugs, as well as teach me new things such as Google log ins and helping me around XCode.
 
