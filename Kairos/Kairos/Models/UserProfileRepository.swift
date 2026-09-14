@@ -29,19 +29,50 @@ final class UserProfileRepository {
                 self.errorMessage = error.localizedDescription
                 return
             }
-            guard let data = try? snapshot?.data(as: KairosUserDocument.self) else {
-                self.profile = nil; self.focusData = nil; self.achievementsData = nil
-                self.accessibilitySettings = nil; self.notificationSettings = nil
-                self.appearanceSettings = nil; self.aiChatHistory = []
+            guard let snapshot else {
+                self.errorMessage = "Kairos could not read your profile right now."
                 return
             }
-            self.profile = data.settings?.profile
-            self.focusData = data.focusData
-            self.achievementsData = data.achievements
-            self.accessibilitySettings = data.settings?.accessibility
-            self.notificationSettings = data.settings?.notifications
-            self.appearanceSettings = data.settings?.appearance
-            self.aiChatHistory = data.aiChatHistory ?? []
+
+            // Decode each top-level section independently. A legacy or malformed
+            // field elsewhere in the user document must not prevent saved settings
+            // from being restored after a cold launch.
+            let raw = snapshot.data() ?? [:]
+            let decoder = Firestore.Decoder()
+
+            if let settings = raw["settings"] as? [String: Any] {
+                if let map = settings["profile"] as? [String: Any],
+                   let value = try? decoder.decode(KairosUserProfile.self, from: map) {
+                    self.profile = value
+                }
+                if let map = settings["accessibility"] as? [String: Any],
+                   let value = try? decoder.decode(KairosAccessibilitySettings.self, from: map) {
+                    self.accessibilitySettings = value
+                }
+                if let map = settings["appearance"] as? [String: Any],
+                   let value = try? decoder.decode(KairosAppearanceSettings.self, from: map) {
+                    self.appearanceSettings = value
+                }
+                if let map = settings["notifications"] as? [String: Any],
+                   let value = try? decoder.decode(KairosNotificationSettings.self, from: map) {
+                    self.notificationSettings = value
+                }
+            }
+
+            if let map = raw["focusData"] as? [String: Any],
+               let value = try? decoder.decode(KairosFocusData.self, from: map) {
+                self.focusData = value
+            }
+            if let map = raw["achievements"] as? [String: Any],
+               let value = try? decoder.decode(KairosAchievementsData.self, from: map) {
+                self.achievementsData = value
+            }
+            if let history = raw["aiChatHistory"] as? [[String: Any]] {
+                self.aiChatHistory = history.compactMap {
+                    try? decoder.decode(ChatMessage.self, from: $0)
+                }
+            }
+
             self.errorMessage = nil
         }
     }
@@ -66,7 +97,9 @@ final class UserProfileRepository {
         appearanceSettings = settings
         do {
             let encoded = try Firestore.Encoder().encode(settings)
-            try await db.collection("users").document(uid).setData(["settings.appearance": encoded], merge: true)
+            try await db.collection("users").document(uid).updateData([
+                "settings.appearance": encoded
+            ])
         } catch {
             appearanceSettings = previous
             errorMessage = "Failed to save appearance settings: \(error.localizedDescription)"
@@ -79,7 +112,9 @@ final class UserProfileRepository {
         accessibilitySettings = settings
         do {
             let encoded = try Firestore.Encoder().encode(settings)
-            try await db.collection("users").document(uid).setData(["settings.accessibility": encoded], merge: true)
+            try await db.collection("users").document(uid).updateData([
+                "settings.accessibility": encoded
+            ])
         } catch {
             accessibilitySettings = previous
             errorMessage = "Failed to save accessibility settings: \(error.localizedDescription)"
