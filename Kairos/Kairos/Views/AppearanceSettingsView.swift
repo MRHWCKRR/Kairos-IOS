@@ -10,7 +10,6 @@ struct AppearanceSettingsView: View {
     @State private var font = "system"
     @State private var background = "gradient"
     @State private var customBackground = ""
-    @State private var cursor = "default"
     @State private var ambientSound = "none"
     @State private var ambientVolume = 50.0
     @State private var customAmbientURL = ""
@@ -23,7 +22,6 @@ struct AppearanceSettingsView: View {
     @State private var savedFont = "system"
     @State private var savedBackground = "gradient"
     @State private var savedCustomBackground = ""
-    @State private var savedCursor = "default"
     @State private var savedAmbientSound = "none"
     @State private var savedAmbientVolume = 50.0
     @State private var savedCustomAmbientURL = ""
@@ -38,13 +36,12 @@ struct AppearanceSettingsView: View {
     private let textColors = ["default", "white", "black"]
     private let fonts = ["system", "rounded", "serif", "monospaced"]
     private let backgrounds = ["gradient", "solid", "minimal"]
-    private let cursors = ["default", "line", "block"]
     private let ambientSounds = ["none", "rain", "forest", "ocean"]
 
     private var hasUnsavedChanges: Bool {
         mode != savedMode || theme != savedTheme || textColor != savedTextColor ||
         font != savedFont || background != savedBackground || customBackground != savedCustomBackground ||
-        cursor != savedCursor || ambientSound != savedAmbientSound ||
+        ambientSound != savedAmbientSound ||
         Int(ambientVolume.rounded()) != Int(savedAmbientVolume.rounded()) ||
         customAmbientURL != savedCustomAmbientURL || confetti != savedConfetti ||
         reduceMotion != savedReduceMotion
@@ -121,13 +118,6 @@ struct AppearanceSettingsView: View {
             }
 
             Section("Focus") {
-                Picker("Cursor", selection: $cursor) {
-                    Text("Default").tag("default")
-                    Text("Line").tag("line")
-                    Text("Block").tag("block")
-                }
-                .pickerStyle(.navigationLink)
-
                 Picker("Ambient sound", selection: $ambientSound) {
                     Text("None").tag("none")
                     Text("Rain").tag("rain")
@@ -224,7 +214,6 @@ struct AppearanceSettingsView: View {
             font = fonts.contains(settings.font) ? settings.font : "system"
             background = backgrounds.contains(settings.background) ? settings.background : "gradient"
             customBackground = settings.customBackground ?? ""
-            cursor = cursors.contains(settings.cursor) ? settings.cursor : "default"
             ambientSound = ambientSounds.contains(settings.ambientSound) ? settings.ambientSound : "none"
             ambientVolume = min(max(Double(settings.ambientVolume), 0), 100)
             customAmbientURL = settings.customAmbientYoutubeUrl
@@ -241,7 +230,6 @@ struct AppearanceSettingsView: View {
         savedFont = font
         savedBackground = background
         savedCustomBackground = customBackground
-        savedCursor = cursor
         savedAmbientSound = ambientSound
         savedAmbientVolume = ambientVolume
         savedCustomAmbientURL = customAmbientURL
@@ -264,7 +252,6 @@ struct AppearanceSettingsView: View {
         font = savedFont
         background = savedBackground
         customBackground = savedCustomBackground
-        cursor = savedCursor
         ambientSound = savedAmbientSound
         ambientVolume = savedAmbientVolume
         customAmbientURL = savedCustomAmbientURL
@@ -291,6 +278,7 @@ struct AppearanceSettingsView: View {
 
     @discardableResult
     private func persistDraft() async -> Bool {
+        let existingAppearance = profileRepo.appearanceSettings
         let appearance = KairosAppearanceSettings(
             mode: mode,
             theme: theme,
@@ -298,7 +286,7 @@ struct AppearanceSettingsView: View {
             font: font,
             background: background,
             customBackground: customBackground.isEmpty ? nil : customBackground,
-            cursor: cursor,
+            cursor: existingAppearance?.cursor ?? "default",
             ambientSound: ambientSound,
             ambientVolume: Int(ambientVolume.rounded()),
             customAmbientYoutubeUrl: customAmbientURL,
