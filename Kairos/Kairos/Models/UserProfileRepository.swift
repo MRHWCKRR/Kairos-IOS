@@ -73,7 +73,12 @@ final class UserProfileRepository {
         appearanceSettings = settings
         do {
             let encoded = try Firestore.Encoder().encode(settings)
-            try await db.collection("users").document(uid).setData(["settings.appearance": encoded], merge: true)
+            // Use updateData for the nested field path. This guarantees that
+            // `settings.appearance` is written as a nested map rather than relying
+            // on setData's dictionary-key interpretation.
+            try await db.collection("users").document(uid).updateData([
+                "settings.appearance": encoded
+            ])
         } catch {
             appearanceSettings = previous
             errorMessage = "Failed to save appearance settings: \(error.localizedDescription)"
@@ -86,7 +91,9 @@ final class UserProfileRepository {
         accessibilitySettings = settings
         do {
             let encoded = try Firestore.Encoder().encode(settings)
-            try await db.collection("users").document(uid).setData(["settings.accessibility": encoded], merge: true)
+            try await db.collection("users").document(uid).updateData([
+                "settings.accessibility": encoded
+            ])
         } catch {
             accessibilitySettings = previous
             errorMessage = "Failed to save accessibility settings: \(error.localizedDescription)"
