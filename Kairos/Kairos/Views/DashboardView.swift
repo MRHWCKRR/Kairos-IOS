@@ -104,62 +104,63 @@ struct DashboardView: View {
     private var focusCard: some View {
         Group {
             if let focusTimer {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack {
-                        Label("FOCUS", systemImage: "timer").font(.caption.weight(.bold)).tracking(1.2).foregroundStyle(KairosColors.accent)
-                        Spacer()
+                HStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 7) {
-                            Circle().fill(focusTimer.isRunning ? KairosColors.accent : .secondary.opacity(0.6)).frame(width: 7, height: 7)
-                            Text(focusTimer.isRunning ? "In session" : "Ready").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                            Image(systemName: "timer").font(.caption.weight(.semibold)).foregroundStyle(KairosColors.accent)
+                            Text("FOCUS").font(.caption.weight(.bold)).tracking(1.1).foregroundStyle(KairosColors.accent)
+                            Circle().fill(focusTimer.isRunning ? KairosColors.accent : .secondary.opacity(0.6)).frame(width: 6, height: 6).padding(.leading, 2)
                         }
+
+                        Text(FocusTimerViewModel.formatHMS(focusTimer.elapsedSeconds))
+                            .font(.system(size: 34, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .tracking(-0.8)
+
+                        Text(focusTimer.isRunning ? "Stay with it." : "Make some progress.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    .padding(.bottom, 26)
 
-                    Text(FocusTimerViewModel.formatHMS(focusTimer.elapsedSeconds))
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .tracking(-1.2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    HStack(alignment: .bottom) {
-                        Text(focusTimer.isRunning ? "Stay with it." : "Make some progress.").font(.subheadline).foregroundStyle(.secondary)
-                        Spacer()
-                        if let longest = profileRepo.focusData?.longestSessionSeconds, longest > 0 {
-                            VStack(alignment: .trailing, spacing: 3) {
-                                Text("Best session").font(.caption2).foregroundStyle(.secondary)
-                                Text(FocusTimerViewModel.formatHMS(longest)).font(.caption.weight(.semibold))
-                            }
-                        }
-                    }
-                    .padding(.top, 8)
-                    .padding(.bottom, 26)
-
+                    Spacer(minLength: 8)
                     focusControls(focusTimer)
                 }
-                .padding(26)
-                .background(RoundedRectangle(cornerRadius: 32, style: .continuous).fill(.background.opacity(0.72)))
-                .overlay(RoundedRectangle(cornerRadius: 32, style: .continuous).strokeBorder(.primary.opacity(0.06), lineWidth: 1))
-                .shadow(color: .black.opacity(0.06), radius: 24, y: 12)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(.background.opacity(0.72)))
+                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(.primary.opacity(0.06), lineWidth: 1))
+                .shadow(color: .black.opacity(0.04), radius: 14, y: 7)
             }
         }
     }
 
     private func focusControls(_ timer: FocusTimerViewModel) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Button {
                 if timer.isRunning { timer.pause() } else { timer.start() }
                 fireFocusHaptic()
             } label: {
-                Label(timer.isRunning ? "Pause" : "Start Focus", systemImage: timer.isRunning ? "pause.fill" : "play.fill")
-                    .font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 14)
+                Image(systemName: timer.isRunning ? "pause.fill" : "play.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .frame(width: 44, height: 44)
             }
-            .buttonStyle(.plain).foregroundStyle(.white).background(KairosColors.accent, in: Capsule())
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .background(KairosColors.accent, in: Circle())
+            .accessibilityLabel(timer.isRunning ? "Pause focus timer" : "Start focus timer")
 
             if timer.isRunning {
-                Button { timer.stopAndLog(); fireFocusHaptic() } label: {
-                    Image(systemName: "stop.fill").frame(width: 48, height: 48)
+                Button {
+                    timer.stopAndLog()
+                    fireFocusHaptic()
+                } label: {
+                    Image(systemName: "stop.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(width: 38, height: 38)
                 }
-                .buttonStyle(.plain).foregroundStyle(.primary).kairosGlass(cornerRadius: 24)
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
+                .kairosGlass(cornerRadius: 19)
                 .accessibilityLabel("Stop focus timer")
                 .transition(.scale.combined(with: .opacity))
             }
