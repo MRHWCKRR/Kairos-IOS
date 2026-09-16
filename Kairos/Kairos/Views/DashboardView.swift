@@ -23,31 +23,60 @@ struct DashboardView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    header.padding(.bottom, 42)
-                    focusCard.padding(.bottom, 42)
-                    todaySection.padding(.bottom, 42)
-                    progressSection.padding(.bottom, 42)
-                    boardsRow
+            VStack(alignment: .leading, spacing: 0) {
+                topHeader
+                    .padding(.horizontal, 22)
+                    .padding(.top, 10)
+                    .padding(.bottom, 10)
+
+                Rectangle()
+                    .fill(.primary.opacity(0.10))
+                    .frame(height: 0.5)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        greetingBlock
+                            .padding(.bottom, 38)
+                        focusCard
+                            .padding(.bottom, 42)
+                        todaySection
+                            .padding(.bottom, 42)
+                        progressSection
+                            .padding(.bottom, 42)
+                        boardsRow
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.top, 30)
+                    .padding(.bottom, 40)
                 }
-                .padding(.horizontal, 22).padding(.top, 28).padding(.bottom, 40)
             }
-            .kairosBackground().toolbar(.hidden, for: .navigationBar)
+            .kairosBackground()
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showingProfile) { ProfileView().environment(session).environment(profileRepo) }
         }
         .task { if focusTimer == nil { focusTimer = FocusTimerViewModel(profileRepo: profileRepo) } }
     }
 
-    private var header: some View {
-        HStack(alignment: .top, spacing: 18) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(greeting.uppercased()).font(.caption.weight(.semibold)).tracking(1.3).foregroundStyle(.secondary)
-                Text(displayName).font(.system(size: 34, weight: .bold, design: .rounded)).foregroundStyle(.primary).lineLimit(1).minimumScaleFactor(0.75)
-                Text(.now, format: .dateTime.weekday(.wide).month(.wide).day()).font(.subheadline).foregroundStyle(.secondary)
+    private var topHeader: some View {
+        HStack {
+            Spacer()
+            Button { showingProfile = true } label: {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: 30, weight: .medium))
+                    .foregroundStyle(KairosColors.accent)
+                    .symbolRenderingMode(.hierarchical)
+                    .frame(width: 46, height: 46)
             }
-            Spacer(minLength: 10)
-            Button { showingProfile = true } label: { Image(systemName: "person.crop.circle.fill").font(.system(size: 30, weight: .medium)).foregroundStyle(KairosColors.accent).symbolRenderingMode(.hierarchical).frame(width: 46, height: 46) }.accessibilityLabel("Open profile").kairosGlass(cornerRadius: 23, tint: KairosColors.accent.opacity(0.08))
+            .accessibilityLabel("Open profile")
+            .kairosGlass(cornerRadius: 23, tint: KairosColors.accent.opacity(0.08))
+        }
+    }
+
+    private var greetingBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(greeting.uppercased()).font(.caption.weight(.semibold)).tracking(1.3).foregroundStyle(.secondary)
+            Text(displayName).font(.system(size: 34, weight: .bold, design: .rounded)).foregroundStyle(.primary).lineLimit(1).minimumScaleFactor(0.75)
+            Text(.now, format: .dateTime.weekday(.wide).month(.wide).day()).font(.subheadline).foregroundStyle(.secondary)
         }
     }
 
