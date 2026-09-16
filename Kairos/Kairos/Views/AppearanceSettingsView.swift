@@ -3,7 +3,6 @@ import SwiftUI
 struct AppearanceSettingsView: View {
     @Environment(UserProfileRepository.self) private var profileRepo
     @Environment(\.dismiss) private var dismiss
-
     @State private var mode = "system"
     @State private var theme = "purple"
     @State private var textColor = "default"
@@ -41,6 +40,10 @@ struct AppearanceSettingsView: View {
         background != savedBackground || customBackground != savedCustomBackground || ambientSound != savedAmbientSound ||
         Int(ambientVolume.rounded()) != Int(savedAmbientVolume.rounded()) || customAmbientURL != savedCustomAmbientURL ||
         confetti != savedConfetti || reduceMotion != savedReduceMotion
+    }
+
+    private var draftFingerprint: String {
+        [mode, theme, textColor, font, background, customBackground, ambientSound, String(Int(ambientVolume.rounded())), customAmbientURL, String(confetti), String(reduceMotion)].joined(separator: "|")
     }
 
     var body: some View {
@@ -97,12 +100,35 @@ struct AppearanceSettingsView: View {
             Button("Keep Editing", role: .cancel) {}
         } message: { Text("You have changes that haven't been saved. Save them or discard them before leaving Appearance.") }
         .task { load() }
+        .onChange(of: draftFingerprint) { _, _ in previewDraft() }
     }
 
     private var themeColor: Color { KairosColors.accent(for: theme) }
     private var preferredScheme: ColorScheme? { mode == "light" ? .light : mode == "dark" ? .dark : nil }
 
     @ViewBuilder private func fontRow(_ title: String, _ value: String) -> some View { Text(title).font(kairosFont(value)).tag(value) }
+
+    private func draftAppearance() -> KairosAppearanceSettings {
+        let existing = profileRepo.appearanceSettings
+        return KairosAppearanceSettings(
+            mode: mode,
+            theme: theme,
+            textColor: textColor,
+            font: font,
+            background: background,
+            customBackground: customBackground.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : customBackground.trimmingCharacters(in: .whitespacesAndNewlines),
+            cursor: existing?.cursor ?? "default",
+            ambientSound: ambientSound,
+            ambientVolume: Int(ambientVolume.rounded()),
+            customAmbientYoutubeUrl: customAmbientURL,
+            confetti: confetti
+        )
+    }
+
+    private func previewDraft() {
+        guard !isSaving else { return }
+        profileRepo.appearanceSettings = draftAppearance()
+    }
 
     private func load() {
         guard !hasUnsavedChanges else { return }
@@ -132,34 +158,31 @@ struct AppearanceSettingsView: View {
     private func discardChanges() {
         mode = savedMode; theme = savedTheme; textColor = savedTextColor; font = savedFont; background = savedBackground; customBackground = savedCustomBackground
         ambientSound = savedAmbientSound; ambientVolume = savedAmbientVolume; customAmbientURL = savedCustomAmbientURL; confetti = savedConfetti; reduceMotion = savedReduceMotion
+        profileRepo.appearanceSettings = draftAppearance()
     }
 
     private func save() async {
         isSaving = true
         let didSave = await persistDraft()
         isSaving = false
-        if didSave { syncSavedValues() }
+        if didSave { syncSavedValues(); profileRepo.appearanceSettings = draftAppearance() }
     }
 
     private func saveAndLeave() async {
         isSaving = true
         let didSave = await persistDraft()
         isSaving = false
-        if didSave { syncSavedValues(); dismiss() }
+        if didSave { syncSavedValues(); profileRepo.appearanceSettings = draftAppearance(); dismiss() }
     }
 
     @discardableResult
     private func persistDraft() async -> Bool {
         let existingAppearance = profileRepo.appearanceSettings
-        let appearance = KairosAppearanceSettings(
-            mode: mode, theme: theme, textColor: textColor, font: font, background: background,
-            customBackground: customBackground.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : customBackground.trimmingCharacters(in: .whitespacesAndNewlines),
-            cursor: existingAppearance?.cursor ?? "default", ambientSound: ambientSound, ambientVolume: Int(ambientVolume.rounded()), customAmbientYoutubeUrl: customAmbientURL, confetti: confetti
-        )
+        let appearance = draftAppearance()
         let existingAccessibility = profileRepo.accessibilitySettings
         let accessibility = KairosAccessibilitySettings(density: existingAccessibility?.density ?? "comfortable", timeFormat: existingAccessibility?.timeFormat ?? "24h", reduceMotion: reduceMotion, language: existingAccessibility?.language ?? "en")
-        let originalAppearance = profileRepo.appearanceSettings
-        let originalAccessibility = profileRepo.accessibilitySettings
+        let originalAppearance = existingAppearance
+        let originalAccessibility = existingAccessibility
         await profileRepo.saveAppearanceSettings(appearance)
         guard profileRepo.appearanceSettings == appearance else { return false }
         await profileRepo.saveAccessibilitySettings(accessibility)
