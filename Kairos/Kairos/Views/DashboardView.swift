@@ -10,6 +10,7 @@ struct DashboardView: View {
     var onNavigate: ((Int) -> Void)? = nil
     @State private var showingProfile = false
     @State private var focusTimer: FocusTimerViewModel?
+    @State private var completingTaskIDs: Set<String> = []
 
     private var displayName: String {
         let name = profileRepo.profile?.displayName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -33,7 +34,7 @@ struct DashboardView: View {
     private var activeTasks: [KairosTask] {
         planRepo.currentPlan?.boards.filter { !$0.archived }
             .flatMap { $0.sections.filter { !$0.archived } }
-            .flatMap { $0.tasks.filter { !$0.archived && !$0.completed } } ?? []
+            .flatMap { $0.tasks.filter { !$0.archived && (!$0.completed || completingTaskIDs.contains($0.id)) } } ?? []
     }
 
     private var allTasks: [KairosTask] {
@@ -210,9 +211,18 @@ struct DashboardView: View {
     }
 
     private func taskRow(_ task: KairosTask) -> some View {
-        Button {
-            guard let location = taskLocation(for: task) else { return }
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        let isCompleting = completingTaskIDs.contains(task.id)
+
+        return Button {
+            guard !isCompleting, let location = taskLocation(for: task) else { return }
+
+            withAnimation(reduceMotion ? nil : .spring(response: 0.36, dampingFraction: 0.82)) {
+                completingTaskIDs.insert(task.id)
+            }
+
+            if !reduceMotion {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            }
 
             Task {
                 await planRepo.toggleTask(
@@ -221,17 +231,45 @@ struct DashboardView: View {
                     taskID: task.id
                 )
                 await profileRepo.recordTaskCompletion(taskID: task.id)
+
+                if !reduceMotion {
+                    try? await Task.sleep(for: .milliseconds(520))
+                }
+
+                await MainActor.run {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.34)) {
+                        completingTaskIDs.remove(task.id)
+                    }
+                }
             }
         } label: {
             HStack(spacing: 14) {
-                Image(systemName: "circle")
-                    .font(.system(size: 19, weight: .medium))
-                    .foregroundStyle(KairosColors.accent)
+                ZStack {
+                    Circle()
+                        .stroke(KairosColors.accent.opacity(0.72), lineWidth: 1.7)
+                        .frame(width: 20, height: 20)
+                        .scaleEffect(isCompleting ? 0.92 : 1)
+                        .opacity(isCompleting ? 0 : 1)
+
+                    Circle()
+                        .fill(KairosColors.accent)
+                        .frame(width: 20, height: 20)
+                        .scaleEffect(isCompleting ? 1 : 0.01)
+                        .opacity(isCompleting ? 1 : 0)
+
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white)
+                        .scaleEffect(isCompleting ? 1 : 0.01)
+                        .opacity(isCompleting ? 1 : 0)
+                }
+                .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.62), value: isCompleting)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(task.title)
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(isCompleting ? .secondary : .primary)
+                        .strikethrough(isCompleting, color: KairosColors.accent)
                         .lineLimit(2)
                     if task.date == todayKey {
                         Text("Today")
@@ -239,19 +277,24 @@ struct DashboardView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .opacity(isCompleting ? 0.62 : 1)
 
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tertiary)
+                    .opacity(isCompleting ? 0 : 1)
             }
             .contentShape(Rectangle())
             .padding(.vertical, 14)
+            .offset(x: isCompleting ? -18 : 0)
+            .scaleEffect(isCompleting ? 0.96 : 1, anchor: .leading)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(task.title)
-        .accessibilityValue("Not completed")
+        .accessibilityValue(isCompleting ? "Completed" : "Not completed")
         .accessibilityHint("Double tap to complete")
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.34), value: isCompleting)
     }
 
     private var progressSection: some View {
