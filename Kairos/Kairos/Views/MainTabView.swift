@@ -35,11 +35,13 @@ struct MainTabView: View {
         .tint(accent)
         .preferredColorScheme(preferredScheme)
         .toolbar(.hidden, for: .tabBar)
-        // Keep the navigation chrome visually floating without creating a second
-        // nested safe-area inset inside screens such as Boards.
-        .safeAreaPadding(.bottom, 82)
-        .overlay(alignment: .bottom) {
+        // Use a real safe-area inset for the custom navigation chrome.
+        // An overlay + safeAreaPadding combination can cause child views that
+        // also use bottom insets (for example the Boards FAB) to be positioned
+        // against the wrong coordinate space.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             premiumTabBar
+                .padding(.bottom, 8)
         }
         .onOpenURL { url in
             guard url.scheme == KairosDeepLink.scheme,
@@ -67,11 +69,11 @@ struct MainTabView: View {
             tabButton(3, title: "Calendar", icon: "calendar")
             tabButton(4, title: "Goals", icon: "trophy.fill")
         }
-        .padding(6)
+        .padding(5)
         .frame(maxWidth: 430)
-        .kairosGlass(cornerRadius: 27)
-        .padding(.horizontal, 16)
-        .padding(.bottom, 7)
+        .background(.clear)
+        .kairosGlass(cornerRadius: 24)
+        .padding(.horizontal, 14)
     }
 
     @ViewBuilder
@@ -87,16 +89,16 @@ struct MainTabView: View {
             }
             .foregroundStyle(selected ? accent : .secondary)
             .frame(maxWidth: .infinity)
-            .frame(height: 48)
+            .frame(height: 46)
             .background {
                 if selected {
-                    RoundedRectangle(cornerRadius: 17, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(accent.opacity(0.13))
                 }
             }
             .overlay {
                 if prominent && selected {
-                    RoundedRectangle(cornerRadius: 17, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .strokeBorder(accent.opacity(0.18), lineWidth: 0.8)
                 }
             }
