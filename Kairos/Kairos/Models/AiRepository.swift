@@ -19,23 +19,15 @@ struct AiPlanResult {
     var recurringEvents: [KairosScheduleEvent]
 }
 
-/// Talks to the same Kairos Relay (Hack Club AI proxy) that Android's
-/// AiRepository.sendChatRequest and Web's sendHackClubChatMessage use.
-/// No server-side or endpoint differences — same URL, same auth header,
-/// same per-message truncation limit, so history stays interchangeable
-/// across platforms.
+/// Talks to the Kairos AI API used by the web app.
+/// The server-side relay keeps the AI provider credentials out of the app.
 final class AiRepository {
-    private let relayURL = URL(string: "https://kairos.kirosapp.workers.dev")!
-
-    private var relaySecret: String {
-        Bundle.main.object(forInfoDictionaryKey: "KAIROS_RELAY_SECRET") as? String ?? ""
-    }
+    private let relayURL = URL(string: "https://kairos-xi-two.vercel.app/api/ai")!
 
     func sendChatRequest(messages: [ChatMessage]) async throws -> String {
         var request = URLRequest(url: relayURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(relaySecret, forHTTPHeaderField: "X-Kairos-Auth")
         request.timeoutInterval = 60
 
         let payloadMessages = messages.map { msg -> [String: String] in
