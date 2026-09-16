@@ -35,7 +35,10 @@ struct MainTabView: View {
         .tint(accent)
         .preferredColorScheme(preferredScheme)
         .toolbar(.hidden, for: .tabBar)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // Keep the navigation chrome visually floating without creating a second
+        // nested safe-area inset inside screens such as Boards.
+        .safeAreaPadding(.bottom, 82)
+        .overlay(alignment: .bottom) {
             premiumTabBar
         }
         .onOpenURL { url in
@@ -57,44 +60,43 @@ struct MainTabView: View {
     }
 
     private var premiumTabBar: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             tabButton(0, title: "Home", icon: "house.fill")
             tabButton(1, title: "Boards", icon: "square.stack.3d.up.fill")
             tabButton(2, title: "AI", icon: "sparkles", prominent: true)
             tabButton(3, title: "Calendar", icon: "calendar")
             tabButton(4, title: "Goals", icon: "trophy.fill")
         }
-        .padding(7)
+        .padding(6)
         .frame(maxWidth: 430)
-        .kairosGlass(cornerRadius: 30)
-        .padding(.horizontal, 18)
-        .padding(.top, 6)
-        .padding(.bottom, 4)
+        .kairosGlass(cornerRadius: 27)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 7)
     }
 
     @ViewBuilder
     private func tabButton(_ tab: Int, title: String, icon: String, prominent: Bool = false) -> some View {
         let selected = selectedTab == tab
         Button { select(tab) } label: {
-            VStack(spacing: 4) {
+            VStack(spacing: 3) {
                 Image(systemName: icon)
-                    .font(.system(size: prominent ? 17 : 16, weight: .semibold))
+                    .font(.system(size: prominent ? 17 : 15, weight: .semibold))
                     .symbolEffect(.bounce, value: selected && !reduceMotion)
                 Text(title)
                     .font(.system(size: 10, weight: .semibold))
             }
             .foregroundStyle(selected ? accent : .secondary)
             .frame(maxWidth: .infinity)
-            .frame(height: prominent ? 56 : 50)
+            .frame(height: 48)
             .background {
                 if selected {
-                    RoundedRectangle(cornerRadius: prominent ? 20 : 17, style: .continuous)
-                        .fill(accent.opacity(0.12))
+                    RoundedRectangle(cornerRadius: 17, style: .continuous)
+                        .fill(accent.opacity(0.13))
                 }
             }
             .overlay {
                 if prominent && selected {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    RoundedRectangle(cornerRadius: 17, style: .continuous)
                         .strokeBorder(accent.opacity(0.18), lineWidth: 0.8)
                 }
             }
