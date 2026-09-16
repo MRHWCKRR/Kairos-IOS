@@ -4,6 +4,7 @@ import UIKit
 struct TasksView: View {
     @Environment(StudyPlanRepository.self) private var planRepo
     @Environment(UserProfileRepository.self) private var profileRepo
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showAddBoard = false
     @State private var newBoardName = ""
     @State private var boardForNewSection: KairosBoard?
@@ -20,6 +21,7 @@ struct TasksView: View {
     @State private var notificationManager = KairosNotificationManager()
     @State private var showingReminderAlert = false
     @State private var reminderMessage = ""
+    @State private var isAddBoardButtonExpanded = false
 
     private var visibleBoards: [KairosBoard] { planRepo.currentPlan?.boards.filter { !$0.archived } ?? [] }
 
@@ -37,14 +39,31 @@ struct TasksView: View {
             }
             .kairosBackground().toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .bottom) {
-                Button { newBoardName = ""; showAddBoard = true; UIImpactFeedbackGenerator(style: .light).impactOccurred() } label: {
-                    Image(systemName: "plus").font(.title2.weight(.semibold)).frame(width: 58, height: 58)
+                HStack {
+                    Spacer()
+                    Button {
+                        newBoardName = ""
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.78)) { isAddBoardButtonExpanded.toggle() }
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        showAddBoard = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.title2.weight(.semibold))
+                            .rotationEffect(.degrees(isAddBoardButtonExpanded ? 45 : 0))
+                            .frame(width: 58, height: 58)
+                    }
+                    .foregroundStyle(.white)
+                    .background(KairosColors.accent, in: Circle())
+                    .shadow(color: KairosColors.accent.opacity(0.25), radius: 18, y: 8)
+                    .accessibilityLabel("Add board")
+                    .accessibilityHint("Creates a new study board")
+                    .padding(.trailing, 18)
+                    .padding(.bottom, 4)
                 }
-                .foregroundStyle(.white).background(KairosColors.accent, in: Circle())
-                .shadow(color: KairosColors.accent.opacity(0.25), radius: 18, y: 8).padding(.bottom, 4)
-                .accessibilityLabel("Add board").accessibilityHint("Creates a new study board")
             }
-            .alert("New Board", isPresented: $showAddBoard) { TextField("Board name", text: $newBoardName); Button("Cancel", role: .cancel) {}; Button("Add") { confirmAddBoard() } }
+            .alert("New Board", isPresented: $showAddBoard, onDismiss: {
+                withAnimation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.82)) { isAddBoardButtonExpanded = false }
+            }) { TextField("Board name", text: $newBoardName); Button("Cancel", role: .cancel) {}; Button("Add") { confirmAddBoard() } }
             .alert("New Section", isPresented: Binding(get: { boardForNewSection != nil }, set: { if !$0 { boardForNewSection = nil } })) { TextField("Section name", text: $newSectionName); Button("Cancel", role: .cancel) { boardForNewSection = nil }; Button("Add") { confirmAddSection() } }
             .alert("New Task", isPresented: Binding(get: { sectionForNewTask != nil }, set: { if !$0 { sectionForNewTask = nil } })) { TextField("Task name", text: $newTaskName); Button("Cancel", role: .cancel) { sectionForNewTask = nil }; Button("Add") { confirmAddTask() } }
             .alert("Rename Board", isPresented: Binding(get: { boardToRename != nil }, set: { if !$0 { boardToRename = nil } })) { TextField("Board name", text: $renameBoardText); Button("Cancel", role: .cancel) { boardToRename = nil }; Button("Save") { confirmRenameBoard() } }
@@ -130,20 +149,13 @@ struct TasksView: View {
             }
             guard reminderManager.authorizationState == .authorized else { showReminderMessage("Kairos does not have access to Reminders. Enable it in iOS Settings and try again."); return }
             do {
-                let created = try await reminderManager.addReminderIfNeeded(
-                    title: task.title,
-                    dueDate: reminderDueDate(for: task),
-                    notes: "Created from Kairos"
-                )
+                let created = try await reminderManager.addReminderIfNeeded(title: task.title, dueDate: reminderDueDate(for: task), notes: "Created from Kairos")
                 showReminderMessage(created ? "Added “\(task.title)” to Apple Reminders." : "“\(task.title)” is already in Apple Reminders.")
             } catch { showReminderMessage(error.localizedDescription) }
         }
     }
 
-    private func showReminderMessage(_ message: String) {
-        reminderMessage = message
-        showingReminderAlert = true
-    }
+    private func showReminderMessage(_ message: String) { reminderMessage = message; showingReminderAlert = true }
 
     private func reminderDueDate(for task: KairosTask) -> Date? {
         guard let value = task.date else { return nil }
