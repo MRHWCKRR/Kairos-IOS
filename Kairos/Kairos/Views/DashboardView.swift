@@ -195,17 +195,63 @@ struct DashboardView: View {
         }
     }
 
-    private func taskRow(_ task: KairosTask) -> some View {
-        HStack(spacing: 14) {
-            Image(systemName: "circle").font(.system(size: 19, weight: .medium)).foregroundStyle(KairosColors.accent)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(task.title).font(.subheadline.weight(.medium)).foregroundStyle(.primary).lineLimit(2)
-                if task.date == todayKey { Text("Today").font(.caption).foregroundStyle(.secondary) }
+    private func taskLocation(for task: KairosTask) -> (boardID: String, sectionID: String)? {
+        guard let plan = planRepo.currentPlan else { return nil }
+
+        for board in plan.boards where !board.archived {
+            for section in board.sections where !section.archived {
+                if section.tasks.contains(where: { $0.id == task.id }) {
+                    return (board.id, section.id)
+                }
             }
-            Spacer(minLength: 8)
-            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 14)
+
+        return nil
+    }
+
+    private func taskRow(_ task: KairosTask) -> some View {
+        Button {
+            guard let location = taskLocation(for: task) else { return }
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+
+            Task {
+                await planRepo.toggleTask(
+                    boardID: location.boardID,
+                    sectionID: location.sectionID,
+                    taskID: task.id
+                )
+                await profileRepo.recordTaskCompletion(taskID: task.id)
+            }
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "circle")
+                    .font(.system(size: 19, weight: .medium))
+                    .foregroundStyle(KairosColors.accent)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(task.title)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                    if task.date == todayKey {
+                        Text("Today")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+            .padding(.vertical, 14)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(task.title)
+        .accessibilityValue("Not completed")
+        .accessibilityHint("Double tap to complete")
     }
 
     private var progressSection: some View {
