@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var profileRepo = UserProfileRepository()
     @State private var networkMonitor = KairosNetworkMonitor.shared
     @State private var ambientAudio = KairosAmbientAudioController()
+    @State private var workspaceReady = false
 
     private var preferredScheme: ColorScheme? {
         switch profileRepo.appearanceSettings?.mode {
@@ -22,23 +23,31 @@ struct ContentView: View {
     private var reduceMotion: Bool { profileRepo.accessibilitySettings?.reduceMotion ?? false }
 
     var body: some View {
-        Group {
-            if session.isAuthenticated {
-                MainTabView()
-                    .environment(planRepo)
-                    .environment(profileRepo)
-                    .safeAreaInset(edge: .top, spacing: 0) {
-                        if !networkMonitor.isConnected {
-                            OfflineBanner()
-                                .transition(
-                                    reduceMotion
-                                    ? .opacity
-                                    : .move(edge: .top).combined(with: .opacity)
-                                )
+        ZStack {
+            Group {
+                if session.isAuthenticated {
+                    MainTabView()
+                        .environment(planRepo)
+                        .environment(profileRepo)
+                        .safeAreaInset(edge: .top, spacing: 0) {
+                            if !networkMonitor.isConnected {
+                                OfflineBanner()
+                                    .transition(
+                                        reduceMotion
+                                        ? .opacity
+                                        : .move(edge: .top).combined(with: .opacity)
+                                    )
+                            }
                         }
-                    }
-            } else {
-                LoginView()
+                } else {
+                    LoginView()
+                }
+            }
+
+            if session.isAuthenticated && !workspaceReady {
+                KairosLoadingView()
+                    .transition(reduceMotion ? .opacity : .opacity)
+                    .zIndex(10)
             }
         }
         .preferredColorScheme(preferredScheme)
@@ -52,13 +61,30 @@ struct ContentView: View {
             reduceMotion ? nil : .easeInOut(duration: 0.25),
             value: networkMonitor.isConnected
         )
+        .onChange(of: session.isAuthenticated) { _, authenticated in
+            if !authenticated {
+                workspaceReady = false
+            } else {
+                workspaceReady = false
+            }
+        }
+        .onChange(of: planRepo.isLoading) { _, loading in
+            if !loading && session.isAuthenticated {
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.28)) {
+                    workspaceReady = true
+                }
+            }
+        }
         .task(id: session.isAuthenticated) {
             guard session.isAuthenticated, let uid = Auth.auth().currentUser?.uid else {
                 planRepo.stopListening()
                 profileRepo.stopListening()
                 ambientAudio.stop()
+                workspaceReady = false
                 return
             }
+
+            workspaceReady = false
             planRepo.startListening(userID: uid)
             profileRepo.startListening(userID: uid)
         }
@@ -70,6 +96,43 @@ struct ContentView: View {
     private var ambientAudioKey: String {
         guard let appearance else { return "none" }
         return "\(appearance.ambientSound)-\(appearance.ambientVolume)-\(appearance.customAmbientYoutubeUrl)"
+    }
+}
+
+private struct KairosLoadingView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            Color(uiColor: .systemBackground)
+                .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                Image("AppLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 82, height: 82)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .shadow(radius: 14, y: 6)
+
+                VStack(spacing: 7) {
+                    Text("Kairos")
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                    Text("Preparing your workspace")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                ProgressView()
+                    .controlSize(.regular)
+                    .tint(KairosColors.accent)
+                    .padding(.top, 4)
+            }
+            .padding(.horizontal, 28)
+            .opacity(reduceMotion ? 1 : 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Kairos is loading your workspace")
     }
 }
 
