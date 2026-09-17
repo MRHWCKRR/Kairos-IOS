@@ -109,9 +109,9 @@ struct DashboardView: View {
         let completing = completingTaskIDs.contains(task.id)
         return Button {
             guard !completing, let location = taskLocation(for: task) else { return }
-            withAnimation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.82)) { completingTaskIDs.insert(task.id) }
+            withAnimation(reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.84)) { completingTaskIDs.insert(task.id) }
             if !reduceMotion { UINotificationFeedbackGenerator().notificationOccurred(.success) }
-            Task { await planRepo.toggleTask(boardID: location.boardID, sectionID: location.sectionID, taskID: task.id); await profileRepo.recordTaskCompletion(taskID: task.id); if !reduceMotion { try? await Task.sleep(for: .milliseconds(450)) }; await MainActor.run { withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.28)) { completingTaskIDs.remove(task.id) } } }
+            Task { await planRepo.toggleTask(boardID: location.boardID, sectionID: location.sectionID, taskID: task.id); await profileRepo.recordTaskCompletion(taskID: task.id); if !reduceMotion { try? await Task.sleep(for: .milliseconds(180)) }; await MainActor.run { withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.16)) { completingTaskIDs.remove(task.id) } } }
         } label: {
             HStack(spacing: 13) {
                 ZStack { Circle().stroke(accent.opacity(0.72), lineWidth: 1.7).frame(width: 21, height: 21); if completing { Circle().fill(accent).frame(width: 21, height: 21); Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(.white) } }
