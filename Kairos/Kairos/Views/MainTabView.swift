@@ -16,30 +16,11 @@ struct MainTabView: View {
     }
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            DashboardView { tab in select(tab) }
-                .tag(0)
-
-            TasksView()
-                .safeAreaPadding(.bottom, 70)
-                .tag(1)
-
-            AIHelperView()
-                .tag(2)
-
-            CalendarView()
-                .tag(3)
-
-            AchievementsView()
-                .tag(4)
+        ZStack {
+            tabContent
         }
         .tint(accent)
         .preferredColorScheme(preferredScheme)
-        // Keep the normal TabView container so each screen retains its native
-        // sizing, navigation state, scrolling and transition behavior. Hide
-        // only the system tab-bar chrome; Kairos supplies the visual bar below.
-        .toolbarVisibility(.hidden, for: .tabBar)
-        .toolbarBackgroundVisibility(.hidden, for: .tabBar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             premiumTabBar
                 .padding(.bottom, 8)
@@ -50,6 +31,34 @@ struct MainTabView: View {
             select(0)
             FocusTimerCoordinator.shared.start()
         }
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        DashboardView { tab in select(tab) }
+            .opacity(selectedTab == 0 ? 1 : 0)
+            .allowsHitTesting(selectedTab == 0)
+            .accessibilityHidden(selectedTab != 0)
+
+        TasksView()
+            .opacity(selectedTab == 1 ? 1 : 0)
+            .allowsHitTesting(selectedTab == 1)
+            .accessibilityHidden(selectedTab != 1)
+
+        AIHelperView()
+            .opacity(selectedTab == 2 ? 1 : 0)
+            .allowsHitTesting(selectedTab == 2)
+            .accessibilityHidden(selectedTab != 2)
+
+        CalendarView()
+            .opacity(selectedTab == 3 ? 1 : 0)
+            .allowsHitTesting(selectedTab == 3)
+            .accessibilityHidden(selectedTab != 3)
+
+        AchievementsView()
+            .opacity(selectedTab == 4 ? 1 : 0)
+            .allowsHitTesting(selectedTab == 4)
+            .accessibilityHidden(selectedTab != 4)
     }
 
     private func select(_ tab: Int) {
