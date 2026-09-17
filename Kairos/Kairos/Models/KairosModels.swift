@@ -18,6 +18,7 @@ struct KairosBoard: Codable, Identifiable, Equatable {
     var title: String
     var archived: Bool
     var sections: [KairosSection]
+    var boardDescription: String? = nil
 }
 
 struct KairosSection: Codable, Identifiable, Equatable {
@@ -32,12 +33,9 @@ struct KairosTask: Codable, Identifiable, Equatable {
     var title: String
     var completed: Bool
     var archived: Bool
-    // Android/Web store this as a plain "yyyy-MM-dd" string so all three
-    // clients can use the same date key for calendar lookups.
     var date: String?
-    // Optional fields keep existing Firestore task documents backward compatible.
     var taskDescription: String? = nil
-    var dueTime: String? = nil // "HH:mm", local user time
+    var dueTime: String? = nil
     var parentTaskID: String? = nil
 }
 
