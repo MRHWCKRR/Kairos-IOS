@@ -20,12 +20,15 @@ struct DashboardView: View {
     private var activeTasks: [KairosTask] { allTasks.filter { !$0.completed || completingTaskIDs.contains($0.id) } }
     private var completedCount: Int { allTasks.filter(\.completed).count }
     private var completion: Double { allTasks.isEmpty ? 0 : Double(completedCount) / Double(allTasks.count) }
+    private var todayAllTasks: [KairosTask] { allTasks.filter { $0.date == todayKey } }
+    private var todayCompletedCount: Int { todayAllTasks.filter(\.completed).count }
+    private var todayCompletion: Double { todayAllTasks.isEmpty ? 0 : Double(todayCompletedCount) / Double(todayAllTasks.count) }
     private var todayTasks: [KairosTask] { let scheduled = activeTasks.filter { $0.date == todayKey }; return Array((scheduled.isEmpty ? activeTasks.filter { $0.date == nil } : scheduled).prefix(5)) }
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 24) { hero; focusCard; todayCard; progressCard; quickActions }
+                VStack(alignment: .leading, spacing: 24) { hero; dailyOverview; focusCard; todayCard; progressCard; quickActions }
                     .padding(.horizontal, KairosMetrics.pageHorizontal).padding(.top, 18).padding(.bottom, 150)
             }
             .scrollClipDisabled().kairosBackground().toolbar(.hidden, for: .navigationBar)
@@ -39,6 +42,44 @@ struct DashboardView: View {
             HStack { Spacer(); Button { showingProfile = true } label: { Image(systemName: "person.crop.circle.fill").font(.system(size: 24, weight: .medium)).foregroundStyle(accent).frame(width: 50, height: 50) }.kairosGlass(cornerRadius: 25, tint: accent.opacity(0.10)).accessibilityLabel("Open profile") }
             VStack(alignment: .leading, spacing: 6) { Text(greeting.uppercased()).font(.caption.weight(.bold)).tracking(1.4).foregroundStyle(accent); Text(displayName).font(.system(size: 38, weight: .bold, design: .rounded)).tracking(-1.2).lineLimit(1).minimumScaleFactor(0.72); Text(.now, format: .dateTime.weekday(.wide).month(.wide).day()).font(.subheadline.weight(.medium)).foregroundStyle(.secondary) }
         }
+    }
+
+    private var dailyOverview: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .center, spacing: 16) {
+                ZStack {
+                    Circle().stroke(accent.opacity(0.13), lineWidth: 8)
+                    Circle().trim(from: 0, to: todayCompletion).stroke(accent, style: StrokeStyle(lineWidth: 8, lineCap: .round)).rotationEffect(.degrees(-90))
+                    Text("\(Int(todayCompletion * 100))%").font(.system(size: 17, weight: .bold, design: .rounded)).monospacedDigit()
+                }
+                .frame(width: 72, height: 72)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Today").font(.title3.weight(.bold))
+                    Text(todayAllTasks.isEmpty ? "A fresh start. Nothing scheduled yet." : todayCompletedCount == todayAllTasks.count ? "Everything scheduled is complete." : "Keep the important things moving.")
+                        .font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                }
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 0) {
+                dailyMetric("\(todayCompletedCount)", "Done")
+                Divider().frame(height: 30)
+                dailyMetric("\(max(todayAllTasks.count - todayCompletedCount, 0))", "Remaining")
+                Divider().frame(height: 30)
+                dailyMetric("\(todayAllTasks.count)", "Scheduled")
+            }
+            .padding(.vertical, 2)
+        }
+        .padding(20)
+        .kairosCard(cornerRadius: 28)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: todayCompletion)
+    }
+
+    private func dailyMetric(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 3) {
+            Text(value).font(.system(size: 20, weight: .bold, design: .rounded)).monospacedDigit()
+            Text(label).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private var focusCard: some View {
@@ -66,9 +107,6 @@ struct DashboardView: View {
         let completing = completingTaskIDs.contains(task.id)
         return Button {
             guard !completing, let location = taskLocation(for: task) else { return }
-            // Keep the checkmark feedback brief, then remove the row immediately.
-            // Persistence continues independently so network/repository latency cannot
-            // make the completed row linger on the dashboard.
             withAnimation(reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.82)) { completingTaskIDs.insert(task.id) }
             if !reduceMotion { UINotificationFeedbackGenerator().notificationOccurred(.success) }
             Task {
