@@ -20,9 +20,6 @@ struct MainTabView: View {
             DashboardView { tab in select(tab) }
                 .tag(0)
 
-            // Boards owns its add-board control, so give that screen a dedicated
-            // bottom safe-area cushion. This keeps the FAB clearly above the
-            // floating navigation chrome instead of sharing its coordinate space.
             TasksView()
                 .safeAreaPadding(.bottom, 70)
                 .tag(1)
@@ -36,9 +33,12 @@ struct MainTabView: View {
             AchievementsView()
                 .tag(4)
         }
+        // This TabView is being used as the screen container only. The native
+        // tab-bar chrome is deliberately disabled so it cannot render a second
+        // glass/shadowed bar underneath Kairos' custom navigation surface.
+        .tabViewStyle(.page(indexDisplayMode: .never))
         .tint(accent)
         .preferredColorScheme(preferredScheme)
-        .toolbar(.hidden, for: .tabBar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             premiumTabBar
                 .padding(.bottom, 8)
