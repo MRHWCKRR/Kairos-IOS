@@ -33,9 +33,7 @@ struct DashboardView: View {
                     quickActions
                 }
                 .padding(.horizontal, KairosMetrics.pageHorizontal)
-                // Give the hero a deliberate breathing zone below the status/profile area
-                // and leave enough scroll runway for Workspace to clear the floating tab bar.
-                .padding(.top, 78)
+                .padding(.top, 18)
                 .padding(.bottom, 150)
             }
             .scrollClipDisabled()
@@ -47,14 +45,33 @@ struct DashboardView: View {
     }
 
     private var hero: some View {
-        HStack(alignment: .top, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(greeting.uppercased()).font(.caption.weight(.bold)).tracking(1.4).foregroundStyle(accent)
-                Text(displayName).font(.system(size: 38, weight: .bold, design: .rounded)).tracking(-1.2).lineLimit(1).minimumScaleFactor(0.72)
-                Text(.now, format: .dateTime.weekday(.wide).month(.wide).day()).font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Spacer()
+                Button { showingProfile = true } label: {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(accent)
+                        .frame(width: 50, height: 50)
+                }
+                .kairosGlass(cornerRadius: 25, tint: accent.opacity(0.10))
+                .accessibilityLabel("Open profile")
             }
-            Spacer()
-            Button { showingProfile = true } label: { Image(systemName: "person.crop.circle.fill").font(.system(size: 24, weight: .medium)).foregroundStyle(accent).frame(width: 50, height: 50) }.kairosGlass(cornerRadius: 25, tint: accent.opacity(0.10)).accessibilityLabel("Open profile")
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(greeting.uppercased())
+                    .font(.caption.weight(.bold))
+                    .tracking(1.4)
+                    .foregroundStyle(accent)
+                Text(displayName)
+                    .font(.system(size: 38, weight: .bold, design: .rounded))
+                    .tracking(-1.2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(.now, format: .dateTime.weekday(.wide).month(.wide).day())
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
