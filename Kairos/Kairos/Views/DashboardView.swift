@@ -33,8 +33,10 @@ struct DashboardView: View {
                     quickActions
                 }
                 .padding(.horizontal, KairosMetrics.pageHorizontal)
-                .padding(.top, 12)
-                .padding(.bottom, 28)
+                // Give the hero a deliberate breathing zone below the status/profile area
+                // and leave enough scroll runway for Workspace to clear the floating tab bar.
+                .padding(.top, 78)
+                .padding(.bottom, 150)
             }
             .scrollClipDisabled()
             .kairosBackground()
