@@ -8,29 +8,19 @@ struct MainTabView: View {
     private var appearance: KairosAppearanceSettings? { profileRepo.appearanceSettings }
     private var accent: Color { KairosColors.accent(for: appearance?.theme) }
     private var preferredScheme: ColorScheme? {
-        switch appearance?.mode {
-        case "light": return .light
-        case "dark": return .dark
-        default: return nil
-        }
+        switch appearance?.mode { case "light": return .light; case "dark": return .dark; default: return nil }
     }
 
     var body: some View {
-        ZStack {
-            tabContent
-        }
-        .tint(accent)
-        .preferredColorScheme(preferredScheme)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            premiumTabBar
-                .padding(.bottom, 8)
-        }
-        .onOpenURL { url in
-            guard url.scheme == KairosDeepLink.scheme,
-                  url.host == KairosDeepLink.focusTimerPath else { return }
-            select(0)
-            FocusTimerCoordinator.shared.start()
-        }
+        ZStack { tabContent }
+            .tint(accent)
+            .preferredColorScheme(preferredScheme)
+            .safeAreaInset(edge: .bottom, spacing: 0) { premiumTabBar.padding(.bottom, 8) }
+            .onOpenURL { url in
+                guard url.scheme == KairosDeepLink.scheme, url.host == KairosDeepLink.focusTimerPath else { return }
+                select(0)
+                FocusTimerCoordinator.shared.start()
+            }
     }
 
     @ViewBuilder
@@ -40,7 +30,7 @@ struct MainTabView: View {
             .allowsHitTesting(selectedTab == 0)
             .accessibilityHidden(selectedTab != 0)
 
-        TasksView()
+        TasksWorkspaceView()
             .opacity(selectedTab == 1 ? 1 : 0)
             .allowsHitTesting(selectedTab == 1)
             .accessibilityHidden(selectedTab != 1)
@@ -62,13 +52,8 @@ struct MainTabView: View {
     }
 
     private func select(_ tab: Int) {
-        if reduceMotion {
-            selectedTab = tab
-        } else {
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-                selectedTab = tab
-            }
-        }
+        if reduceMotion { selectedTab = tab }
+        else { withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { selectedTab = tab } }
     }
 
     private var premiumTabBar: some View {
@@ -79,11 +64,7 @@ struct MainTabView: View {
             tabButton(3, title: "Calendar", icon: "calendar")
             tabButton(4, title: "Goals", icon: "trophy.fill")
         }
-        .padding(5)
-        .frame(maxWidth: 430)
-        // Native iOS 26 Liquid Glass: keep the navigation chrome translucent,
-        // tinted subtly by the user's Kairos accent without introducing another
-        // system tab bar underneath it.
+        .padding(5).frame(maxWidth: 430)
         .kairosGlass(cornerRadius: 24, tint: accent.opacity(0.08))
         .padding(.horizontal, 14)
     }
@@ -93,27 +74,13 @@ struct MainTabView: View {
         let selected = selectedTab == tab
         Button { select(tab) } label: {
             VStack(spacing: 3) {
-                Image(systemName: icon)
-                    .font(.system(size: prominent ? 17 : 15, weight: .semibold))
-                    .symbolEffect(.bounce, value: selected && !reduceMotion)
-                Text(title)
-                    .font(.system(size: 10, weight: .semibold))
+                Image(systemName: icon).font(.system(size: prominent ? 17 : 15, weight: .semibold)).symbolEffect(.bounce, value: selected && !reduceMotion)
+                Text(title).font(.system(size: 10, weight: .semibold))
             }
             .foregroundStyle(selected ? accent : .secondary)
-            .frame(maxWidth: .infinity)
-            .frame(height: 46)
-            .background {
-                if selected {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(accent.opacity(0.13))
-                }
-            }
-            .overlay {
-                if prominent && selected {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(accent.opacity(0.18), lineWidth: 0.8)
-                }
-            }
+            .frame(maxWidth: .infinity).frame(height: 46)
+            .background { if selected { RoundedRectangle(cornerRadius: 16, style: .continuous).fill(accent.opacity(0.13)) } }
+            .overlay { if prominent && selected { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(accent.opacity(0.18), lineWidth: 0.8) } }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
@@ -122,8 +89,5 @@ struct MainTabView: View {
 }
 
 #Preview {
-    MainTabView()
-        .environment(SessionStore())
-        .environment(StudyPlanRepository())
-        .environment(UserProfileRepository())
+    MainTabView().environment(SessionStore()).environment(StudyPlanRepository()).environment(UserProfileRepository())
 }

@@ -32,11 +32,13 @@ struct KairosTask: Codable, Identifiable, Equatable {
     var title: String
     var completed: Bool
     var archived: Bool
-    // FIX: Android/Web store this as a plain "yyyy-MM-dd" string (used for
-    // calendar lookups by exact key match), not a Firestore Date/Timestamp.
-    // Was `Date?` — that would fail to decode existing docs and would write
-    // a Timestamp that Android's date == dateKey string comparison can't match.
+    // Android/Web store this as a plain "yyyy-MM-dd" string so all three
+    // clients can use the same date key for calendar lookups.
     var date: String?
+    // Optional fields keep existing Firestore task documents backward compatible.
+    var taskDescription: String? = nil
+    var dueTime: String? = nil // "HH:mm", local user time
+    var parentTaskID: String? = nil
 }
 
 struct KairosScheduleEvent: Codable, Identifiable, Equatable {
@@ -109,16 +111,9 @@ struct KairosNotification: Codable, Identifiable, Equatable {
 }
 
 struct KairosAchievementsData: Codable, Equatable {
-    // FIX: was [String: Bool] — Android stores the UNLOCK TIMESTAMP
-    // (System.currentTimeMillis()) per achievement id, used for the
-    // "Earned on <date>" line in the detail dialog. Bool loses that data
-    // and would desync the moment iOS writes to this field.
     var unlocked: [String: Int64]?
     var countedTaskIds: [String]?
     var lifetimeTasksCompleted: Int
-    // FIX: was [String]? — Android's goals is a fixed 3-slot array where
-    // POSITION matters (dashboard goal slot 0/1/2), and slots can be nil.
-    // A plain [String]? can't represent an empty middle slot correctly.
     var goals: [String?]?
 }
 
@@ -129,26 +124,19 @@ struct KairosFocusData: Codable, Equatable {
     var dailyTasksLog: [String: Int]?
 }
 
-// MARK: - Chat (used by AI Helper — matches Android's ChatMessage / Web's role+content shape)
-
 struct ChatMessage: Codable, Equatable {
-    var role: String   // "user" | "assistant" | "system"
+    var role: String
     var content: String
     var timestamp: Int64 = Int64(Date().timeIntervalSince1970 * 1000)
 }
 
-// MARK: - Achievement catalog
-// Ported 1:1 from Android's KAIROS_ACHIEVEMENTS (KairosModels.kt) and Web's
-// ACHIEVEMENTS (app.js). IDs, thresholds, and order MUST match exactly —
-// achievement docs are keyed by these ids across all three platforms.
-
 struct AchievementDef: Identifiable, Equatable {
     let id: String
-    let category: String   // "focus" | "tasks" | "misc"
+    let category: String
     let name: String
     let desc: String
     let icon: String
-    let type: String       // "focus_seconds" | "tasks_completed" | "event"
+    let type: String
     let threshold: Int64
     let event: String?
     let limitedAvailability: Bool
@@ -158,13 +146,12 @@ struct AchievementDef: Identifiable, Equatable {
          _ type: String, threshold: Int64 = 0, event: String? = nil,
          limitedAvailability: Bool = false, rarity: String = "Common") {
         self.id = id; self.category = category; self.name = name; self.desc = desc
-        self.icon = icon; self.type = type; self.threshold = threshold
-        self.event = event; self.limitedAvailability = limitedAvailability; self.rarity = rarity
+        self.icon = icon; self.type = type; self.threshold = threshold; self.event = event
+        self.limitedAvailability = limitedAvailability; self.rarity = rarity
     }
 }
 
 let KAIROS_ACHIEVEMENTS: [AchievementDef] = [
-    // Focus time
     AchievementDef("focus_25m", "focus", "Novice", "Log 25 minutes of focus time", "🔥", "focus_seconds", threshold: 25 * 60, rarity: "Common"),
     AchievementDef("focus_1h", "focus", "Apprentice", "Log 1 hour of focus time", "⚡", "focus_seconds", threshold: 3600, rarity: "Common"),
     AchievementDef("focus_2h", "focus", "Adept", "Log 2 hours of focus time", "🌀", "focus_seconds", threshold: 2 * 3600, rarity: "Rare"),
@@ -176,8 +163,6 @@ let KAIROS_ACHIEVEMENTS: [AchievementDef] = [
     AchievementDef("focus_300h", "focus", "Legend", "Log 300 hours of focus time", "⭐", "focus_seconds", threshold: 300 * 3600, rarity: "Mythic"),
     AchievementDef("focus_500h", "focus", "Mythic", "Log 500 hours of focus time", "🌟", "focus_seconds", threshold: 500 * 3600, rarity: "Mythic"),
     AchievementDef("focus_1000h", "focus", "DEVELOPER???", "Log 1000 hours of focus time", "🧠", "focus_seconds", threshold: 1000 * 3600, rarity: "Mythic"),
-
-    // Tasks
     AchievementDef("tasks_5", "tasks", "Getting Started", "Complete 5 tasks", "📝", "tasks_completed", threshold: 5, rarity: "Common"),
     AchievementDef("tasks_15", "tasks", "Warming Up", "Complete 15 tasks", "📋", "tasks_completed", threshold: 15, rarity: "Common"),
     AchievementDef("tasks_30", "tasks", "Task Tackler", "Complete 30 tasks", "✅", "tasks_completed", threshold: 30, rarity: "Rare"),
@@ -189,8 +174,6 @@ let KAIROS_ACHIEVEMENTS: [AchievementDef] = [
     AchievementDef("tasks_1000", "tasks", "Kilo-Tasker", "Complete 1,000 tasks", "🗻", "tasks_completed", threshold: 1000, rarity: "Mythic"),
     AchievementDef("tasks_20000", "tasks", "Task Titan", "Complete 20,000 tasks", "🗿", "tasks_completed", threshold: 20000, rarity: "Mythic"),
     AchievementDef("tasks_50000", "tasks", "CHECKLIST MASTER", "Complete 50,000 tasks", "👑", "tasks_completed", threshold: 50000, rarity: "Mythic"),
-
-    // Milestones
     AchievementDef("misc_welcome", "misc", "Welcome to Kairos", "Join Kairos", "👋", "event", event: "signup", rarity: "Common"),
     AchievementDef("misc_og", "misc", "OG", "One of the original Kairos users", "🥇", "event", event: "og", limitedAvailability: true, rarity: "Rare"),
     AchievementDef("misc_lofi", "misc", "LOFIIII", "Turn on the Lo-fi ambient sound", "🎧", "event", event: "lofi", rarity: "Rare"),
