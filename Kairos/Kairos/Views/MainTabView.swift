@@ -20,7 +20,11 @@ struct MainTabView: View {
             DashboardView { tab in select(tab) }
                 .tag(0)
 
+            // Boards owns its add-board control, so give that screen a dedicated
+            // bottom safe-area cushion. This keeps the FAB clearly above the
+            // floating navigation chrome instead of sharing its coordinate space.
             TasksView()
+                .safeAreaPadding(.bottom, 70)
                 .tag(1)
 
             AIHelperView()
@@ -35,10 +39,6 @@ struct MainTabView: View {
         .tint(accent)
         .preferredColorScheme(preferredScheme)
         .toolbar(.hidden, for: .tabBar)
-        // Use a real safe-area inset for the custom navigation chrome.
-        // An overlay + safeAreaPadding combination can cause child views that
-        // also use bottom insets (for example the Boards FAB) to be positioned
-        // against the wrong coordinate space.
         .safeAreaInset(edge: .bottom, spacing: 0) {
             premiumTabBar
                 .padding(.bottom, 8)
