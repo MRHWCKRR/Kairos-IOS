@@ -33,12 +33,13 @@ struct MainTabView: View {
             AchievementsView()
                 .tag(4)
         }
-        // This TabView is being used as the screen container only. The native
-        // tab-bar chrome is deliberately disabled so it cannot render a second
-        // glass/shadowed bar underneath Kairos' custom navigation surface.
-        .tabViewStyle(.page(indexDisplayMode: .never))
         .tint(accent)
         .preferredColorScheme(preferredScheme)
+        // Keep the normal TabView container so each screen retains its native
+        // sizing, navigation state, scrolling and transition behavior. Hide
+        // only the system tab-bar chrome; Kairos supplies the visual bar below.
+        .toolbarVisibility(.hidden, for: .tabBar)
+        .toolbarBackgroundVisibility(.hidden, for: .tabBar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             premiumTabBar
                 .padding(.bottom, 8)
