@@ -103,7 +103,10 @@ struct AIHelperView: View {
                 .buttonStyle(.glassProminent).tint(KairosColors.accent)
                 .disabled(vm.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vm.isLoading)
         }
-        .padding(.horizontal, 12).padding(.vertical, 8).background(.bar)
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        // Keep the composer above Kairos's floating Liquid Glass navigation bar.
+        .padding(.bottom, 78)
+        .background(.bar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if inputFocused {
                 HStack {
