@@ -81,8 +81,10 @@ struct MainTabView: View {
         }
         .padding(5)
         .frame(maxWidth: 430)
-        .background(.clear)
-        .kairosGlass(cornerRadius: 24)
+        // Native iOS 26 Liquid Glass: keep the navigation chrome translucent,
+        // tinted subtly by the user's Kairos accent without introducing another
+        // system tab bar underneath it.
+        .kairosGlass(cornerRadius: 24, tint: accent.opacity(0.08))
         .padding(.horizontal, 14)
     }
 
