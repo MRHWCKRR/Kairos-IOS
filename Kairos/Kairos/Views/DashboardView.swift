@@ -25,20 +25,10 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 24) {
-                    hero
-                    focusCard
-                    todayCard
-                    progressCard
-                    quickActions
-                }
-                .padding(.horizontal, KairosMetrics.pageHorizontal)
-                .padding(.top, 18)
-                .padding(.bottom, 150)
+                VStack(alignment: .leading, spacing: 24) { hero; focusCard; todayCard; progressCard; quickActions }
+                    .padding(.horizontal, KairosMetrics.pageHorizontal).padding(.top, 18).padding(.bottom, 150)
             }
-            .scrollClipDisabled()
-            .kairosBackground()
-            .toolbar(.hidden, for: .navigationBar)
+            .scrollClipDisabled().kairosBackground().toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showingProfile) { ProfileView().environment(session).environment(profileRepo) }
         }
         .task { if focusTimer == nil { focusTimer = FocusTimerViewModel(profileRepo: profileRepo) } }
@@ -46,49 +36,16 @@ struct DashboardView: View {
 
     private var hero: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Spacer()
-                Button { showingProfile = true } label: {
-                    Image(systemName: "person.crop.circle.fill")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(accent)
-                        .frame(width: 50, height: 50)
-                }
-                .kairosGlass(cornerRadius: 25, tint: accent.opacity(0.10))
-                .accessibilityLabel("Open profile")
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(greeting.uppercased())
-                    .font(.caption.weight(.bold))
-                    .tracking(1.4)
-                    .foregroundStyle(accent)
-                Text(displayName)
-                    .font(.system(size: 38, weight: .bold, design: .rounded))
-                    .tracking(-1.2)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                Text(.now, format: .dateTime.weekday(.wide).month(.wide).day())
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
+            HStack { Spacer(); Button { showingProfile = true } label: { Image(systemName: "person.crop.circle.fill").font(.system(size: 24, weight: .medium)).foregroundStyle(accent).frame(width: 50, height: 50) }.kairosGlass(cornerRadius: 25, tint: accent.opacity(0.10)).accessibilityLabel("Open profile") }
+            VStack(alignment: .leading, spacing: 6) { Text(greeting.uppercased()).font(.caption.weight(.bold)).tracking(1.4).foregroundStyle(accent); Text(displayName).font(.system(size: 38, weight: .bold, design: .rounded)).tracking(-1.2).lineLimit(1).minimumScaleFactor(0.72); Text(.now, format: .dateTime.weekday(.wide).month(.wide).day()).font(.subheadline.weight(.medium)).foregroundStyle(.secondary) }
         }
     }
 
     private var focusCard: some View {
-        Group { if let focusTimer {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack { Label("FOCUS SESSION", systemImage: "timer").font(.caption.weight(.bold)).tracking(1.1).foregroundStyle(accent); Spacer(); Circle().fill(focusTimer.isRunning ? accent : .secondary.opacity(0.45)).frame(width: 7, height: 7) }
-                HStack(alignment: .bottom) {
-                    VStack(alignment: .leading, spacing: 4) { Text(FocusTimerViewModel.formatHMS(focusTimer.elapsedSeconds)).font(.system(size: 44, weight: .bold, design: .rounded)).monospacedDigit().tracking(-1.5); Text(focusTimer.isRunning ? "Stay in the zone." : "Ready when you are.").font(.subheadline).foregroundStyle(.secondary) }
-                    Spacer()
-                    HStack(spacing: 10) {
-                        Button { if focusTimer.isRunning { focusTimer.pause() } else { focusTimer.start() }; fireFocusHaptic() } label: { Image(systemName: focusTimer.isRunning ? "pause.fill" : "play.fill").frame(width: 50, height: 50) }.foregroundStyle(.white).background(accent, in: Circle()).shadow(color: accent.opacity(0.24), radius: 18, y: 8)
-                        if focusTimer.isRunning { Button { focusTimer.stopAndLog(); fireFocusHaptic() } label: { Image(systemName: "stop.fill").frame(width: 42, height: 42) }.foregroundStyle(.primary).kairosGlass(cornerRadius: 21) }
-                    }
-                }
-            }.padding(20).kairosCard(cornerRadius: 28)
-        } }
+        Group { if let focusTimer { VStack(alignment: .leading, spacing: 18) {
+            HStack { Label("FOCUS SESSION", systemImage: "timer").font(.caption.weight(.bold)).tracking(1.1).foregroundStyle(accent); Spacer(); Circle().fill(focusTimer.isRunning ? accent : .secondary.opacity(0.45)).frame(width: 7, height: 7) }
+            HStack(alignment: .bottom) { VStack(alignment: .leading, spacing: 4) { Text(FocusTimerViewModel.formatHMS(focusTimer.elapsedSeconds)).font(.system(size: 44, weight: .bold, design: .rounded)).monospacedDigit().tracking(-1.5); Text(focusTimer.isRunning ? "Stay in the zone." : "Ready when you are.").font(.subheadline).foregroundStyle(.secondary) }; Spacer(); HStack(spacing: 10) { Button { if focusTimer.isRunning { focusTimer.pause() } else { focusTimer.start() }; fireFocusHaptic() } label: { Image(systemName: focusTimer.isRunning ? "pause.fill" : "play.fill").frame(width: 50, height: 50) }.foregroundStyle(.white).background(accent, in: Circle()).shadow(color: accent.opacity(0.24), radius: 18, y: 8); if focusTimer.isRunning { Button { focusTimer.stopAndLog(); fireFocusHaptic() } label: { Image(systemName: "stop.fill").frame(width: 42, height: 42) }.foregroundStyle(.primary).kairosGlass(cornerRadius: 21) } } }
+        }.padding(20).kairosCard(cornerRadius: 28) } }
     }
 
     private var todayCard: some View {
@@ -109,9 +66,21 @@ struct DashboardView: View {
         let completing = completingTaskIDs.contains(task.id)
         return Button {
             guard !completing, let location = taskLocation(for: task) else { return }
-            withAnimation(reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.84)) { completingTaskIDs.insert(task.id) }
+            // Keep the checkmark feedback brief, then remove the row immediately.
+            // Persistence continues independently so network/repository latency cannot
+            // make the completed row linger on the dashboard.
+            withAnimation(reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.82)) { completingTaskIDs.insert(task.id) }
             if !reduceMotion { UINotificationFeedbackGenerator().notificationOccurred(.success) }
-            Task { await planRepo.toggleTask(boardID: location.boardID, sectionID: location.sectionID, taskID: task.id); await profileRepo.recordTaskCompletion(taskID: task.id); if !reduceMotion { try? await Task.sleep(for: .milliseconds(180)) }; await MainActor.run { withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.16)) { completingTaskIDs.remove(task.id) } } }
+            Task {
+                await planRepo.toggleTask(boardID: location.boardID, sectionID: location.sectionID, taskID: task.id)
+                await profileRepo.recordTaskCompletion(taskID: task.id)
+            }
+            Task {
+                if !reduceMotion { try? await Task.sleep(for: .milliseconds(180)) }
+                await MainActor.run {
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { completingTaskIDs.remove(task.id) }
+                }
+            }
         } label: {
             HStack(spacing: 13) {
                 ZStack { Circle().stroke(accent.opacity(0.72), lineWidth: 1.7).frame(width: 21, height: 21); if completing { Circle().fill(accent).frame(width: 21, height: 21); Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(.white) } }
@@ -122,19 +91,10 @@ struct DashboardView: View {
     }
 
     private var progressCard: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack { VStack(alignment: .leading, spacing: 3) { Text("Your momentum").font(.title2.weight(.bold)); Text("Small wins compound.").font(.subheadline).foregroundStyle(.secondary) }; Spacer(); Button { onNavigate?(4) } label: { Image(systemName: "arrow.up.right").frame(width: 34, height: 34) }.foregroundStyle(accent).kairosGlass(cornerRadius: 17, tint: accent.opacity(0.08)) }
-            HStack(spacing: 12) { metric("\(Int(completion * 100))%", "Routine"); metric("\(completedCount)", "Completed"); metric("\(profileRepo.achievementsData?.unlocked?.count ?? 0)", "Unlocked") }
-            ProgressView(value: completion).tint(accent).scaleEffect(y: 1.35)
-        }.padding(20).kairosCard(cornerRadius: 28)
+        VStack(alignment: .leading, spacing: 18) { HStack { VStack(alignment: .leading, spacing: 3) { Text("Your momentum").font(.title2.weight(.bold)); Text("Small wins compound.").font(.subheadline).foregroundStyle(.secondary) }; Spacer(); Button { onNavigate?(4) } label: { Image(systemName: "arrow.up.right").frame(width: 34, height: 34) }.foregroundStyle(accent).kairosGlass(cornerRadius: 17, tint: accent.opacity(0.08)) }; HStack(spacing: 12) { metric("\(Int(completion * 100))%", "Routine"); metric("\(completedCount)", "Completed"); metric("\(profileRepo.achievementsData?.unlocked?.count ?? 0)", "Unlocked") }; ProgressView(value: completion).tint(accent).scaleEffect(y: 1.35) }.padding(20).kairosCard(cornerRadius: 28)
     }
-
     private func metric(_ value: String, _ label: String) -> some View { VStack(alignment: .leading, spacing: 4) { Text(value).font(.system(size: 25, weight: .bold, design: .rounded)); Text(label).font(.caption.weight(.medium)).foregroundStyle(.secondary) }.frame(maxWidth: .infinity, alignment: .leading) }
-
-    private var quickActions: some View {
-        VStack(alignment: .leading, spacing: 14) { Text("Workspace").font(.title3.weight(.bold)); HStack(spacing: 12) { quickAction("Boards", "square.stack.3d.up.fill", 1); quickAction("Calendar", "calendar", 3); quickAction("Goals", "trophy.fill", 4) } }
-    }
-
+    private var quickActions: some View { VStack(alignment: .leading, spacing: 14) { Text("Workspace").font(.title3.weight(.bold)); HStack(spacing: 12) { quickAction("Boards", "square.stack.3d.up.fill", 1); quickAction("Calendar", "calendar", 3); quickAction("Goals", "trophy.fill", 4) } } }
     private func quickAction(_ title: String, _ icon: String, _ tab: Int) -> some View { Button { onNavigate?(tab) } label: { VStack(spacing: 10) { Image(systemName: icon).font(.system(size: 18, weight: .semibold)).foregroundStyle(accent).frame(width: 40, height: 40).background(accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 13, style: .continuous)); Text(title).font(.caption.weight(.semibold)).foregroundStyle(.primary) }.frame(maxWidth: .infinity).padding(.vertical, 14).kairosGlass(cornerRadius: 20, tint: accent.opacity(0.04)) }.buttonStyle(.plain) }
     private func fireFocusHaptic() { guard !reduceMotion else { return }; UIImpactFeedbackGenerator(style: .light).impactOccurred() }
 }
