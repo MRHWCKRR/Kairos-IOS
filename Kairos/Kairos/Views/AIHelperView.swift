@@ -103,10 +103,13 @@ struct AIHelperView: View {
                 .buttonStyle(.glassProminent).tint(KairosColors.accent)
                 .disabled(vm.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vm.isLoading)
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        // Keep the composer above Kairos's floating Liquid Glass navigation bar.
-        .padding(.bottom, 78)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        // MainTabView owns the floating navigation bar. Explicitly lift the
+        // composer visually so it cannot sit underneath that bar on iOS 26.
+        .padding(.bottom, 8)
         .background(.bar)
+        .offset(y: -76)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if inputFocused {
                 HStack {
