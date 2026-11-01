@@ -15,6 +15,7 @@ final class StudyPlanRepository {
     private var listeningUserID: String?
     private var generation = UUID()
     private var hasLoadedSnapshot = false
+    private var rawPlan: [String: Any] = [:]
 
     func startListening(userID: String) {
         stopListening()
@@ -35,6 +36,7 @@ final class StudyPlanRepository {
                     }
                     do {
                         self.currentPlan = try newest?.data(as: KairosStudyPlan.self)
+                        self.rawPlan = newest?.data() ?? [:]
                         self.hasLoadedSnapshot = true
                         self.errorMessage = nil
                     } catch {
@@ -51,6 +53,7 @@ final class StudyPlanRepository {
         generation = UUID()
         listeningUserID = nil
         currentPlan = nil
+        rawPlan = [:]
         isLoading = false
         hasLoadedSnapshot = false
         errorMessage = nil
@@ -95,6 +98,8 @@ final class StudyPlanRepository {
                 base["scheduleEvents"] = try (before?.scheduleEvents ?? []).map { try encoder.encode($0) }
                 local["scheduleEvents"] = try (after.scheduleEvents ?? []).map { try encoder.encode($0) }
             }
+            let baseline = try Self.normalizedPlanner(rawPlan)
+            let desired = try KairosPlannerMerge.applyingKnownEdits(base: base, local: local, to: baseline)
             _ = try await db.runTransaction { transaction, errorPointer in
                 do {
                     guard Auth.auth().currentUser?.uid == uid else { throw CancellationError() }
@@ -103,7 +108,7 @@ final class StudyPlanRepository {
                     let raw = snapshot.data() ?? [:]
                     guard !snapshot.exists || raw["userID"] as? String == uid else { throw KairosPlannerMerge.Conflict() }
                     let remote = try Self.normalizedPlanner(raw)
-                    let merged = try KairosPlannerMerge.merge(base: base, local: local, remote: remote)
+                    let merged = try KairosPlannerMerge.merge(base: baseline, local: desired, remote: remote)
                     var fields: [String: Any] = ["boards": merged["boards"] ?? []]
                     if includeEvents { fields["scheduleEvents"] = merged["scheduleEvents"] ?? [] }
                     if !snapshot.exists {

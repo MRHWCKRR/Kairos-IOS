@@ -219,67 +219,57 @@ final class UserProfileRepository {
         }
     }
 
-    // MARK: - Task completion accounting
+    // MARK: - Transactional progress accounting
     func recordTaskCompletion(taskID: String) async {
-        guard let uid = writableUserID else { return }
-        let previousAchievements = achievementsData
-        let previousFocus = focusData
-        var ach = achievementsData ?? defaultAchievementsData()
-        var counted = ach.countedTaskIds ?? []
-        guard !counted.contains(taskID) else { return }
-        counted.append(taskID)
-        ach.countedTaskIds = counted
-        ach.lifetimeTasksCompleted += 1
-        achievementsData = ach
-        var focus = focusData ?? defaultFocusData()
-        let dateKey = KairosDate.dayKey(for: Date())
-        var tasksLog = focus.dailyTasksLog ?? [:]
-        tasksLog[dateKey] = (tasksLog[dateKey] ?? 0) + 1
-        focus.dailyTasksLog = tasksLog
-        focusData = focus
-        do {
-            try await db.collection("users").document(uid).setData([
-                "achievements": ["countedTaskIds": counted, "lifetimeTasksCompleted": ach.lifetimeTasksCompleted],
-                "focusData": ["dailyTasksLog": tasksLog]
-            ], merge: true)
-        } catch {
-            achievementsData = previousAchievements
-            focusData = previousFocus
-            errorMessage = "Failed to record task completion: \(error.localizedDescription)"
-            return
+        await saveProgress { data, day in
+            try KairosProgress.taskCompletion(data: data, taskID: taskID, dayKey: day)
         }
-        await checkAchievements()
     }
 
-    // MARK: - Focus data
     func logFocusSession(seconds: Int64) async {
-        guard let uid = writableUserID, seconds >= 1 else { return }
-        let previous = focusData
-        var focus = focusData ?? defaultFocusData()
-        focus.totalSeconds += seconds
-        focus.longestSessionSeconds = max(focus.longestSessionSeconds, seconds)
-        let dateKey = KairosDate.dayKey(for: Date())
-        var log = focus.dailyFocusLog ?? [:]
-        log[dateKey] = (log[dateKey] ?? 0) + seconds
-        focus.dailyFocusLog = log
-        focusData = focus
-        do {
-            let encoded = try Firestore.Encoder().encode(focus)
-            try await db.collection("users").document(uid).setData(["focusData": encoded], merge: true)
-        } catch {
-            focusData = previous
-            errorMessage = "Failed to save focus data: \(error.localizedDescription)"
-            return
+        guard seconds >= 1 else { return }
+        await saveProgress { data, day in
+            try KairosProgress.focusSession(data: data, seconds: seconds, dayKey: day)
         }
-        await checkAchievements()
+    }
+
+    private func saveProgress(_ build: @escaping @Sendable ([String: Any], String) throws -> [String: Any]) async {
+        guard let uid = writableUserID else { return }
+        let reference = db.collection("users").document(uid)
+        let token = generation
+        let date = Date()
+        do {
+            _ = try await db.runTransaction { transaction, errorPointer in
+                do {
+                    guard Auth.auth().currentUser?.uid == uid else { throw CancellationError() }
+                    let snapshot = try transaction.getDocument(reference)
+                    let raw = snapshot.data() ?? [:]
+                    let settings = raw["settings"] as? [String: Any]
+                    let profile = settings?["profile"] as? [String: Any]
+                    let timezone = (profile?["timezone"] as? String).flatMap(TimeZone.init(identifier:)) ?? .current
+                    let patch = try build(raw, KairosDate.dayKey(for: date, timeZone: timezone))
+                    if !patch.isEmpty { transaction.setData(patch, forDocument: reference, merge: true) }
+                    return true
+                } catch {
+                    errorPointer?.pointee = error as NSError
+                    return nil
+                }
+            }
+            guard generation == token, writableUserID == uid else { return }
+            errorMessage = nil
+            await checkAchievements()
+        } catch {
+            guard generation == token else { return }
+            errorMessage = "Failed to save progress: \(error.localizedDescription)"
+        }
     }
 }
 
 enum KairosDate {
-    static func dayKey(for date: Date) -> String {
+    nonisolated static func dayKey(for date: Date, timeZone: TimeZone = .current) -> String {
         let f = DateFormatter()
         f.calendar = Calendar(identifier: .gregorian)
-        f.timeZone = .current
+        f.timeZone = timeZone
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: date)
     }

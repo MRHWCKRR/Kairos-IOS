@@ -22,6 +22,35 @@ enum KairosPlannerMerge {
         }
     }
 
+    nonisolated static func applyingKnownEdits(base: [String: Any], local: [String: Any], to raw: [String: Any]) throws -> [String: Any] {
+        try validate(base); try validate(local); try validate(raw)
+        return try applyingValue(base, local, raw) as? [String: Any] ?? [:]
+    }
+
+    // Expand the native model's edits into a complete local document before
+    // comparing it with the complete server document. Metadata omitted by a
+    // native Codable model is not itself a competing change.
+    nonisolated private static func applyingValue(_ base: Any?, _ local: Any?, _ raw: Any?) throws -> Any? {
+        if equal(base, local) { return raw }
+        guard let local else { return nil }
+        if let b = base as? [[String: Any]], let l = local as? [[String: Any]], let r = raw as? [[String: Any]],
+           (b + l + r).allSatisfy({ ($0["id"] as? String)?.isEmpty == false }) {
+            let bm = Dictionary(uniqueKeysWithValues: b.map { ($0["id"] as! String, $0) })
+            let rm = Dictionary(uniqueKeysWithValues: r.map { ($0["id"] as! String, $0) })
+            return try l.compactMap { item in
+                let id = item["id"] as! String
+                return try applyingValue(bm[id], item, rm[id])
+            }
+        }
+        if let l = local as? [String: Any] {
+            let b = base as? [String: Any] ?? [:]
+            var result = raw as? [String: Any] ?? [:]
+            for key in Set(b.keys).union(l.keys) { result[key] = try applyingValue(b[key], l[key], result[key]) }
+            return result
+        }
+        return local
+    }
+
     nonisolated private static func mergeValue(_ base: Any?, _ local: Any?, _ remote: Any?) throws -> Any? {
         if equal(local, base) { return remote }
         if equal(remote, base) || equal(local, remote) { return local }

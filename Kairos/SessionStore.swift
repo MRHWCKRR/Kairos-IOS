@@ -38,7 +38,11 @@ final class SessionStore {
     }
 
     private func apply(_ user: User?) {
-        if userID != user?.uid { lastErrorMessage = nil; verificationMessage = nil }
+        if userID != user?.uid {
+            _ = FocusTimerCoordinator.shared.stopAndReset()
+            lastErrorMessage = nil
+            verificationMessage = nil
+        }
         userID = user?.uid
         emailVerified = user?.isEmailVerified == true
         email = user?.email ?? (UserDefaults.standard.string(forKey: rememberedEmailKey) ?? "")
