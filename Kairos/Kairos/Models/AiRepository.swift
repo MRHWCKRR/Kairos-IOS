@@ -1,4 +1,8 @@
 import Foundation
+import FirebaseAuth
+#if canImport(FirebaseAppCheck)
+import FirebaseAppCheck
+#endif
 
 enum AiRepositoryError: LocalizedError {
     case badResponse(Int)
@@ -21,37 +25,29 @@ struct AiPlanResult {
 
 /// Talks to the Kairos AI API used by the web app.
 /// The server-side relay keeps the AI provider credentials out of the app.
+@MainActor
 final class AiRepository {
-    private let relayURL = URL(string: "https://kairos-xi-two.vercel.app/api/ai")!
+    private let networkSession = URLSession(configuration: .ephemeral, delegate: KairosAIRedirectPolicy(), delegateQueue: nil)
 
     func sendChatRequest(messages: [ChatMessage]) async throws -> String {
-        var request = URLRequest(url: relayURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 60
-
-        let payloadMessages = messages.map { msg -> [String: String] in
-            let content = msg.content.count > 4000
-                ? String(msg.content.prefix(3997)) + "..."
-                : msg.content
-            return ["role": msg.role, "content": content]
+        guard let user = Auth.auth().currentUser, user.isEmailVerified else {
+            throw KairosAIServiceError(status: 403, code: "verify-email", resetsAt: nil, message: "Sign in with a verified email to use Kairos AI.")
         }
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["messages": payloadMessages])
-
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let uid = user.uid
+        let idToken = try await user.getIDToken()
+        #if canImport(FirebaseAppCheck)
+        let appToken = try await AppCheck.appCheck().token(forcingRefresh: false).token
+        #else
+        throw KairosAIServiceError(status: 503, code: "app-check-setup", resetsAt: nil, message: "App verification is not configured in this build. Link FirebaseAppCheck in Xcode before using AI.")
+        #endif
+        #if canImport(FirebaseAppCheck)
+        guard Auth.auth().currentUser?.uid == uid else { throw CancellationError() }
+        let request = try KairosAIContract.request(messages: messages.map { ["role": $0.role, "content": $0.content] }, idToken: idToken, appCheckToken: appToken)
+        let (data, response) = try await networkSession.data(for: request)
+        guard Auth.auth().currentUser?.uid == uid else { throw CancellationError() }
         guard let http = response as? HTTPURLResponse else { throw AiRepositoryError.malformedResponse }
-        guard http.statusCode == 200 else { throw AiRepositoryError.badResponse(http.statusCode) }
-
-        guard
-            let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let choices = root["choices"] as? [[String: Any]],
-            let first = choices.first,
-            let message = first["message"] as? [String: Any],
-            let content = message["content"] as? String
-        else {
-            throw AiRepositoryError.malformedResponse
-        }
-        return content
+        return try KairosAIContract.response(data: data, status: http.statusCode)
+        #endif
     }
 
     func generateText(prompt: String) async throws -> String {
@@ -202,3 +198,11 @@ final class AiRepository {
         return hour * 60 + minute
     }
 }
+
+private final class KairosAIRedirectPolicy: NSObject, URLSessionTaskDelegate {
+    nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        // Never forward account or attestation tokens through an unexpected redirect.
+        completionHandler(nil)
+    }
+}
+

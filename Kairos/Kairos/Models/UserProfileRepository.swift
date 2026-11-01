@@ -18,12 +18,21 @@ final class UserProfileRepository {
 
     let db = Firestore.firestore()
     private var listener: ListenerRegistration?
+    private var listeningUserID: String?
+    private var generation = UUID()
+    private var writableUserID: String? {
+        guard let user = Auth.auth().currentUser, user.isEmailVerified, user.uid == listeningUserID else { return nil }
+        return user.uid
+    }
 
     func startListening(userID: String) {
         stopListening()
+        listeningUserID = userID
+        let token = generation
         isLoading = true
         listener = db.collection("users").document(userID).addSnapshotListener { [weak self] snapshot, error in
-            guard let self else { return }
+            Task { @MainActor in
+            guard let self, self.generation == token, Auth.auth().currentUser?.uid == userID else { return }
             self.isLoading = false
             if let error {
                 self.errorMessage = error.localizedDescription
@@ -37,6 +46,7 @@ final class UserProfileRepository {
             // Decode each top-level section independently. A legacy or malformed
             // field elsewhere in the user document must not prevent saved settings
             // from being restored after a cold launch.
+            self.clearValues()
             let raw = snapshot.data() ?? [:]
             let decoder = Firestore.Decoder()
 
@@ -74,17 +84,33 @@ final class UserProfileRepository {
             }
 
             self.errorMessage = nil
+            }
         }
     }
 
     func stopListening() {
         listener?.remove()
         listener = nil
+        listeningUserID = nil
+        generation = UUID()
+        isLoading = false
+        errorMessage = nil
+        clearValues()
+    }
+
+    private func clearValues() {
+        profile = nil
+        focusData = nil
+        achievementsData = nil
+        accessibilitySettings = nil
+        notificationSettings = nil
+        appearanceSettings = nil
+        aiChatHistory = []
     }
 
     // MARK: - Settings
     func saveSettings(_ settings: KairosUserSettings) async {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
+        guard let uid = writableUserID else { return }
         do {
             let encoded = try Firestore.Encoder().encode(settings)
             try await db.collection("users").document(uid).setData(["settings": encoded], merge: true)
@@ -92,14 +118,12 @@ final class UserProfileRepository {
     }
 
     func saveAppearanceSettings(_ settings: KairosAppearanceSettings) async {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
+        guard let uid = writableUserID else { return }
         let previous = appearanceSettings
         appearanceSettings = settings
         do {
             let encoded = try Firestore.Encoder().encode(settings)
-            try await db.collection("users").document(uid).updateData([
-                "settings.appearance": encoded
-            ])
+            try await db.collection("users").document(uid).setData(["settings": ["appearance": encoded]], merge: true)
         } catch {
             appearanceSettings = previous
             errorMessage = "Failed to save appearance settings: \(error.localizedDescription)"
@@ -107,14 +131,12 @@ final class UserProfileRepository {
     }
 
     func saveAccessibilitySettings(_ settings: KairosAccessibilitySettings) async {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
+        guard let uid = writableUserID else { return }
         let previous = accessibilitySettings
         accessibilitySettings = settings
         do {
             let encoded = try Firestore.Encoder().encode(settings)
-            try await db.collection("users").document(uid).updateData([
-                "settings.accessibility": encoded
-            ])
+            try await db.collection("users").document(uid).setData(["settings": ["accessibility": encoded]], merge: true)
         } catch {
             accessibilitySettings = previous
             errorMessage = "Failed to save accessibility settings: \(error.localizedDescription)"
@@ -122,12 +144,12 @@ final class UserProfileRepository {
     }
 
     func saveNotificationSettings(_ settings: KairosNotificationSettings) async {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
+        guard let uid = writableUserID else { return }
         let previous = notificationSettings
         notificationSettings = settings
         do {
             let encoded = try Firestore.Encoder().encode(settings)
-            try await db.collection("users").document(uid).setData(["settings.notifications": encoded], merge: true)
+            try await db.collection("users").document(uid).setData(["settings": ["notifications": encoded]], merge: true)
         } catch {
             notificationSettings = previous
             errorMessage = "Failed to save notification settings: \(error.localizedDescription)"
@@ -136,7 +158,7 @@ final class UserProfileRepository {
 
     // MARK: - AI chat history
     func saveAiChatHistory(_ messages: [ChatMessage]) async {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
+        guard let uid = writableUserID else { return }
         do {
             let encoded = try messages.map { try Firestore.Encoder().encode($0) }
             try await db.collection("users").document(uid).setData(["aiChatHistory": encoded], merge: true)
@@ -145,7 +167,7 @@ final class UserProfileRepository {
 
     // MARK: - Achievements
     func setGoal(index: Int, achievementID: String?) async {
-        guard let uid = Auth.auth().currentUser?.uid, index >= 0 else { return }
+        guard let uid = writableUserID, index >= 0 else { return }
         let previous = achievementsData
         var goals = achievementsData?.goals ?? [nil, nil, nil]
         while goals.count <= index { goals.append(nil) }
@@ -155,7 +177,7 @@ final class UserProfileRepository {
             achievementsData = achievements
         }
         do {
-            try await db.collection("users").document(uid).setData(["achievements.goals": goals], merge: true)
+            try await db.collection("users").document(uid).setData(["achievements": ["goals": goals.map { $0 as Any? ?? NSNull() }]], merge: true)
         } catch {
             achievementsData = previous
             errorMessage = "Failed to set goal: \(error.localizedDescription)"
@@ -164,7 +186,7 @@ final class UserProfileRepository {
 
     @discardableResult
     func unlockAchievement(id: String) async -> Bool {
-        guard let uid = Auth.auth().currentUser?.uid else { return false }
+        guard let uid = writableUserID else { return false }
         if achievementsData?.unlocked?[id] != nil { return false }
         let previous = achievementsData
         var unlocked = achievementsData?.unlocked ?? [:]
@@ -174,7 +196,7 @@ final class UserProfileRepository {
             achievementsData = achievements
         }
         do {
-            try await db.collection("users").document(uid).setData(["achievements.unlocked": unlocked], merge: true)
+            try await db.collection("users").document(uid).setData(["achievements": ["unlocked": [id: unlocked[id]!]]], merge: true)
             return true
         } catch {
             achievementsData = previous
@@ -199,7 +221,7 @@ final class UserProfileRepository {
 
     // MARK: - Task completion accounting
     func recordTaskCompletion(taskID: String) async {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
+        guard let uid = writableUserID else { return }
         let previousAchievements = achievementsData
         let previousFocus = focusData
         var ach = achievementsData ?? defaultAchievementsData()
@@ -217,9 +239,8 @@ final class UserProfileRepository {
         focusData = focus
         do {
             try await db.collection("users").document(uid).setData([
-                "achievements.countedTaskIds": counted,
-                "achievements.lifetimeTasksCompleted": ach.lifetimeTasksCompleted,
-                "focusData.dailyTasksLog": tasksLog
+                "achievements": ["countedTaskIds": counted, "lifetimeTasksCompleted": ach.lifetimeTasksCompleted],
+                "focusData": ["dailyTasksLog": tasksLog]
             ], merge: true)
         } catch {
             achievementsData = previousAchievements
@@ -232,7 +253,7 @@ final class UserProfileRepository {
 
     // MARK: - Focus data
     func logFocusSession(seconds: Int64) async {
-        guard let uid = Auth.auth().currentUser?.uid, seconds >= 1 else { return }
+        guard let uid = writableUserID, seconds >= 1 else { return }
         let previous = focusData
         var focus = focusData ?? defaultFocusData()
         focus.totalSeconds += seconds

@@ -8,114 +8,151 @@ import FirebaseAuth
 final class StudyPlanRepository {
     var currentPlan: KairosStudyPlan?
     var isLoading = false
+    private(set) var isSaving = false
     var errorMessage: String?
-
     private let db = Firestore.firestore()
     private var listener: ListenerRegistration?
+    private var listeningUserID: String?
+    private var generation = UUID()
+    private var hasLoadedSnapshot = false
 
     func startListening(userID: String) {
         stopListening()
+        listeningUserID = userID
+        let token = generation
         isLoading = true
-
-        listener = db.collection("study_plans")
-            .whereField("userID", isEqualTo: userID)
+        listener = db.collection("study_plans").whereField("userID", isEqualTo: userID)
             .addSnapshotListener { [weak self] snapshot, error in
-                guard let self else { return }
-                self.isLoading = false
-
-                if let error {
-                    self.errorMessage = error.localizedDescription
-                    return
+                Task { @MainActor in
+                    guard let self, self.generation == token, Auth.auth().currentUser?.uid == userID else { return }
+                    self.isLoading = false
+                    if let error { self.errorMessage = error.localizedDescription; return }
+                    guard let snapshot else { self.errorMessage = "Could not load your planner."; return }
+                    // Do not fall back to an older plan when the newest one cannot decode.
+                    let newest = snapshot.documents.max {
+                        (($0.data()["createdAt"] as? Timestamp)?.dateValue() ?? .distantPast) <
+                        (($1.data()["createdAt"] as? Timestamp)?.dateValue() ?? .distantPast)
+                    }
+                    do {
+                        self.currentPlan = try newest?.data(as: KairosStudyPlan.self)
+                        self.hasLoadedSnapshot = true
+                        self.errorMessage = nil
+                    } catch {
+                        self.hasLoadedSnapshot = false
+                        self.errorMessage = "This planner contains data this build cannot read. Update Kairos before editing it."
+                    }
                 }
-
-                guard let documents = snapshot?.documents, !documents.isEmpty else {
-                    self.currentPlan = nil
-                    return
-                }
-
-                let plans = documents.compactMap { try? $0.data(as: KairosStudyPlan.self) }
-                self.currentPlan = plans.max { lhs, rhs in
-                    (lhs.createdAt ?? .distantPast) < (rhs.createdAt ?? .distantPast)
-                }
-                self.errorMessage = nil
             }
     }
 
     func stopListening() {
         listener?.remove()
         listener = nil
+        generation = UUID()
+        listeningUserID = nil
+        currentPlan = nil
+        isLoading = false
+        hasLoadedSnapshot = false
+        errorMessage = nil
     }
 
-    func toggleTask(boardID: String, sectionID: String, taskID: String) async {
-        guard var plan = currentPlan, let planID = plan.id else { return }
-
-        guard let boardIndex = plan.boards.firstIndex(where: { $0.id == boardID }),
-              let sectionIndex = plan.boards[boardIndex].sections.firstIndex(where: { $0.id == sectionID }),
-              let taskIndex = plan.boards[boardIndex].sections[sectionIndex].tasks.firstIndex(where: { $0.id == taskID }) else {
-            return
-        }
-
-        plan.boards[boardIndex].sections[sectionIndex].tasks[taskIndex].completed.toggle()
-
-        let previousPlan = currentPlan
-        currentPlan = plan
-
-        do {
-            let encoder = Firestore.Encoder()
-            let encodedBoards = try plan.boards.map { try encoder.encode($0) }
-            try await db.collection("study_plans").document(planID).updateData(["boards": encodedBoards])
-            errorMessage = nil
-        } catch {
-            currentPlan = previousPlan
-            errorMessage = "Failed to update task: \(error.localizedDescription)"
-        }
+    @discardableResult
+    func toggleTask(boardID: String, sectionID: String, taskID: String) async -> Bool {
+        guard var plan = currentPlan,
+              let bi = plan.boards.firstIndex(where: { $0.id == boardID }),
+              let si = plan.boards[bi].sections.firstIndex(where: { $0.id == sectionID }),
+              let ti = plan.boards[bi].sections[si].tasks.firstIndex(where: { $0.id == taskID }) else { return false }
+        let before = currentPlan
+        plan.boards[bi].sections[si].tasks[ti].completed.toggle()
+        return await persist(before: before, after: plan)
     }
 
-    // MARK: - Optimistic board mutation
     private func mutateBoards(_ transform: (inout [KairosBoard]) -> Void) async {
-        guard let userID = Auth.auth().currentUser?.uid else {
-            errorMessage = "You must be signed in to edit boards."
-            return
+        guard let userID = listeningUserID else { return }
+        let before = currentPlan
+        var plan = before ?? KairosStudyPlan(id: nil, userID: userID, createdAt: nil, boards: [], dayInsights: nil, scheduleEvents: nil)
+        transform(&plan.boards)
+        _ = await persist(before: before, after: plan)
+    }
+
+    private func persist(before: KairosStudyPlan?, after: KairosStudyPlan, includeEvents: Bool = false) async -> Bool {
+        guard !isSaving else { errorMessage = "Wait for your current change to finish saving."; return false }
+        guard hasLoadedSnapshot, !isLoading, let user = Auth.auth().currentUser,
+              user.isEmailVerified, user.uid == listeningUserID, after.userID == user.uid else {
+            errorMessage = "Wait for your verified account's planner to load before editing."
+            return false
         }
-
-        let previousPlan = currentPlan
-        var boards = currentPlan?.boards ?? []
-        transform(&boards)
-
-        if let plan = currentPlan {
-            var optimisticPlan = plan
-            optimisticPlan.boards = boards
-            currentPlan = optimisticPlan
-        } else {
-            currentPlan = KairosStudyPlan(
-                id: nil,
-                userID: userID,
-                createdAt: nil,
-                boards: boards,
-                dayInsights: nil,
-                scheduleEvents: nil
-            )
-        }
-
+        let uid = user.uid
+        let token = generation
+        let reference = db.collection("study_plans").document(before?.id ?? uid)
+        isSaving = true
+        defer { isSaving = false }
         do {
             let encoder = Firestore.Encoder()
-            let encodedBoards = try boards.map { try encoder.encode($0) }
-
-            if let planID = previousPlan?.id {
-                try await db.collection("study_plans").document(planID).updateData(["boards": encodedBoards])
-            } else {
-                let reference = try await db.collection("study_plans").addDocument(data: [
-                    "boards": encodedBoards,
-                    "userID": userID,
-                    "createdAt": FieldValue.serverTimestamp()
-                ])
-                currentPlan?.id = reference.documentID
+            var base: [String: Any] = ["boards": try (before?.boards ?? []).map { try encoder.encode($0) }]
+            var local: [String: Any] = ["boards": try after.boards.map { try encoder.encode($0) }]
+            if includeEvents {
+                base["scheduleEvents"] = try (before?.scheduleEvents ?? []).map { try encoder.encode($0) }
+                local["scheduleEvents"] = try (after.scheduleEvents ?? []).map { try encoder.encode($0) }
             }
+            _ = try await db.runTransaction { transaction, errorPointer in
+                do {
+                    guard Auth.auth().currentUser?.uid == uid else { throw CancellationError() }
+                    let snapshot = try transaction.getDocument(reference)
+                    if before != nil && !snapshot.exists { throw KairosPlannerMerge.Conflict() }
+                    let raw = snapshot.data() ?? [:]
+                    guard !snapshot.exists || raw["userID"] as? String == uid else { throw KairosPlannerMerge.Conflict() }
+                    let remote = try Self.normalizedPlanner(raw)
+                    let merged = try KairosPlannerMerge.merge(base: base, local: local, remote: remote)
+                    var fields: [String: Any] = ["boards": merged["boards"] ?? []]
+                    if includeEvents { fields["scheduleEvents"] = merged["scheduleEvents"] ?? [] }
+                    if !snapshot.exists {
+                        fields["userID"] = uid
+                        fields["createdAt"] = FieldValue.serverTimestamp()
+                        transaction.setData(fields, forDocument: reference)
+                    } else {
+                        transaction.updateData(fields, forDocument: reference)
+                    }
+                    return true
+                } catch {
+                    errorPointer?.pointee = error as NSError
+                    return nil
+                }
+            }
+            guard generation == token, Auth.auth().currentUser?.uid == uid else { return false }
             errorMessage = nil
+            return true
         } catch {
-            currentPlan = previousPlan
-            errorMessage = "Failed to update: \(error.localizedDescription)"
+            guard generation == token else { return false }
+            errorMessage = error.localizedDescription
+            return false
         }
+    }
+
+    nonisolated private static func normalizedPlanner(_ data: [String: Any]) throws -> [String: Any] {
+        var result = data
+        guard data["boards"] == nil || data["boards"] is [[String: Any]] else { throw KairosPlannerMerge.Conflict() }
+        // A legacy section-only document needs migration on the web before native edits.
+        guard data["boards"] != nil || data["sections"] == nil else { throw KairosPlannerMerge.Conflict() }
+        result["boards"] = try (data["boards"] as? [[String: Any]] ?? []).map { board in
+            var b = board
+            b["archived"] = b["archived"] ?? false
+            guard let sections = b["sections"] as? [[String: Any]] else { throw KairosPlannerMerge.Conflict() }
+            b["sections"] = try sections.map { section in
+                var s = section; s["archived"] = s["archived"] ?? false
+                guard let tasks = s["tasks"] as? [[String: Any]] else { throw KairosPlannerMerge.Conflict() }
+                s["tasks"] = tasks.map { task in
+                    var t = task
+                    t["archived"] = t["archived"] ?? false
+                    t["completed"] = t["completed"] ?? false
+                    return t
+                }
+                return s
+            }
+            return b
+        }
+        result["scheduleEvents"] = data["scheduleEvents"] ?? []
+        return result
     }
 
     // MARK: - Boards
@@ -243,71 +280,25 @@ final class StudyPlanRepository {
         }
     }
 
-    // MARK: - AI plan confirmation
-    /// Applies a confirmed AI-generated plan (new board or append to an
-    /// existing one) plus extracted schedule events. The UI is updated before
-    /// Firestore responds, and the previous plan is restored if the write fails.
-    func applyAiPlan(sections: [KairosSection], recurringEvents: [KairosScheduleEvent], newBoardTitle: String?, existingBoardID: String?) async {
-        guard let userID = Auth.auth().currentUser?.uid else {
-            errorMessage = "You must be signed in to apply an AI plan."
-            return
-        }
-
-        let previousPlan = currentPlan
-        var boards = currentPlan?.boards ?? []
-
-        if let boardID = existingBoardID, let i = boards.firstIndex(where: { $0.id == boardID }) {
-            boards[i].sections.append(contentsOf: sections)
-        } else {
-            let trimmed = newBoardTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let title = (trimmed?.isEmpty == false) ? trimmed! : "AI Plan"
-            boards.append(KairosBoard(id: "board-\(UUID().uuidString)", title: title, archived: false, sections: sections))
-        }
-
-        var events = currentPlan?.scheduleEvents ?? []
-        events.append(contentsOf: recurringEvents)
-
-        // Publish immediately so the newly generated board and schedule appear
-        // without waiting for the realtime listener round-trip.
-        if let plan = currentPlan {
-            var optimisticPlan = plan
-            optimisticPlan.boards = boards
-            optimisticPlan.scheduleEvents = events
-            currentPlan = optimisticPlan
-        } else {
-            currentPlan = KairosStudyPlan(
-                id: nil,
-                userID: userID,
-                createdAt: nil,
-                boards: boards,
-                dayInsights: nil,
-                scheduleEvents: events
-            )
-        }
-
-        do {
-            let encoder = Firestore.Encoder()
-            let encodedBoards = try boards.map { try encoder.encode($0) }
-            let encodedEvents = try events.map { try encoder.encode($0) }
-
-            if let planID = previousPlan?.id {
-                try await db.collection("study_plans").document(planID).updateData([
-                    "boards": encodedBoards,
-                    "scheduleEvents": encodedEvents
-                ])
-            } else {
-                let reference = try await db.collection("study_plans").addDocument(data: [
-                    "boards": encodedBoards,
-                    "scheduleEvents": encodedEvents,
-                    "userID": userID,
-                    "createdAt": FieldValue.serverTimestamp()
-                ])
-                currentPlan?.id = reference.documentID
+    // MARK: - Reviewed AI plan
+    @discardableResult
+    func applyAiPlan(sections: [KairosSection], recurringEvents: [KairosScheduleEvent], newBoardTitle: String?, existingBoardID: String?) async -> Bool {
+        guard let uid = listeningUserID else { return false }
+        let before = currentPlan
+        var plan = before ?? KairosStudyPlan(id: nil, userID: uid, createdAt: nil, boards: [], dayInsights: nil, scheduleEvents: nil)
+        if let id = existingBoardID {
+            guard let index = plan.boards.firstIndex(where: { $0.id == id && !$0.archived }) else {
+                errorMessage = "This board is unavailable. Choose another board."
+                return false
             }
-            errorMessage = nil
-        } catch {
-            currentPlan = previousPlan
-            errorMessage = "Failed to apply AI plan: \(error.localizedDescription)"
+            plan.boards[index].sections.append(contentsOf: sections)
+        } else {
+            let title = newBoardTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !title.isEmpty else { errorMessage = "Give the board a name first."; return false }
+            plan.boards.append(KairosBoard(id: "board-\(UUID().uuidString)", title: title, archived: false, sections: sections))
         }
+        plan.scheduleEvents = (plan.scheduleEvents ?? []) + recurringEvents
+        return await persist(before: before, after: plan, includeEvents: true)
     }
 }
+
