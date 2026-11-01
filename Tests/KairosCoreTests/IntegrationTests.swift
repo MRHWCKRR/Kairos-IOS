@@ -98,4 +98,20 @@ final class IntegrationTests: XCTestCase {
         XCTAssertEqual((result["boards"] as? [[String: Any]])?.count, 0)
         XCTAssertThrowsError(try KairosPlannerMerge.merge(base: raw, local: desired, remote: ["boards": [["id": "b", "title": "Board", "webOnly": "changed remotely"]]]))
     }
+
+    func testProgressChangesUseLatestServerTotalsAndDeduplicateTaskCompletions() throws {
+        let remote: [String: Any] = ["focusData": ["totalSeconds": 100, "longestSessionSeconds": 90, "dailyFocusLog": ["2026-11-01": 50], "webOnly": "keep"], "achievements": ["lifetimeTasksCompleted": 4, "countedTaskIds": ["old"]]]
+        let focus = try KairosProgress.focusSession(data: remote, seconds: 30, dayKey: "2026-11-01")
+        let f = try XCTUnwrap(focus["focusData"] as? [String: Any])
+        XCTAssertEqual(f["totalSeconds"] as? Int64, 130)
+        XCTAssertEqual(f["longestSessionSeconds"] as? Int64, 90)
+        XCTAssertEqual((f["dailyFocusLog"] as? [String: Int64])?["2026-11-01"], 80)
+        XCTAssertEqual(f["webOnly"] as? String, "keep")
+        let completed = try KairosProgress.taskCompletion(data: remote, taskID: "new", dayKey: "2026-11-01")
+        let a = try XCTUnwrap(completed["achievements"] as? [String: Any])
+        XCTAssertEqual(a["lifetimeTasksCompleted"] as? Int64, 5)
+        XCTAssertEqual(a["countedTaskIds"] as? [String], ["old", "new"])
+        XCTAssertTrue(try KairosProgress.taskCompletion(data: completed, taskID: "new", dayKey: "2026-11-01").isEmpty)
+        XCTAssertThrowsError(try KairosProgress.focusSession(data: ["focusData": ["totalSeconds": "broken"]], seconds: 30, dayKey: "2026-11-01"))
+    }
 }
