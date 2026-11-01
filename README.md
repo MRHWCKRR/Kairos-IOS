@@ -46,37 +46,24 @@ Kairos helps you plan your day around *your* activities, allowing you to fit *yo
 
 ---
 
-# Prerequisites:
+# Development setup
 
-MacOS Tahoe Mac/Maacbook **AND/OR** IOS 26 IPad/Iphone.
-XCode installed if you plan on launching locally or to edit.
-Firebase App Created (Google Authentication and Email Authentication enabled)
-```
-googlesignin-ios
-firebase-ios-sdk
-```
-Hackclub AI key
+Open `Kairos/Kairos.xcodeproj` in Xcode with support for the existing iOS 26.5 deployment target. Firebase Authentication, Firestore, Google Sign-In and Firebase App Check are linked in the project.
 
+See [iOS integration setup](docs/ios-integration-setup.md) for Firebase App Attest registration, simulator debug tokens, signing and the release checklist. AI uses the authenticated Kairos Cloudflare relay; do not add an AI provider key to the app.
 
 ## Try Kairos
 
-### 1. Clone the Repo
-```
+### 1. Clone and build
+
+```sh
 git clone https://github.com/MRHWCKRR/Kairos-IOS.git
+cd Kairos-IOS
+swift test
+open Kairos/Kairos.xcodeproj
 ```
 
-Open the cloned repo and open Xcode.
-
-You will need to provide your own key from Hackclub's free AI:
-https://ai.hackclub.com
-
-Create an AI key, and make sure to copy it somewhere safe (you will be needing it soon!)
-
-Make sure all dependencies are installed, and make sure the app signage is the same as the one in Firebase (e.g. com.google.app)
-
-You will need to place the HackClub AI key for the AI chatbot to work ($4.00 credit free)
-
-Build the app, and assuming no errors are in my code, it should connect to the virtual (or physical) IPhone/IPad and launch Kairos.
+Choose your signing team and an iPhone or simulator. For simulator AI requests, register the Firebase App Check debug token from the SDK's Xcode console output. Physical devices use App Attest.
 
 ### 2. Get The App
 
@@ -126,3 +113,4 @@ ChatGPT, Gemini, Copilot, Claude and Deepseek for helping me solve problems and 
 [issues-shield]: https://img.shields.io/github/issues/MRHWCKRR/Kairos-IOS.svg?style=for-the-badge
 [issues-url]: https://github.com/MRHWCKRR/Kairos-IOS/issues
 [license-shield]: https://img.shields.io/github/license/MRHWCKRR/Kairos-IOS.svg?style=for-the-badge
+

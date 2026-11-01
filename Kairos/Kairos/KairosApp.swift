@@ -16,9 +16,7 @@ struct KairosApp: App {
     private let notificationDelegate = KairosNotificationDelegate()
 
     init() {
-        if FirebaseApp.app() == nil {
-            FirebaseApp.configure()
-        }
+        KairosFirebase.configure()
         UNUserNotificationCenter.current().delegate = notificationDelegate
     }
 
@@ -32,3 +30,4 @@ struct KairosApp: App {
         }
     }
 }
+
