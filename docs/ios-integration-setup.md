@@ -4,13 +4,9 @@ This extends the existing native app; no Firestore migration is needed. Accounts
 
 ## Mac setup
 
-Open `Kairos/Kairos.xcodeproj` with Xcode supporting the project's existing iOS 26.5 minimum. Run `swift --version` first. The repository includes a Swift/XcodeProj setup helper adapted from the Firebase Xcode setup skill; it explicitly selects the Kairos app target, links FirebaseAppCheck, preserves the existing Firebase package requirement, adds `-ObjC`, and sets the App Attest entitlement file:
+Open `Kairos/Kairos.xcodeproj` with Xcode supporting the project's existing iOS 26.5 minimum. FirebaseAppCheck is already linked, `-ObjC` is set, and `Kairos.entitlements` selects the production App Attest environment. These project changes were generated using the Firebase skill's Swift/XcodeProj tool on macOS; the existing Firebase package requirement is retained. No extra setup script is required.
 
-```sh
-swift run --package-path Tools/FirebaseSetup xcode_spm_setup Kairos/Kairos.xcodeproj https://github.com/firebase/firebase-ios-sdk 13.1.1 FirebaseAppCheck
-```
-
-The version argument is used only if Firebase is absent; this app already has Firebase and its existing package requirement is retained. The helper's AEXML dependency is pinned to 4.7.0 to match XcodeProj's macOS 10.13 dependency floor. Do not put an AI provider key in the app. The empty legacy `Config.xcconfig` satisfies an existing resource reference.
+Do not put an AI provider key in the app. The empty legacy `Config.xcconfig` satisfies an existing resource reference.
 
 ## Firebase and signing
 
@@ -21,7 +17,7 @@ The version argument is used only if Firebase is absent; this app already has Fi
 
 ## Verification
 
-`swift test` exercises the Foundation-only access, AI contract and merge helpers. The macOS CI workflow additionally links FirebaseAppCheck using Swift and attempts an unsigned simulator build of the real Xcode project. This does not replace signed-device testing.
+`swift test` exercises the Foundation-only access, AI contract, merge and progress helpers. The macOS CI workflow additionally builds the real Xcode project for the arm64 simulator without signing. This does not replace signed-device testing.
 
 Before release, exercise: email sign-up → verification email → resend cooldown → return to app; verified email and Google sign-in; sign-out/account switch with a pending AI request and running focus timer; normal AI response, offline request, App Check failure and shared daily/weekly allowance errors; edit/delete a task carrying web-only fields; simultaneous web/native edits to different fields and the same field; focus and completion accounting on two devices; and persistence after relaunch.
 

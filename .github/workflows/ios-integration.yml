@@ -14,12 +14,9 @@ jobs:
       - run: swift test
   app-build:
     runs-on: macos-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - run: swift --version
-      - name: Link Firebase App Check with the Swift project tool
-        run: swift run --package-path Tools/FirebaseSetup xcode_spm_setup Kairos/Kairos.xcodeproj https://github.com/firebase/firebase-ios-sdk 13.1.1 FirebaseAppCheck
-      - name: Export configured project for review
-        run: python3 -c 'import base64; print("KAIROS_PROJECT_BASE64=" + base64.b64encode(open("Kairos/Kairos.xcodeproj/project.pbxproj", "rb").read()).decode())'
       - name: Build the existing iOS app without signing
-        run: xcodebuild -project Kairos/Kairos.xcodeproj -scheme Kairos -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/kairos-build CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -project Kairos/Kairos.xcodeproj -scheme Kairos -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/kairos-build CODE_SIGNING_ALLOWED=NO ARCHS=arm64 build

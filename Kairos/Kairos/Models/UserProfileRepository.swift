@@ -84,6 +84,7 @@ final class UserProfileRepository {
             }
 
             self.errorMessage = nil
+            await self.checkAchievements()
             }
         }
     }
@@ -257,7 +258,6 @@ final class UserProfileRepository {
             }
             guard generation == token, writableUserID == uid else { return }
             errorMessage = nil
-            await checkAchievements()
         } catch {
             guard generation == token else { return }
             errorMessage = "Failed to save progress: \(error.localizedDescription)"

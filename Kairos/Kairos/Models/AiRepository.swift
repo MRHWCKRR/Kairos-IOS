@@ -1,8 +1,6 @@
 import Foundation
 import FirebaseAuth
-#if canImport(FirebaseAppCheck)
 import FirebaseAppCheck
-#endif
 
 enum AiRepositoryError: LocalizedError {
     case badResponse(Int)
@@ -35,19 +33,13 @@ final class AiRepository {
         }
         let uid = user.uid
         let idToken = try await user.getIDToken()
-        #if canImport(FirebaseAppCheck)
         let appToken = try await AppCheck.appCheck().token(forcingRefresh: false).token
-        #else
-        throw KairosAIServiceError(status: 503, code: "app-check-setup", resetsAt: nil, message: "App verification is not configured in this build. Link FirebaseAppCheck in Xcode before using AI.")
-        #endif
-        #if canImport(FirebaseAppCheck)
         guard Auth.auth().currentUser?.uid == uid else { throw CancellationError() }
         let request = try KairosAIContract.request(messages: messages.map { ["role": $0.role, "content": $0.content] }, idToken: idToken, appCheckToken: appToken)
         let (data, response) = try await networkSession.data(for: request)
         guard Auth.auth().currentUser?.uid == uid else { throw CancellationError() }
         guard let http = response as? HTTPURLResponse else { throw AiRepositoryError.malformedResponse }
         return try KairosAIContract.response(data: data, status: http.statusCode)
-        #endif
     }
 
     func generateText(prompt: String) async throws -> String {

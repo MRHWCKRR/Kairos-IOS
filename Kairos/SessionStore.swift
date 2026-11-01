@@ -17,7 +17,7 @@ final class SessionStore {
     var remembersEmail = false
     var isBusy = false
     private(set) var verificationCooldownUntil = Date.distantPast
-    private nonisolated(unsafe) var authStateHandle: AuthStateDidChangeListenerHandle?
+    private nonisolated var authStateHandle: AuthStateDidChangeListenerHandle?
     private let rememberedEmailKey = "kairos.session.rememberedEmail"
 
     init() {
@@ -93,7 +93,7 @@ final class SessionStore {
         do {
             try await user.reload()
             guard Auth.auth().currentUser?.uid == user.uid else { return }
-            if user.isEmailVerified { _ = try await user.getIDTokenForcingRefresh(true) }
+            if user.isEmailVerified { _ = try await user.getIDToken(forcingRefresh: true) }
             guard Auth.auth().currentUser?.uid == user.uid else { return }
             apply(user)
             lastErrorMessage = nil
