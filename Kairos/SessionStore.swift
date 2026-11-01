@@ -17,7 +17,7 @@ final class SessionStore {
     var remembersEmail = false
     var isBusy = false
     private(set) var verificationCooldownUntil = Date.distantPast
-    private nonisolated var authStateHandle: AuthStateDidChangeListenerHandle?
+    @ObservationIgnored private nonisolated(unsafe) var authStateHandle: AuthStateDidChangeListenerHandle?
     private let rememberedEmailKey = "kairos.session.rememberedEmail"
 
     init() {
