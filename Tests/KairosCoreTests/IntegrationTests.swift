@@ -89,4 +89,13 @@ final class IntegrationTests: XCTestCase {
         let duplicate: [String: Any] = ["boards": [["id": "b"], ["id": "b"]]]
         XCTAssertThrowsError(try KairosPlannerMerge.merge(base: plan(), local: plan(completed: true), remote: duplicate))
     }
+
+    func testDeletingWebEnrichedItemUsesCompleteBaseline() throws {
+        let projection: [String: Any] = ["boards": [["id": "b", "title": "Board"]]]
+        let raw: [String: Any] = ["boards": [["id": "b", "title": "Board", "webOnly": "keep"]]]
+        let desired = try KairosPlannerMerge.applyingKnownEdits(base: projection, local: ["boards": []], to: raw)
+        let result = try KairosPlannerMerge.merge(base: raw, local: desired, remote: raw)
+        XCTAssertEqual((result["boards"] as? [[String: Any]])?.count, 0)
+        XCTAssertThrowsError(try KairosPlannerMerge.merge(base: raw, local: desired, remote: ["boards": [["id": "b", "title": "Board", "webOnly": "changed remotely"]]]))
+    }
 }

@@ -190,6 +190,7 @@ func main() {
         if products.contains(where: { $0.contains("Firebase") }) {
             print("Adding -ObjC to OTHER_LDFLAGS...")
             for configuration in target.buildConfigurationList?.buildConfigurations ?? [] {
+                configuration.buildSettings["CODE_SIGN_ENTITLEMENTS"] = "Kairos.entitlements"
                 var otherLdFlags: [String] = []
                 if let current = configuration.buildSettings["OTHER_LDFLAGS"] {
                     if let currentArray = current as? [String] {
