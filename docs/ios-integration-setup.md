@@ -24,3 +24,7 @@ Before release, exercise: email sign-up → verification email → resend cooldo
 Planner transactions require connectivity. An offline save surfaces an error rather than promising that a transaction was queued. A malformed newest plan surfaces an update-required error instead of silently selecting an older plan. AI requests are not automatically retried, because attempts count toward backend allowances.
 
 Reference: https://firebase.google.com/docs/app-check/ios/app-attest-provider and https://firebase.google.com/docs/app-check/ios/custom-resource.
+
+## Existing build warnings
+
+The unsigned simulator build succeeds. It still reports existing warnings for deprecated Text concatenation in LoginView, a Swift 6 concurrency capture in KairosNotificationManager, unused animation/task results in DashboardView, and a missing widget CFBundleShortVersionString. The widget version must match the containing app before archiving for distribution; these warnings are outside this integration pass.
