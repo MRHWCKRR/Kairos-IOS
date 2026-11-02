@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A70000010000000000000001 /* KairosWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A70000070000000000000007 /* KairosWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AD6CB5E8329F0D2E4F46145F /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = A75FD01E0483FFBD7C06DE4D /* FirebaseAppCheck */; };
 		D61C9FF8302AED8C0047B754 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = D61C9FF7302AED8C0047B754 /* GoogleSignIn */; };
 		D61C9FFA302AED8C0047B754 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = D61C9FF9302AED8C0047B754 /* GoogleSignInSwift */; };
 		D63B99CA302A850400A20B29 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D63B99C9302A850400A20B29 /* GoogleService-Info.plist */; };
@@ -51,14 +52,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		A70000030000000000000003 /* Exceptions for "KairosWidgets" folder in "KairosWidgets" target */ = {
+		A70000030000000000000003 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
 			target = A70000080000000000000008 /* KairosWidgets */;
 		};
-		D63B99CC302A878C00A20B29 /* Exceptions for "Kairos" folder in "Kairos" target */ = {
+		D63B99CC302A878C00A20B29 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -71,7 +72,7 @@
 		A70000040000000000000004 /* KairosWidgets */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				A70000030000000000000003 /* Exceptions for "KairosWidgets" folder in "KairosWidgets" target */,
+				A70000030000000000000003 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
 			);
 			path = KairosWidgets;
 			sourceTree = "<group>";
@@ -79,7 +80,7 @@
 		D61BB6963029ACD600288A19 /* Kairos */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				D63B99CC302A878C00A20B29 /* Exceptions for "Kairos" folder in "Kairos" target */,
+				D63B99CC302A878C00A20B29 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
 			);
 			path = Kairos;
 			sourceTree = "<group>";
@@ -103,6 +104,7 @@
 				D61C9FF8302AED8C0047B754 /* GoogleSignIn in Frameworks */,
 				D64E9B443035C1EA00DFFD26 /* FirebaseFirestore in Frameworks */,
 				D61C9FFA302AED8C0047B754 /* GoogleSignInSwift in Frameworks */,
+				AD6CB5E8329F0D2E4F46145F /* FirebaseAppCheck in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -193,6 +195,7 @@
 				D61C9FF7302AED8C0047B754 /* GoogleSignIn */,
 				D61C9FF9302AED8C0047B754 /* GoogleSignInSwift */,
 				D64E9B433035C1EA00DFFD26 /* FirebaseFirestore */,
+				A75FD01E0483FFBD7C06DE4D /* FirebaseAppCheck */,
 			);
 			productName = Kairos;
 			productReference = D61BB6943029ACD600288A19 /* Kairos.app */;
@@ -462,6 +465,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Kairos.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = DVPRMLSVAH;
@@ -482,6 +486,9 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"-ObjC",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.bytebybyte.kairos;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -500,6 +507,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Kairos.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = DVPRMLSVAH;
@@ -520,6 +528,9 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"-ObjC",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.bytebybyte.kairos;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -584,6 +595,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		A75FD01E0483FFBD7C06DE4D /* FirebaseAppCheck */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D63B99C8302A84D700A20B29 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAppCheck;
+		};
 		D61C9FF7302AED8C0047B754 /* GoogleSignIn */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D61C9FF6302AED8C0047B754 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;

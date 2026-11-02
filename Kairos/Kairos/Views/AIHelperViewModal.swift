@@ -64,7 +64,7 @@ final class AIHelperViewModel {
     }
 
     func createPlanFromChat() {
-        guard !chatMessages.isEmpty else { return }
+        guard !chatMessages.isEmpty, !isLoading else { return }
         isLoading = true
         isGeneratingBoard = true
         errorMessage = nil
@@ -90,12 +90,13 @@ final class AIHelperViewModel {
     }
 
     func clearChat() {
+        guard !isLoading else { return }
         chatMessages = []
         Task { await saveHistory() }
     }
 
     func confirmPlan() {
-        guard let plan = pendingPlan else { return }
+        guard let plan = pendingPlan, !isLoading else { return }
         let sections = plan.sections
         let events = plan.recurringEvents
         let mode = targetBoardMode
@@ -113,13 +114,17 @@ final class AIHelperViewModel {
 
         Task {
             isLoading = true
-            await planRepo.applyAiPlan(
+            let saved = await planRepo.applyAiPlan(
                 sections: sections,
                 recurringEvents: events,
                 newBoardTitle: mode == .new ? newTitle : nil,
                 existingBoardID: mode == .existing ? existingID : nil
             )
             isLoading = false
+            guard saved else {
+                errorMessage = planRepo.errorMessage ?? "Your plan could not be saved. Review it and try again."
+                return
+            }
             showConfirmationDialog = false
             pendingPlan = nil
         }
@@ -134,3 +139,4 @@ final class AIHelperViewModel {
         await profileRepo.saveAiChatHistory(Array(chatMessages.suffix(38)))
     }
 }
+

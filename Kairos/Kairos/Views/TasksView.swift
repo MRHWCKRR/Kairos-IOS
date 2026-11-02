@@ -435,8 +435,13 @@ struct TasksView: View {
         }
 
         Task {
-            await planRepo.toggleTask(boardID: boardID, sectionID: section.id, taskID: task.id)
-            if willComplete {
+            let saved = await planRepo.toggleTask(
+                boardID: boardID,
+                sectionID: section.id,
+                taskID: task.id
+            )
+
+            if saved && willComplete {
                 await profileRepo.recordTaskCompletion(taskID: task.id)
                 await notifyIfBoardCompleted(boardID: boardID)
             }
@@ -620,3 +625,4 @@ private extension View {
         .environment(StudyPlanRepository())
         .environment(UserProfileRepository())
 }
+

@@ -79,6 +79,7 @@ struct LoginView: View {
                     .foregroundStyle(.white)
                     .background(accent, in: Capsule())
                     .shadow(color: accent.opacity(0.35), radius: 14, y: 6)
+                    .disabled(session.isBusy || isGoogleSigningIn)
 
                     Button {
                         isSignUpMode.toggle()
@@ -147,7 +148,7 @@ struct LoginView: View {
             }
         }
         .buttonStyle(.plain)
-        .disabled(isGoogleSigningIn)
+        .disabled(isGoogleSigningIn || session.isBusy)
     }
     
     private var divider: some View {
@@ -216,7 +217,7 @@ struct LoginView: View {
 
     private func submit() {
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPassword = password
 
         guard !trimmedEmail.isEmpty, !trimmedPassword.isEmpty else {
             localErrorMessage = "Enter an email and password."
@@ -233,9 +234,7 @@ struct LoginView: View {
     }
 
     private func handleGoogleSignIn() {
-        if FirebaseApp.app() == nil {
-            FirebaseApp.configure()
-        }
+        KairosFirebase.configure()
 
         guard let clientID = FirebaseApp.app()?.options.clientID else {
             localErrorMessage = "Missing Firebase client ID."
@@ -280,7 +279,7 @@ struct LoginView: View {
 
                 let signedInEmail = authResult?.user.email ?? user.profile?.email ?? ""
                 Task { @MainActor in
-                    session.signIn(email: signedInEmail, password: idToken, rememberEmail: true, alreadyAuthenticated: true)
+                    session.completeGoogleSignIn(email: signedInEmail, rememberEmail: rememberMe)
                 }
             }
         }
@@ -324,3 +323,4 @@ private extension UIViewController {
         .environment(SessionStore())
         .preferredColorScheme(.dark)
 }
+

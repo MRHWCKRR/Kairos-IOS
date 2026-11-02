@@ -1,6 +1,7 @@
 import ActivityKit
 import Foundation
 import Observation
+import FirebaseAuth
 
 /// Single source of truth for the in-app focus timer and its Live Activity.
 @Observable
@@ -17,6 +18,9 @@ final class FocusTimerCoordinator {
     private init() {}
 
     func start() {
+        KairosFirebase.configure()
+        guard let user = Auth.auth().currentUser,
+              KairosAccess.canEnterWorkspace(userID: user.uid, emailVerified: user.isEmailVerified) else { return }
         guard !isRunning else { return }
         startedAt = Date().addingTimeInterval(-Double(elapsedSeconds))
         isRunning = true
@@ -50,7 +54,11 @@ final class FocusTimerCoordinator {
         tickTask = nil
         startedAt = nil
         elapsedSeconds = 0
-        Task { await endLiveActivity(finalElapsedSeconds: seconds) }
+        let endingActivity = liveActivity
+        liveActivity = nil
+        if let endingActivity {
+            Task { await endLiveActivity(endingActivity, finalElapsedSeconds: seconds) }
+        }
         return seconds
     }
 
@@ -88,8 +96,7 @@ final class FocusTimerCoordinator {
         await liveActivity.update(content)
     }
 
-    private func endLiveActivity(finalElapsedSeconds: Int64) async {
-        guard let liveActivity else { return }
+    private func endLiveActivity(_ liveActivity: Activity<FocusTimerAttributes>, finalElapsedSeconds: Int64) async {
         let finalState = FocusTimerAttributes.ContentState(
             isRunning: false,
             elapsedSeconds: Int(min(Int64(Int.max), finalElapsedSeconds))
@@ -98,6 +105,6 @@ final class FocusTimerCoordinator {
             ActivityContent(state: finalState, staleDate: nil),
             dismissalPolicy: .immediate
         )
-        self.liveActivity = nil
     }
 }
+

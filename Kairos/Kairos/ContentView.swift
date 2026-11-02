@@ -4,6 +4,27 @@ import AVFoundation
 
 struct ContentView: View {
     @Environment(SessionStore.self) private var session
+    @Environment(\.scenePhase) private var scenePhase
+
+    var body: some View {
+        Group {
+            if session.isAuthenticated, let uid = session.userID {
+                KairosWorkspaceView().id(uid)
+            } else if session.needsEmailVerification {
+                EmailVerificationView()
+            } else {
+                LoginView()
+            }
+        }
+        .task { await session.refreshVerification() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await session.refreshVerification() } }
+        }
+    }
+}
+
+private struct KairosWorkspaceView: View {
+    @Environment(SessionStore.self) private var session
     @State private var planRepo = StudyPlanRepository()
     @State private var profileRepo = UserProfileRepository()
     @State private var networkMonitor = KairosNetworkMonitor.shared
@@ -87,6 +108,11 @@ struct ContentView: View {
             workspaceReady = false
             planRepo.startListening(userID: uid)
             profileRepo.startListening(userID: uid)
+        }
+        .onDisappear {
+            planRepo.stopListening()
+            profileRepo.stopListening()
+            ambientAudio.stop()
         }
         .task(id: ambientAudioKey) {
             await ambientAudio.apply(appearance)
@@ -203,3 +229,4 @@ private struct OfflineBanner: View {
 #Preview {
     ContentView().environment(SessionStore())
 }
+
