@@ -34,7 +34,7 @@ enum KairosPlannerTimestamp {
         return value
     }
 
-    private static func valid(_ date: Date) -> Date? {
+    nonisolated private static func valid(_ date: Date) -> Date? {
         let seconds = date.timeIntervalSince1970
         guard seconds.isFinite, seconds >= -62_135_596_800, seconds < 253_402_300_800 else { return nil }
         return date
