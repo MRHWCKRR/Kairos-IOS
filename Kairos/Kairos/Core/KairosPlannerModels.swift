@@ -15,7 +15,7 @@ struct KairosSection: Codable, Identifiable, Equatable {
     var tasks: [KairosTask]
 }
 
-struct KairosTask: Codable, Identifiable, Equatable {
+struct KairosTask: Codable, Identifiable, Equatable, Sendable {
     var id: String
     var title: String
     var completed: Bool
@@ -83,7 +83,7 @@ extension KairosTask {
 }
 
 
-struct KairosChecklistItem: Codable, Identifiable, Equatable {
+struct KairosChecklistItem: Codable, Identifiable, Equatable, Sendable {
     var id: String
     var title: String
     var completed: Bool
@@ -91,7 +91,7 @@ struct KairosChecklistItem: Codable, Identifiable, Equatable {
 
 // The complete rule remains in the raw Firestore document. Native clients only
 // inspect enabled until occurrence editing is supported.
-struct KairosRecurrenceMarker: Codable, Equatable {
+struct KairosRecurrenceMarker: Codable, Equatable, Sendable {
     var enabled: Bool = false
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)

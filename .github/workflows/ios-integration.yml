@@ -8,6 +8,11 @@ permissions:
 jobs:
   core-tests:
     runs-on: macos-latest
+    strategy:
+      matrix:
+        timezone: [UTC, Australia/Brisbane, America/New_York]
+    env:
+      TZ: ${{ matrix.timezone }}
     steps:
       - uses: actions/checkout@v4
       - run: swift --version
@@ -20,3 +25,5 @@ jobs:
       - run: swift --version
       - name: Build the existing iOS app without signing
         run: xcodebuild -project Kairos/Kairos.xcodeproj -scheme Kairos -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/kairos-build CODE_SIGNING_ALLOWED=NO ARCHS=arm64 build
+      - name: Verify bundled recurrence engine
+        run: test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/recurrence-engine.js

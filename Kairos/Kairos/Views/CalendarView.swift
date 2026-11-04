@@ -8,11 +8,15 @@ struct CalendarView: View {
     @State private var selectedDate = Date()
     @State private var message: String?
     @State private var showingMessage = false
+    @State private var occurrences: [KairosRecurringOccurrence] = []
+    @State private var recurrenceError: String?
+    @State private var loadingOccurrences = false
+    @State private var pendingOccurrences = Set<String>()
 
     private var selectedKey: String { Self.dateKey(selectedDate) }
     private var scheduledTasks: [KairosTask] {
-        (planRepo.currentPlan?.boards ?? []).flatMap { $0.sections.filter { !$0.archived } }
-            .flatMap { $0.tasks.filter { !$0.archived && !$0.completed && $0.date == selectedKey } }
+        (planRepo.currentPlan?.boards ?? []).filter { !$0.archived }.flatMap { $0.sections.filter { !$0.archived } }
+            .flatMap { $0.tasks.filter { !$0.archived && !$0.completed && $0.recurrence?.enabled != true && $0.date == selectedKey } }
             .sorted { ($0.dueTime ?? "99:99") < ($1.dueTime ?? "99:99") }
     }
     private var events: [KairosScheduleEvent] {
@@ -28,8 +32,11 @@ struct CalendarView: View {
                         .datePickerStyle(.graphical).padding(14).kairosCard(cornerRadius: 24)
                     calendarAccessCard
                     if !scheduledTasks.isEmpty { taskScheduleList }
+                    if loadingOccurrences { ProgressView("Loading recurring tasks…") }
+                    if !occurrences.isEmpty { occurrenceList }
+                    if let recurrenceError { Text(recurrenceError).font(.footnote).foregroundStyle(.red) }
                     if !events.isEmpty { studySessionList }
-                    if scheduledTasks.isEmpty && events.isEmpty { emptyState }
+                    if scheduledTasks.isEmpty && occurrences.isEmpty && events.isEmpty && recurrenceError == nil && !loadingOccurrences { emptyState }
                 }
                 .padding(.horizontal, 18).padding(.top, 12).padding(.bottom, 30)
             }
@@ -37,6 +44,22 @@ struct CalendarView: View {
             .navigationTitle("Calendar")
             .navigationBarTitleDisplayMode(.inline)
             .alert("Calendar", isPresented: $showingMessage) { Button("OK", role: .cancel) {} } message: { Text(message ?? "") }
+            .task(id: "\(selectedKey)-\(planRepo.plannerRevision)") {
+                occurrences = []
+                recurrenceError = nil
+                loadingOccurrences = true
+                do {
+                    let projected = try await planRepo.recurringOccurrences(on: selectedKey)
+                    try Task.checkCancellation()
+                    occurrences = projected
+                    loadingOccurrences = false
+                } catch is CancellationError { }
+                catch {
+                    guard !Task.isCancelled else { return }
+                    recurrenceError = error.localizedDescription
+                    loadingOccurrences = false
+                }
+            }
             .onAppear { calendarManager.refreshAuthorizationState() }
             .onChange(of: scenePhase) { _, phase in if phase == .active { calendarManager.refreshAuthorizationState() } }
         }
@@ -87,6 +110,48 @@ struct CalendarView: View {
                 }
                 .padding(14).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
+        }
+    }
+
+    private var occurrenceList: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Recurring tasks").font(.headline)
+            ForEach(occurrences) { occurrence in
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(occurrence.task.title).font(.subheadline.weight(.semibold))
+                            Text(occurrence.startTime ?? "Flexible time").font(.caption).foregroundStyle(.secondary)
+                            Text(occurrence.status.capitalized).font(.caption.weight(.semibold))
+                            if occurrence.occurrenceDate != occurrence.displayDate {
+                                Text("Moved from \(occurrence.occurrenceDate)").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        if pendingOccurrences.contains(occurrence.id) { ProgressView() }
+                    }
+                    HStack {
+                        if occurrence.status == "pending" {
+                            Button("Complete") { update(occurrence, status: "completed") }
+                            Button("Skip") { update(occurrence, status: "skipped") }
+                        } else {
+                            Button("Mark pending") { update(occurrence, status: "pending") }
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(planRepo.isSaving || pendingOccurrences.contains(occurrence.id))
+                }
+                .padding(14).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+        }
+    }
+
+    private func update(_ occurrence: KairosRecurringOccurrence, status: String) {
+        guard pendingOccurrences.insert(occurrence.id).inserted else { return }
+        Task {
+            let saved = await planRepo.setOccurrenceStatus(occurrence, status: status)
+            pendingOccurrences.remove(occurrence.id)
+            if !saved { recurrenceError = planRepo.errorMessage ?? "Could not save this occurrence. Try again." }
         }
     }
 
@@ -168,7 +233,7 @@ struct CalendarView: View {
         return (start, end)
     }
 
-    private static func dateKey(_ date: Date) -> String { let f = DateFormatter(); f.calendar = .current; f.dateFormat = "yyyy-MM-dd"; return f.string(from: date) }
+    private static func dateKey(_ date: Date) -> String { let f = DateFormatter(); f.calendar = Calendar(identifier: .gregorian); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date) }
     private func openSystemSettings() { guard let url = URL(string: UIApplication.openSettingsURLString) else { return }; UIApplication.shared.open(url) }
     private func show(_ text: String) { message = text; showingMessage = true }
 }
