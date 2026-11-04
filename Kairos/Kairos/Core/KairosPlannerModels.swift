@@ -43,6 +43,7 @@ extension KairosBoard {
         id = try c.decode(String.self, forKey: .id)
         title = try c.decode(String.self, forKey: .title)
         archived = try c.decodeIfPresent(Bool.self, forKey: .archived) ?? false
+        boardDescription = try c.decodeIfPresent(String.self, forKey: .boardDescription)
         sections = try c.decodeIfPresent([KairosSection].self, forKey: .sections) ?? []
     }
 }
@@ -65,6 +66,9 @@ extension KairosTask {
         completed = try c.decodeIfPresent(Bool.self, forKey: .completed) ?? false
         archived = try c.decodeIfPresent(Bool.self, forKey: .archived) ?? false
         date = try c.decodeIfPresent(String.self, forKey: .date)
+        taskDescription = try c.decodeIfPresent(String.self, forKey: .taskDescription)
+        dueTime = try c.decodeIfPresent(String.self, forKey: .dueTime)
+        parentTaskID = try c.decodeIfPresent(String.self, forKey: .parentTaskID)
     }
 }
 
