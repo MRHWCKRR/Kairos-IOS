@@ -18,11 +18,12 @@ final class PlannerTimestampTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(KairosPlannerTimestamp.date(from: "1970-01-01T00:00:00.500Z")).timeIntervalSince1970, 0.5, accuracy: 0.000001)
     }
     func testMalformedMetadataDoesNotProduceDates() {
-        for value: Any in [
+        let values: [Any] = [
             ["seconds": true], ["seconds": "100"], ["seconds": 0, "nanoseconds": -1],
             ["seconds": 0, "nanoseconds": 1_000_000_000], ["seconds": 0, "nanoseconds": false],
             ["seconds": 1.5], ["seconds": 253_402_300_800], ["nanoseconds": 0], "invalid", NSNull()
-        ] {
+        ]
+        for value in values {
             XCTAssertNil(KairosPlannerTimestamp.date(from: value))
         }
         XCTAssertNil(KairosPlannerTimestamp.date(from: nil))
