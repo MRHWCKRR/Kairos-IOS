@@ -48,6 +48,9 @@ final class StudyPlanRepository {
                         self.hasLoadedSnapshot = true
                         self.errorMessage = nil
                     } catch {
+                        self.currentPlan = nil
+                        self.rawPlan = [:]
+                        self.plannerRevision = UUID()
                         self.hasLoadedSnapshot = false
                         self.errorMessage = KairosPlannerDecoding.message(for: error)
                     }

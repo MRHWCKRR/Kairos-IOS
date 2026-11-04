@@ -34,11 +34,15 @@ struct CalendarView: View {
                         .datePickerStyle(.graphical).padding(14).kairosCard(cornerRadius: 24)
                     calendarAccessCard
                     if !scheduledTasks.isEmpty { taskScheduleList }
+                    if planRepo.plannerIsUnavailable {
+                        Text(planRepo.errorMessage ?? "Your planner couldn’t load. Retry from Boards.")
+                            .font(.footnote).foregroundStyle(.red)
+                    }
                     if loadingOccurrences { ProgressView("Loading recurring tasks…") }
                     if !occurrences.isEmpty { occurrenceList }
                     if let recurrenceError { Text(recurrenceError).font(.footnote).foregroundStyle(.red) }
                     if !events.isEmpty { studySessionList }
-                    if scheduledTasks.isEmpty && occurrences.isEmpty && events.isEmpty && recurrenceError == nil && !loadingOccurrences { emptyState }
+                    if scheduledTasks.isEmpty && occurrences.isEmpty && events.isEmpty && recurrenceError == nil && !loadingOccurrences && !planRepo.plannerIsUnavailable { emptyState }
                 }
                 .padding(.horizontal, 18).padding(.top, 12).padding(.bottom, 30)
             }

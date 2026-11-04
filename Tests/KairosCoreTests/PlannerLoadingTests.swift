@@ -69,4 +69,14 @@ final class PlannerLoadingTests: XCTestCase {
         XCTAssertEqual(events[0]["date"] as? String, "2026-11-05")
         XCTAssertNil(events[0]["day"])
     }
+
+    func testWeeklyExportUsesNextMatchingWeekday() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let base = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 5)))
+        let event = KairosScheduleEvent(id: "weekly", title: "Sunday", category: "work", day: 0, start: "09:00", end: "10:00")
+        let target = try XCTUnwrap(event.scheduledDay(relativeTo: base, calendar: calendar))
+        XCTAssertEqual(calendar.component(.day, from: target), 8)
+        XCTAssertEqual(calendar.component(.weekday, from: target), 1)
+    }
 }
