@@ -11,6 +11,7 @@ struct TasksWorkspaceView: View {
     @State private var createTarget: TaskCreateTarget?
     @State private var showCreateChooser = false
     @State private var optimisticCompletedIDs: Set<String> = []
+    @State private var pendingTaskIDs: Set<String> = []
     @State private var isCreateExpanded = false
 
     private var boards: [KairosBoard] { planRepo.currentPlan?.boards.filter { !$0.archived } ?? [] }
@@ -25,6 +26,7 @@ struct TasksWorkspaceView: View {
                     header
                     summary
                     boardList
+                    if let error = planRepo.errorMessage { Text(error).font(.footnote).foregroundStyle(.red) }
                 }
                 .padding(.horizontal, KairosMetrics.pageHorizontal)
                 .padding(.top, 16)
@@ -243,6 +245,7 @@ struct TasksWorkspaceView: View {
     }
 
     private func toggle(boardID: String, section: KairosSection, task: KairosTask) {
+        guard pendingTaskIDs.insert(task.id).inserted else { return }
         let wasCompleted = task.completed || optimisticCompletedIDs.contains(task.id)
         let willComplete = !wasCompleted
         withAnimation(reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.82)) {
@@ -250,9 +253,9 @@ struct TasksWorkspaceView: View {
         }
         if willComplete { UINotificationFeedbackGenerator().notificationOccurred(.success) }
         Task {
-            await planRepo.toggleTask(boardID: boardID, sectionID: section.id, taskID: task.id)
-            if willComplete { await profileRepo.recordTaskCompletion(taskID: task.id) }
-            await MainActor.run { optimisticCompletedIDs.remove(task.id) }
+            let saved = await planRepo.toggleTask(boardID: boardID, sectionID: section.id, taskID: task.id)
+            if saved && willComplete { await profileRepo.recordTaskCompletion(taskID: task.id) }
+            await MainActor.run { optimisticCompletedIDs.remove(task.id); pendingTaskIDs.remove(task.id) }
         }
     }
 
@@ -283,36 +286,23 @@ enum TaskCreateTarget: Identifiable {
     }
 }
 
-private struct TaskCreationSheet: View {
+struct TaskCreationSheet: View {
     @Environment(StudyPlanRepository.self) private var planRepo
-    @Environment(\.dismiss) private var dismiss
     let target: TaskCreateTarget
-    @State private var title = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text(titleForTarget).font(.title3.weight(.bold))
-            TextField("Name", text: $title).textFieldStyle(.roundedBorder)
-            Button("Create") { create() }.buttonStyle(.glassProminent).tint(KairosColors.accent).disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            Spacer()
-        }.padding(24)
+        KairosNameEditor(heading: titleForTarget, saveLabel: "Create", failureMessage: { planRepo.errorMessage }) { value in
+            switch target {
+            case .board: return await planRepo.addBoard(title: value)
+            case .section(let boardID): return await planRepo.addSection(boardID: boardID, title: value)
+            case .task(let sectionID): return await planRepo.addTask(sectionID: sectionID, title: value)
+            case .subtask(let parentID, let sectionID): return await planRepo.addSubtask(parentTaskID: parentID, sectionID: sectionID, title: value)
+            }
+        }
     }
 
     private var titleForTarget: String {
         switch target { case .board: return "New board"; case .section: return "New section"; case .task: return "New task"; case .subtask: return "New subtask" }
-    }
-
-    private func create() {
-        let value = title.trimmingCharacters(in: .whitespacesAndNewlines); guard !value.isEmpty else { return }
-        Task {
-            switch target {
-            case .board: await planRepo.addBoard(title: value)
-            case .section(let boardID): await planRepo.addSection(boardID: boardID, title: value)
-            case .task(let sectionID): await planRepo.addTask(sectionID: sectionID, title: value)
-            case .subtask(let parentID, let sectionID): await planRepo.addSubtask(parentTaskID: parentID, sectionID: sectionID, title: value)
-            }
-            dismiss()
-        }
     }
 }
 
@@ -327,7 +317,9 @@ struct TaskDetailView: View {
     @State private var hasDueTime = false
     @State private var dueTime = Date()
     @State private var showSubtaskCreator = false
-    @State private var subtaskTitle = ""
+    @State private var originalTask: KairosTask?
+    @State private var submitting = false
+    @State private var saveError: String?
     @State private var initialized = false
 
     private var task: KairosTask? {
@@ -347,12 +339,23 @@ struct TaskDetailView: View {
                     detailsCard
                     scheduleCard
                     childrenCard
-                }.padding(20)
+                    if let saveError { Text(saveError).font(.footnote).foregroundStyle(.red) }
+                    if submitting { ProgressView("Saving…") }
+                }.padding(20).disabled(submitting)
             }
             .kairosBackground()
             .navigationTitle("Task details")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { save(); dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(submitting) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }.disabled(submitting || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || originalTask == nil)
+                }
+            }
+            .interactiveDismissDisabled()
+            .sheet(isPresented: $showSubtaskCreator) {
+                TaskCreationSheet(target: .subtask(parentTaskID: context.taskID, sectionID: context.sectionID)).environment(planRepo)
+            }
             .onAppear { load() }
         }
     }
@@ -396,16 +399,12 @@ struct TaskDetailView: View {
             }
             Button { showSubtaskCreator = true } label: { Label("Add subtask", systemImage: "plus") }.foregroundStyle(KairosColors.accent)
         }.padding(18).kairosCard(cornerRadius: 22)
-        .alert("New subtask", isPresented: $showSubtaskCreator) {
-            TextField("Subtask", text: $subtaskTitle)
-            Button("Add") { let value = subtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines); guard !value.isEmpty else { return }; Task { await planRepo.addSubtask(parentTaskID: context.taskID, sectionID: context.sectionID, title: value); subtaskTitle = "" } }
-            Button("Cancel", role: .cancel) {}
-        }
     }
 
     private func load() {
         guard !initialized, let task else { return }
         initialized = true
+        originalTask = task
         title = task.title
         taskDescription = task.taskDescription ?? ""
         if let dateKey = task.date { hasDueDate = true; dueDate = Self.date(from: dateKey) ?? Date() }
@@ -413,9 +412,25 @@ struct TaskDetailView: View {
     }
 
     private func save() {
+        guard !submitting, let originalTask else { return }
+        var patch = KairosTaskPatch()
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let details = taskDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        let description: String? = details.isEmpty ? nil : taskDescription
         let dateKey = hasDueDate ? Self.dateKey(from: dueDate) : nil
         let timeKey = hasDueTime ? Self.timeKey(from: dueTime) : nil
-        Task { await planRepo.updateTask(taskID: context.taskID, title: title.trimmingCharacters(in: .whitespacesAndNewlines), description: taskDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : taskDescription, date: dateKey, dueTime: timeKey) }
+        if name != originalTask.title { patch.title = .set(name) }
+        if description != originalTask.taskDescription { patch.description = .set(description) }
+        if dateKey != originalTask.date { patch.date = .set(dateKey) }
+        if timeKey != originalTask.dueTime { patch.dueTime = .set(timeKey) }
+        submitting = true
+        saveError = nil
+        Task {
+            let saved = await planRepo.updateTask(taskID: context.taskID, patch: patch, expected: originalTask)
+            submitting = false
+            if saved { dismiss() }
+            else { saveError = planRepo.errorMessage ?? "Could not save. Your edits are still here." }
+        }
     }
 
     private static func dateKey(from date: Date) -> String { let f = DateFormatter(); f.calendar = .current; f.dateFormat = "yyyy-MM-dd"; return f.string(from: date) }

@@ -28,7 +28,7 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 24) { hero; dailyOverview; focusCard; todayCard; progressCard; quickActions }
+                VStack(alignment: .leading, spacing: 24) { hero; dailyOverview; focusCard; todayCard; if let error = planRepo.errorMessage { Text(error).font(.footnote).foregroundStyle(.red) }; progressCard; quickActions }
                     .padding(.horizontal, KairosMetrics.pageHorizontal).padding(.top, 18).padding(.bottom, 150)
             }
             .scrollClipDisabled().kairosBackground().toolbar(.hidden, for: .navigationBar)
@@ -110,14 +110,9 @@ struct DashboardView: View {
             withAnimation(reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.82)) { completingTaskIDs.insert(task.id) }
             if !reduceMotion { UINotificationFeedbackGenerator().notificationOccurred(.success) }
             Task {
-                await planRepo.toggleTask(boardID: location.boardID, sectionID: location.sectionID, taskID: task.id)
-                await profileRepo.recordTaskCompletion(taskID: task.id)
-            }
-            Task {
-                if !reduceMotion { try? await Task.sleep(for: .milliseconds(180)) }
-                await MainActor.run {
-                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { completingTaskIDs.remove(task.id) }
-                }
+                let saved = await planRepo.toggleTask(boardID: location.boardID, sectionID: location.sectionID, taskID: task.id)
+                if saved { await profileRepo.recordTaskCompletion(taskID: task.id) }
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) { completingTaskIDs.remove(task.id) }
             }
         } label: {
             HStack(spacing: 13) {

@@ -25,6 +25,7 @@ struct TasksView: View {
     @State private var isAddBoardButtonExpanded = false
     @State private var showingCompleted = true
     @State private var optimisticCompletedIDs: Set<String> = []
+    @State private var pendingTaskIDs: Set<String> = []
 
     private var visibleBoards: [KairosBoard] {
         planRepo.currentPlan?.boards.filter { !$0.archived } ?? []
@@ -65,7 +66,8 @@ struct TasksView: View {
                     confirmAddTask: confirmAddTask,
                     confirmRenameBoard: confirmRenameBoard,
                     confirmRenameSection: confirmRenameSection,
-                    confirmRenameTask: confirmRenameTask
+                    confirmRenameTask: confirmRenameTask,
+                    failureMessage: { planRepo.errorMessage }
                 )
                 .onAppear { reminderManager.refreshAuthorizationState() }
         }
@@ -420,6 +422,7 @@ struct TasksView: View {
     }
 
     private func toggleTask(boardID: String, section: KairosSection, task: KairosTask) {
+        guard pendingTaskIDs.insert(task.id).inserted else { return }
         let currentlyCompleted = task.completed || optimisticCompletedIDs.contains(task.id)
         let willComplete = !currentlyCompleted
 
@@ -447,6 +450,7 @@ struct TasksView: View {
             }
             await MainActor.run {
                 optimisticCompletedIDs.remove(task.id)
+                pendingTaskIDs.remove(task.id)
             }
         }
     }
@@ -494,50 +498,33 @@ struct TasksView: View {
         await notificationManager.postBoardCompletion(boardTitle: board.title)
     }
 
-    private func confirmAddBoard() {
-        let name = newBoardName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        Task { await planRepo.addBoard(title: name) }
+    private func confirmAddBoard() async -> Bool {
+        await planRepo.addBoard(title: newBoardName.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    private func confirmAddSection() {
-        guard let board = boardForNewSection else { return }
-        let name = newSectionName.trimmingCharacters(in: .whitespacesAndNewlines)
-        boardForNewSection = nil
-        guard !name.isEmpty else { return }
-        Task { await planRepo.addSection(boardID: board.id, title: name) }
+    private func confirmAddSection() async -> Bool {
+        guard let board = boardForNewSection else { return false }
+        return await planRepo.addSection(boardID: board.id, title: newSectionName.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    private func confirmAddTask() {
-        guard let target = sectionForNewTask else { return }
-        let name = newTaskName.trimmingCharacters(in: .whitespacesAndNewlines)
-        sectionForNewTask = nil
-        guard !name.isEmpty else { return }
-        Task { await planRepo.addTask(sectionID: target.section.id, title: name) }
+    private func confirmAddTask() async -> Bool {
+        guard let target = sectionForNewTask else { return false }
+        return await planRepo.addTask(sectionID: target.section.id, title: newTaskName.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    private func confirmRenameBoard() {
-        guard let board = boardToRename else { return }
-        let name = renameBoardText.trimmingCharacters(in: .whitespacesAndNewlines)
-        boardToRename = nil
-        guard !name.isEmpty else { return }
-        Task { await planRepo.renameBoard(boardID: board.id, title: name) }
+    private func confirmRenameBoard() async -> Bool {
+        guard let board = boardToRename else { return false }
+        return await planRepo.renameBoard(boardID: board.id, title: renameBoardText.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    private func confirmRenameSection() {
-        guard let target = sectionToRename else { return }
-        let name = renameSectionText.trimmingCharacters(in: .whitespacesAndNewlines)
-        sectionToRename = nil
-        guard !name.isEmpty else { return }
-        Task { await planRepo.renameSection(sectionID: target.section.id, title: name) }
+    private func confirmRenameSection() async -> Bool {
+        guard let target = sectionToRename else { return false }
+        return await planRepo.renameSection(sectionID: target.section.id, title: renameSectionText.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    private func confirmRenameTask() {
-        guard let target = taskToRename else { return }
-        let name = renameTaskText.trimmingCharacters(in: .whitespacesAndNewlines)
-        taskToRename = nil
-        guard !name.isEmpty else { return }
-        Task { await planRepo.renameTask(taskID: target.task.id, title: name) }
+    private func confirmRenameTask() async -> Bool {
+        guard let target = taskToRename else { return false }
+        return await planRepo.renameTask(taskID: target.task.id, title: renameTaskText.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     private var emptyState: some View {
@@ -574,43 +561,50 @@ private extension View {
         showingReminderAlert: Binding<Bool>,
         reminderMessage: Binding<String>,
         reduceMotion: Bool,
-        confirmAddBoard: @escaping () -> Void,
-        confirmAddSection: @escaping () -> Void,
-        confirmAddTask: @escaping () -> Void,
-        confirmRenameBoard: @escaping () -> Void,
-        confirmRenameSection: @escaping () -> Void,
-        confirmRenameTask: @escaping () -> Void
+        confirmAddBoard: @escaping () async -> Bool,
+        confirmAddSection: @escaping () async -> Bool,
+        confirmAddTask: @escaping () async -> Bool,
+        confirmRenameBoard: @escaping () async -> Bool,
+        confirmRenameSection: @escaping () async -> Bool,
+        confirmRenameTask: @escaping () async -> Bool,
+        failureMessage: @escaping () -> String?
     ) -> some View {
         self
-            .alert("New Board", isPresented: showAddBoard) {
-                TextField("Board name", text: newBoardName)
-                Button("Cancel", role: .cancel) { }
-                Button("Add", action: confirmAddBoard)
+            .sheet(isPresented: showAddBoard) {
+                KairosNameEditor(heading: "New Board", initialValue: newBoardName.wrappedValue, saveLabel: "Add", failureMessage: failureMessage) { value in
+                    newBoardName.wrappedValue = value
+                    return await confirmAddBoard()
+                }
             }
-            .alert("New Section", isPresented: Binding(get: { boardForNewSection.wrappedValue != nil }, set: { if !$0 { boardForNewSection.wrappedValue = nil } })) {
-                TextField("Section name", text: newSectionName)
-                Button("Cancel", role: .cancel) { boardForNewSection.wrappedValue = nil }
-                Button("Add", action: confirmAddSection)
+            .sheet(isPresented: Binding(get: { boardForNewSection.wrappedValue != nil }, set: { if !$0 { boardForNewSection.wrappedValue = nil } })) {
+                KairosNameEditor(heading: "New Section", initialValue: newSectionName.wrappedValue, saveLabel: "Add", failureMessage: failureMessage) { value in
+                    newSectionName.wrappedValue = value
+                    return await confirmAddSection()
+                }
             }
-            .alert("New Task", isPresented: Binding(get: { sectionForNewTask.wrappedValue != nil }, set: { if !$0 { sectionForNewTask.wrappedValue = nil } })) {
-                TextField("Task name", text: newTaskName)
-                Button("Cancel", role: .cancel) { sectionForNewTask.wrappedValue = nil }
-                Button("Add", action: confirmAddTask)
+            .sheet(isPresented: Binding(get: { sectionForNewTask.wrappedValue != nil }, set: { if !$0 { sectionForNewTask.wrappedValue = nil } })) {
+                KairosNameEditor(heading: "New Task", initialValue: newTaskName.wrappedValue, saveLabel: "Add", failureMessage: failureMessage) { value in
+                    newTaskName.wrappedValue = value
+                    return await confirmAddTask()
+                }
             }
-            .alert("Rename Board", isPresented: Binding(get: { boardToRename.wrappedValue != nil }, set: { if !$0 { boardToRename.wrappedValue = nil } })) {
-                TextField("Board name", text: renameBoardText)
-                Button("Cancel", role: .cancel) { boardToRename.wrappedValue = nil }
-                Button("Save", action: confirmRenameBoard)
+            .sheet(isPresented: Binding(get: { boardToRename.wrappedValue != nil }, set: { if !$0 { boardToRename.wrappedValue = nil } })) {
+                KairosNameEditor(heading: "Rename Board", initialValue: renameBoardText.wrappedValue, failureMessage: failureMessage) { value in
+                    renameBoardText.wrappedValue = value
+                    return await confirmRenameBoard()
+                }
             }
-            .alert("Rename Section", isPresented: Binding(get: { sectionToRename.wrappedValue != nil }, set: { if !$0 { sectionToRename.wrappedValue = nil } })) {
-                TextField("Section name", text: renameSectionText)
-                Button("Cancel", role: .cancel) { sectionToRename.wrappedValue = nil }
-                Button("Save", action: confirmRenameSection)
+            .sheet(isPresented: Binding(get: { sectionToRename.wrappedValue != nil }, set: { if !$0 { sectionToRename.wrappedValue = nil } })) {
+                KairosNameEditor(heading: "Rename Section", initialValue: renameSectionText.wrappedValue, failureMessage: failureMessage) { value in
+                    renameSectionText.wrappedValue = value
+                    return await confirmRenameSection()
+                }
             }
-            .alert("Rename Task", isPresented: Binding(get: { taskToRename.wrappedValue != nil }, set: { if !$0 { taskToRename.wrappedValue = nil } })) {
-                TextField("Task name", text: renameTaskText)
-                Button("Cancel", role: .cancel) { taskToRename.wrappedValue = nil }
-                Button("Save", action: confirmRenameTask)
+            .sheet(isPresented: Binding(get: { taskToRename.wrappedValue != nil }, set: { if !$0 { taskToRename.wrappedValue = nil } })) {
+                KairosNameEditor(heading: "Rename Task", initialValue: renameTaskText.wrappedValue, failureMessage: failureMessage) { value in
+                    renameTaskText.wrappedValue = value
+                    return await confirmRenameTask()
+                }
             }
             .alert("Add to Reminders", isPresented: showingReminderAlert) {
                 Button("OK", role: .cancel) { }
