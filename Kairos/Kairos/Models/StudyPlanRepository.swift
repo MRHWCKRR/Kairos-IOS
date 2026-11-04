@@ -123,6 +123,7 @@ final class StudyPlanRepository {
                     guard !snapshot.exists || raw["userID"] as? String == uid else { throw KairosPlannerMerge.Conflict() }
                     let remote = try Self.normalizedPlanner(raw)
                     let merged = try KairosPlannerMerge.merge(base: baseline, local: desired, remote: remote)
+                    try KairosChecklist.validateMergedPlanner(base: baseline, merged: merged)
                     var fields: [String: Any] = ["boards": merged["boards"] ?? []]
                     if includeEvents { fields["scheduleEvents"] = merged["scheduleEvents"] ?? [] }
                     if !snapshot.exists {

@@ -126,6 +126,7 @@ enum KairosTaskMutation {
         var seen = Set<String>()
         while let id = next {
             guard seen.insert(id).inserted, let index = tasks.firstIndex(where: { $0.id == id }) else { throw Invalid() }
+            guard tasks[index].recurrence?.enabled != true else { throw Invalid() }
             let children = tasks.filter { $0.parentTaskID == id && !$0.archived }
             tasks[index].completed = complete && !children.isEmpty && children.allSatisfy(\.completed)
             next = tasks[index].parentTaskID

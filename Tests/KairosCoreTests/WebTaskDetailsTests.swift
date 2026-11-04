@@ -79,4 +79,29 @@ final class WebTaskDetailsTests: XCTestCase {
         XCTAssertEqual((saved["recurrence"] as? [String: Any])?["frequency"] as? String, "weekly")
         XCTAssertNotNil((saved["recurrence"] as? [String: Any])?["exceptions"])
     }
+
+    func testRemoteReorderSurvivesLocalDeletion() throws {
+        let base = ["a","b","c"].map { KairosChecklistItem(id: $0, title: $0, completed: false) }
+        XCTAssertEqual(try KairosChecklist.merge(base: base, local: [base[0],base[2]], remote: [base[2],base[0],base[1]]).map(\.id), ["c","a"])
+    }
+    func testFinalPlannerRejectsConcurrentChecklistOverflowAndRecurringProgress() throws {
+        func planner(_ items: [[String: Any]], repeating: Bool = false) -> [String: Any] {
+            ["boards":[["id":"b","sections":[["id":"s","tasks":[["id":"t","checklist":items,"recurrence":["enabled":repeating]]]]]]]]
+        }
+        let baseItems: [[String: Any]] = (0..<99).map { ["id":String($0),"title":"Step","completed":false] }
+        let base = planner(baseItems)
+        let local = planner(baseItems + [["id":"local","title":"Local","completed":false]])
+        let remote = planner(baseItems + [["id":"remote","title":"Remote","completed":false]])
+        let merged = try KairosPlannerMerge.merge(base: base, local: local, remote: remote)
+        XCTAssertThrowsError(try KairosChecklist.validateMergedPlanner(base: base, merged: merged))
+        let unchecked = planner([["id":"a","title":"Step","completed":false]])
+        let checked = planner([["id":"a","title":"Step","completed":true]], repeating: true)
+        XCTAssertThrowsError(try KairosChecklist.validateMergedPlanner(base: unchecked, merged: checked))
+    }
+    func testRecurringAncestorCannotBeCompletedThroughChild() throws {
+        var parent = try task(); parent.id = "parent"; parent.completed = false
+        let child = KairosTask(id: "child", title: "Child", completed: false, archived: false, date: nil, parentTaskID: "parent")
+        var value = boards(parent); value[0].sections[0].tasks.append(child)
+        XCTAssertThrowsError(try KairosTaskMutation.apply(.setCompleted(taskID: "child", completed: true), to: value))
+    }
 }
