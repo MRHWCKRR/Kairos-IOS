@@ -10,6 +10,7 @@ struct CalendarView: View {
     @State private var showingMessage = false
     @State private var occurrences: [KairosRecurringOccurrence] = []
     @State private var recurrenceError: String?
+    @State private var loadingOccurrences = false
     @State private var pendingOccurrences = Set<String>()
 
     private var selectedKey: String { Self.dateKey(selectedDate) }
@@ -31,10 +32,11 @@ struct CalendarView: View {
                         .datePickerStyle(.graphical).padding(14).kairosCard(cornerRadius: 24)
                     calendarAccessCard
                     if !scheduledTasks.isEmpty { taskScheduleList }
+                    if loadingOccurrences { ProgressView("Loading recurring tasks…") }
                     if !occurrences.isEmpty { occurrenceList }
                     if let recurrenceError { Text(recurrenceError).font(.footnote).foregroundStyle(.red) }
                     if !events.isEmpty { studySessionList }
-                    if scheduledTasks.isEmpty && occurrences.isEmpty && events.isEmpty && recurrenceError == nil { emptyState }
+                    if scheduledTasks.isEmpty && occurrences.isEmpty && events.isEmpty && recurrenceError == nil && !loadingOccurrences { emptyState }
                 }
                 .padding(.horizontal, 18).padding(.top, 12).padding(.bottom, 30)
             }
@@ -43,8 +45,20 @@ struct CalendarView: View {
             .navigationBarTitleDisplayMode(.inline)
             .alert("Calendar", isPresented: $showingMessage) { Button("OK", role: .cancel) {} } message: { Text(message ?? "") }
             .task(id: "\(selectedKey)-\(planRepo.plannerRevision)") {
-                do { occurrences = try planRepo.recurringOccurrences(on: selectedKey); recurrenceError = nil }
-                catch { occurrences = []; recurrenceError = error.localizedDescription }
+                occurrences = []
+                recurrenceError = nil
+                loadingOccurrences = true
+                do {
+                    let projected = try await planRepo.recurringOccurrences(on: selectedKey)
+                    try Task.checkCancellation()
+                    occurrences = projected
+                    loadingOccurrences = false
+                } catch is CancellationError { }
+                catch {
+                    guard !Task.isCancelled else { return }
+                    recurrenceError = error.localizedDescription
+                    loadingOccurrences = false
+                }
             }
             .onAppear { calendarManager.refreshAuthorizationState() }
             .onChange(of: scenePhase) { _, phase in if phase == .active { calendarManager.refreshAuthorizationState() } }

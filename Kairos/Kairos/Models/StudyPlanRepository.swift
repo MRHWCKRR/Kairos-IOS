@@ -179,19 +179,32 @@ final class StudyPlanRepository {
     }
 
     // MARK: - Recurring occurrences
-    func recurringOccurrences(on day: String) throws -> [KairosRecurringOccurrence] {
-        var result: [KairosRecurringOccurrence] = []
+    func recurringOccurrences(on day: String) async throws -> [KairosRecurringOccurrence] {
+        var payloads: [String] = []
         var ids = Set<String>()
         for board in rawPlan["boards"] as? [[String: Any]] ?? [] where board["archived"] as? Bool != true {
             for section in board["sections"] as? [[String: Any]] ?? [] where section["archived"] as? Bool != true {
                 for task in section["tasks"] as? [[String: Any]] ?? [] where task["archived"] as? Bool != true {
                     guard (task["recurrence"] as? [String: Any])?["enabled"] as? Bool == true else { continue }
                     guard let id = task["id"] as? String, ids.insert(id).inserted else { throw KairosPlannerMerge.Conflict() }
-                    result += try KairosRecurrence.occurrences(task: task, on: day)
+                    payloads.append(try KairosRecurrence.revision(task))
                 }
             }
         }
-        return result.sorted { ($0.startTime ?? "99:99", $0.id) < ($1.startTime ?? "99:99", $1.id) }
+        // Immutable JSON inputs cross the actor boundary, never Firestore objects.
+        let inputs = payloads
+        let work = Task.detached(priority: .userInitiated) {
+            var result: [KairosRecurringOccurrence] = []
+            for json in inputs {
+                try Task.checkCancellation()
+                guard let data = json.data(using: .utf8),
+                      let task = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw KairosRecurrence.Unavailable() }
+                result += try KairosRecurrence.occurrences(task: task, on: day)
+            }
+            try Task.checkCancellation()
+            return result.sorted { ($0.startTime ?? "99:99", $0.id) < ($1.startTime ?? "99:99", $1.id) }
+        }
+        return try await withTaskCancellationHandler(operation: { try await work.value }, onCancel: { work.cancel() })
     }
 
     @discardableResult

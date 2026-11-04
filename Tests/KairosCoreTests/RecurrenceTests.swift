@@ -72,4 +72,16 @@ final class RecurrenceTests: XCTestCase {
         XCTAssertThrowsError(try KairosRecurrence.settingStatus(task: value, occurrence: occurrence, status: "deleted", timestamp: "now"))
         XCTAssertThrowsError(try KairosRecurrence.occurrences(task: value, on: "2026-02-30"))
     }
+
+    func testRetiredSeriesStillShowsHistoricalExceptions() throws {
+        let value = task(rule(["endType":"date","endDate":"2026-02-28","exceptions":["2026-03-01":["status":"completed"]]]))
+        XCTAssertEqual(try KairosRecurrence.occurrences(task: value, on: "2026-03-01").first?.status, "completed")
+        XCTAssertTrue(try KairosRecurrence.occurrences(task: value, on: "2026-03-02").isEmpty)
+    }
+    func testUnsupportedSemanticsFailInsteadOfFabricatingOccurrences() {
+        XCTAssertThrowsError(try KairosRecurrence.occurrences(task: task(rule(["frequency":"hourly"])), on: "2026-03-02"))
+        XCTAssertThrowsError(try KairosRecurrence.occurrences(task: task(rule(["mode":"future-mode"])), on: "2026-03-02"))
+        XCTAssertThrowsError(try KairosRecurrence.occurrences(task: task(rule(["exceptions":["2026-03-02":["status":"unknown"]]])), on: "2026-03-02"))
+        XCTAssertThrowsError(try KairosRecurrence.occurrences(task: task(rule(["exceptions":["2026-03-02":"malformed"]])), on: "2026-03-02"))
+    }
 }

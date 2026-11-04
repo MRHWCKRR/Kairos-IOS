@@ -192,8 +192,13 @@ function splitRecurringSeries(task,occurrenceDate,edits={},newTaskId,{preserveMo
 function kairosOccurrenceRequest(json) {
     const request=JSON.parse(json), task=request.task, day=request.day;
     if (!validDateKey(day)) throw Error('Invalid date');
+    assertRecurrenceInput(task.recurrence);
     const rule=normalizeRecurrence(task,task.date||day);
-    if(!rule.enabled||!validateRecurrence(rule)||!Number.isSafeInteger(rule.interval))throw Error('Invalid rule');
+    const retired=rule.endType==='date'&&validDateKey(rule.endDate)&&rule.endDate<rule.startDate;
+    if(!rule.enabled||!Number.isSafeInteger(rule.interval)||!(validateRecurrence(rule)||(retired&&validateRecurrence({...rule,endType:'never',endDate:null}))))throw Error('Invalid rule');
+    for(const exception of Object.values(rule.exceptions)){
+        if(exception.status!=null&&!['pending','completed','skipped','deleted'].includes(exception.status))throw Error('Unsupported occurrence status');
+    }
     if(Math.abs(Number(day.slice(0,4))-Number(rule.startDate.slice(0,4)))>200||Object.keys(rule.exceptions).length>10000)throw Error('Rule exceeds native projection limit');
     if(request.status!==null){
         const occurrence=generateTaskOccurrences(task,day,day).find(item=>item.occurrenceDate===day&&item.status!=='deleted');

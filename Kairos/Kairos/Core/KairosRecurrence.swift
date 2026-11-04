@@ -1,7 +1,7 @@
 import Foundation
 import JavaScriptCore
 
-struct KairosRecurringOccurrence: Decodable, Identifiable {
+struct KairosRecurringOccurrence: Decodable, Identifiable, Sendable {
     let occurrenceId: String
     let seriesId: String
     let occurrenceDate: String
@@ -24,16 +24,17 @@ enum KairosRecurrence {
 
     // Project only engine inputs. Unknown Firestore metadata never has to pass
     // through JSON/JavaScript and remains untouched when writing an exception.
-    nonisolated static func input(_ task: [String: Any]) -> [String: Any] {
+    nonisolated static func input(_ task: [String: Any]) throws -> [String: Any] {
         func pick(_ map: [String: Any], _ keys: [String]) -> [String: Any] {
             map.filter { keys.contains($0.key) }
         }
         var result = pick(task, ["id","title","date","startTime","endTime","estimatedMinutes","notes","priority","checklist"])
         if let raw = task["recurrence"] as? [String: Any] {
             var rule = pick(raw, ["enabled","preset","frequency","interval","weekdays","monthlyMode","monthDay","weekdayPosition","weekday","month","startDate","endType","endDate","count","mode"])
+            if let value = raw["exceptions"], !(value is NSNull), !(value is [String: Any]) { throw Unavailable() }
             var exceptions: [String: Any] = [:]
             for (date, value) in raw["exceptions"] as? [String: Any] ?? [:] {
-                guard let value = value as? [String: Any] else { continue }
+                guard let value = value as? [String: Any] else { throw Unavailable() }
                 var exception = pick(value, ["status","completedAt","skippedAt","focusLoggedSeconds","remainingMinutes"])
                 if let override = value["override"] as? [String: Any] {
                     exception["override"] = pick(override, ["date","startTime","endTime","durationMinutes","title","notes","estimatedMinutes","checklist"])
@@ -47,7 +48,7 @@ enum KairosRecurrence {
     }
 
     nonisolated static func revision(_ task: [String: Any]) throws -> String {
-        let data = try JSONSerialization.data(withJSONObject: input(task), options: [.sortedKeys])
+        let data = try JSONSerialization.data(withJSONObject: try input(task), options: [.sortedKeys])
         guard let text = String(data: data, encoding: .utf8) else { throw Unavailable() }
         return text
     }
@@ -62,7 +63,7 @@ enum KairosRecurrence {
               let context = JSContext() else { throw Unavailable() }
         context.evaluateScript(try String(contentsOf: url, encoding: .utf8))
         if context.exception != nil { throw Unavailable() }
-        let args: [String: Any] = ["task": input(task), "day": day, "status": status.map { $0 as Any } ?? NSNull(), "timestamp": timestamp]
+        let args: [String: Any] = ["task": try input(task), "day": day, "status": status.map { $0 as Any } ?? NSNull(), "timestamp": timestamp]
         let json = try JSONSerialization.data(withJSONObject: args)
         guard let argument = String(data: json, encoding: .utf8),
               let output = context.objectForKeyedSubscript("kairosOccurrenceRequest")?.call(withArguments: [argument])?.toString(),
