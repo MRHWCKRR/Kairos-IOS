@@ -524,7 +524,7 @@ struct TasksView: View {
 
     private func confirmRenameTask() async -> Bool {
         guard let target = taskToRename else { return false }
-        return await planRepo.renameTask(taskID: target.task.id, title: renameTaskText.trimmingCharacters(in: .whitespacesAndNewlines))
+        return await planRepo.renameTask(taskID: target.task.id, title: renameTaskText.trimmingCharacters(in: .whitespacesAndNewlines), expected: target.task)
     }
 
     private var emptyState: some View {

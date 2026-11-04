@@ -74,6 +74,25 @@ final class TaskMutationTests: XCTestCase {
         value[0].sections[0].tasks[0].parentTaskID = "t"
         XCTAssertThrowsError(try KairosTaskMutation.apply(.setCompleted(taskID: "t", completed: false), to: value))
     }
+    func testArchivingParentDoesNotBlockEditingExistingChildren() throws {
+        var value = try KairosTaskMutation.apply(.archive(taskID: "p", archived: true), to: boards())
+        var patch = KairosTaskPatch()
+        patch.title = .set("Child renamed")
+        value = try KairosTaskMutation.apply(.update(taskID: "t", patch: patch, expected: nil), to: value)
+        XCTAssertEqual(value[0].sections[0].tasks[1].title, "Child renamed")
+        XCTAssertEqual(value[0].sections[0].tasks[1].parentTaskID, "p")
+        XCTAssertThrowsError(try KairosTaskMutation.apply(.create(sectionID: "s", taskID: "new", title: "New", parentTaskID: "p"), to: value))
+    }
+
+    func testClearingOptionalFieldDetectsConcurrentChangesFromNil() {
+        let original = boards()[0].sections[0].tasks[0]
+        var value = boards()
+        value[0].sections[0].tasks[0].taskDescription = "Remote notes"
+        var patch = KairosTaskPatch()
+        patch.description = .set(nil)
+        XCTAssertThrowsError(try KairosTaskMutation.apply(.update(taskID: "p", patch: patch, expected: original), to: value))
+    }
+
     func testConcurrentDeletionAndTaskEditConflict() throws {
         let task: [String: Any] = ["id": "t", "title": "Task", "notes": "web metadata"]
         let base: [String: Any] = ["tasks": [task]]

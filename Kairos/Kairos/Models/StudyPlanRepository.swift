@@ -287,10 +287,10 @@ final class StudyPlanRepository {
     }
 
     @discardableResult
-    func renameTask(taskID: String, title: String) async -> Bool {
+    func renameTask(taskID: String, title: String, expected: KairosTask? = nil) async -> Bool {
         var patch = KairosTaskPatch()
         patch.title = .set(title)
-        return await updateTask(taskID: taskID, patch: patch)
+        return await updateTask(taskID: taskID, patch: patch, expected: expected)
     }
 
     @discardableResult

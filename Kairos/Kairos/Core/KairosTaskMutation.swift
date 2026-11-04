@@ -75,11 +75,17 @@ enum KairosTaskMutation {
                 try patch.dueTime.apply(to: &tasks[ti].dueTime, expected: expected.map { $0.dueTime })
                 try patch.parentTaskID.apply(to: &tasks[ti].parentTaskID, expected: expected.map { $0.parentTaskID })
                 guard !tasks[ti].title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw Invalid() }
+                // Existing links may point at an archived parent. Only a new
+                // parent assignment requires an active target.
+                if case .set(let parentID) = patch.parentTaskID, let parentID,
+                   parentID != source[bi].sections[si].tasks[ti].parentTaskID {
+                    guard tasks.contains(where: { $0.id == parentID && !$0.archived }) else { throw Invalid() }
+                }
                 // Reject dangling, cross-section and cyclic parent links.
                 var seen: Set<String> = [taskID]
                 var parent = tasks[ti].parentTaskID
                 while let id = parent {
-                    guard seen.insert(id).inserted, let item = tasks.first(where: { $0.id == id && !$0.archived }) else { throw Invalid() }
+                    guard seen.insert(id).inserted, let item = tasks.first(where: { $0.id == id }) else { throw Invalid() }
                     parent = item.parentTaskID
                 }
             case .setCompleted(_, let completed):
