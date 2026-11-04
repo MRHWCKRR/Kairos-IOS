@@ -65,11 +65,25 @@ enum KairosPlannerMerge {
             let common = Set(bi).intersection(li).intersection(ri)
             let bo = bi.filter { common.contains($0) }, lo = li.filter { common.contains($0) }, ro = ri.filter { common.contains($0) }
             if lo != bo && ro != bo && lo != ro { throw Conflict() }
-            let order = bi == li ? ri : li
-            var seen = Set<String>()
-            return try (order + ri + li).filter { seen.insert($0).inserted }.compactMap { id in
-                try mergeValue(bm[id], lm[id], rm[id])
+            var values: [String: Any] = [:]
+            for id in Set(bi).union(li).union(ri) {
+                values[id] = try mergeValue(bm[id], lm[id], rm[id])
             }
+            // Insertions/deletions are independent of changes to the relative
+            // order of surviving baseline items.
+            var order = (lo != bo ? li : ri).filter { values[$0] != nil }
+            for source in [li, ri] {
+                for (index, id) in source.enumerated() where values[id] != nil && !order.contains(id) {
+                    if let next = source.dropFirst(index + 1).first(where: { order.contains($0) }),
+                       let position = order.firstIndex(of: next) {
+                        order.insert(id, at: position)
+                    } else if let previous = source.prefix(index).reversed().first(where: { order.contains($0) }),
+                              let position = order.firstIndex(of: previous) {
+                        order.insert(id, at: position + 1)
+                    } else { order.append(id) }
+                }
+            }
+            return order.compactMap { values[$0] }
         }
 
         if let l = local as? [String: Any], let r = remote as? [String: Any], base == nil || base is [String: Any] {
