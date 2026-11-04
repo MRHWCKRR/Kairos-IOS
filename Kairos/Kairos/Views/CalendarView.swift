@@ -9,6 +9,7 @@ struct CalendarView: View {
     @State private var message: String?
     @State private var showingMessage = false
     @State private var occurrences: [KairosRecurringOccurrence] = []
+    @State private var selectedOccurrence: KairosRecurringOccurrence?
     @State private var recurrenceError: String?
     @State private var loadingOccurrences = false
     @State private var pendingOccurrences = Set<String>()
@@ -50,6 +51,12 @@ struct CalendarView: View {
             .navigationTitle("Calendar")
             .navigationBarTitleDisplayMode(.inline)
             .alert("Calendar", isPresented: $showingMessage) { Button("OK", role: .cancel) {} } message: { Text(message ?? "") }
+            .sheet(item: $selectedOccurrence) { occurrence in
+                OccurrenceDetailsView(occurrence: occurrence)
+                    .environment(planRepo)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
             .task(id: "\(selectedKey)-\(planRepo.plannerRevision)") {
                 occurrences = []
                 recurrenceError = nil
@@ -125,14 +132,23 @@ struct CalendarView: View {
             ForEach(occurrences) { occurrence in
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(occurrence.task.title).font(.subheadline.weight(.semibold))
-                            Text(occurrence.startTime ?? "Flexible time").font(.caption).foregroundStyle(.secondary)
-                            Text(occurrence.status.capitalized).font(.caption.weight(.semibold))
-                            if occurrence.occurrenceDate != occurrence.displayDate {
-                                Text("Moved from \(occurrence.occurrenceDate)").font(.caption).foregroundStyle(.secondary)
+                        Button { selectedOccurrence = occurrence } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(occurrence.task.title).font(.subheadline.weight(.semibold))
+                                Text(occurrence.startTime ?? "Flexible time").font(.caption).foregroundStyle(.secondary)
+                                Text(occurrence.status.capitalized).font(.caption.weight(.semibold))
+                                if let steps = occurrence.task.checklist, !steps.isEmpty {
+                                    Text("\(steps.filter(\.completed).count)/\(steps.count) steps").font(.caption).foregroundStyle(.secondary)
+                                }
+                                if occurrence.occurrenceDate != occurrence.displayDate {
+                                    Text("Moved from \(occurrence.occurrenceDate)").font(.caption).foregroundStyle(.secondary)
+                                }
                             }
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Open details for \(occurrence.task.title)")
                         Spacer()
                         if pendingOccurrences.contains(occurrence.id) { ProgressView() }
                     }

@@ -238,6 +238,20 @@ final class StudyPlanRepository {
 
     @discardableResult
     func setOccurrenceStatus(_ occurrence: KairosRecurringOccurrence, status: String) async -> Bool {
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        return await mutateOccurrence(occurrence) { task in
+            try KairosRecurrence.settingStatus(task: task, occurrence: occurrence, status: status, timestamp: timestamp)
+        }
+    }
+
+    @discardableResult
+    func saveOccurrenceChecklist(_ occurrence: KairosRecurringOccurrence, items: [KairosChecklistItem]) async -> Bool {
+        await mutateOccurrence(occurrence) { task in
+            try KairosRecurrence.settingChecklist(task: task, occurrence: occurrence, items: items)
+        }
+    }
+
+    private func mutateOccurrence(_ occurrence: KairosRecurringOccurrence, transform: @escaping @Sendable ([String: Any]) throws -> [String: Any]) async -> Bool {
         guard !isSaving else { errorMessage = "Wait for the current save to finish."; return false }
         guard hasLoadedSnapshot, !isLoading, let user = Auth.auth().currentUser,
               user.isEmailVerified, user.uid == listeningUserID, let planID = currentPlan?.id else {
@@ -247,7 +261,6 @@ final class StudyPlanRepository {
         let uid = user.uid
         let token = generation
         let reference = db.collection("study_plans").document(planID)
-        let timestamp = ISO8601DateFormatter().string(from: Date())
         isSaving = true
         defer { if generation == token { isSaving = false } }
         do {
@@ -271,7 +284,7 @@ final class StudyPlanRepository {
                           sections[si]["archived"] as? Bool != true,
                           var tasks = sections[si]["tasks"] as? [[String: Any]],
                           tasks[ti]["archived"] as? Bool != true else { throw KairosPlannerMerge.Conflict() }
-                    tasks[ti] = try KairosRecurrence.settingStatus(task: tasks[ti], occurrence: occurrence, status: status, timestamp: timestamp)
+                    tasks[ti] = try transform(tasks[ti])
                     sections[si]["tasks"] = tasks
                     boards[bi]["sections"] = sections
                     transaction.updateData(["boards": boards], forDocument: reference)

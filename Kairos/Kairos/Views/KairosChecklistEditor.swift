@@ -8,7 +8,7 @@ struct KairosChecklistEditor: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Checklist", systemImage: "checklist").font(.subheadline.weight(.semibold))
             if !allowsCompletion {
-                Text("These are recurring series steps. Track each occurrence on the web for now.")
+                Text("These are recurring series steps. Track each occurrence from Calendar.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             ForEach($items) { $item in
