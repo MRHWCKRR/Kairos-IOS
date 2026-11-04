@@ -7,6 +7,7 @@ import FirebaseAuth
 @MainActor
 final class StudyPlanRepository {
     var currentPlan: KairosStudyPlan?
+    private(set) var plannerRevision = UUID()
     var isLoading = false
     private(set) var isSaving = false
     var errorMessage: String?
@@ -37,6 +38,7 @@ final class StudyPlanRepository {
                     do {
                         self.currentPlan = try newest?.data(as: KairosStudyPlan.self)
                         self.rawPlan = newest?.data() ?? [:]
+                        self.plannerRevision = UUID()
                         self.hasLoadedSnapshot = true
                         self.errorMessage = nil
                     } catch {
@@ -53,6 +55,7 @@ final class StudyPlanRepository {
         generation = UUID()
         listeningUserID = nil
         currentPlan = nil
+        plannerRevision = UUID()
         rawPlan = [:]
         isLoading = false
         isSaving = false
@@ -173,6 +176,77 @@ final class StudyPlanRepository {
         }
         result["scheduleEvents"] = data["scheduleEvents"] ?? []
         return result
+    }
+
+    // MARK: - Recurring occurrences
+    func recurringOccurrences(on day: String) throws -> [KairosRecurringOccurrence] {
+        var result: [KairosRecurringOccurrence] = []
+        var ids = Set<String>()
+        for board in rawPlan["boards"] as? [[String: Any]] ?? [] where board["archived"] as? Bool != true {
+            for section in board["sections"] as? [[String: Any]] ?? [] where section["archived"] as? Bool != true {
+                for task in section["tasks"] as? [[String: Any]] ?? [] where task["archived"] as? Bool != true {
+                    guard (task["recurrence"] as? [String: Any])?["enabled"] as? Bool == true else { continue }
+                    guard let id = task["id"] as? String, ids.insert(id).inserted else { throw KairosPlannerMerge.Conflict() }
+                    result += try KairosRecurrence.occurrences(task: task, on: day)
+                }
+            }
+        }
+        return result.sorted { ($0.startTime ?? "99:99", $0.id) < ($1.startTime ?? "99:99", $1.id) }
+    }
+
+    @discardableResult
+    func setOccurrenceStatus(_ occurrence: KairosRecurringOccurrence, status: String) async -> Bool {
+        guard !isSaving else { errorMessage = "Wait for the current save to finish."; return false }
+        guard hasLoadedSnapshot, !isLoading, let user = Auth.auth().currentUser,
+              user.isEmailVerified, user.uid == listeningUserID, let planID = currentPlan?.id else {
+            errorMessage = "Wait for your verified account's planner to load."
+            return false
+        }
+        let uid = user.uid
+        let token = generation
+        let reference = db.collection("study_plans").document(planID)
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        isSaving = true
+        defer { if generation == token { isSaving = false } }
+        do {
+            _ = try await db.runTransaction { transaction, errorPointer in
+                do {
+                    guard Auth.auth().currentUser?.uid == uid else { throw CancellationError() }
+                    let snapshot = try transaction.getDocument(reference)
+                    guard let data = snapshot.data(), data["userID"] as? String == uid,
+                          var boards = data["boards"] as? [[String: Any]] else { throw KairosPlannerMerge.Conflict() }
+                    var locations: [(Int, Int, Int)] = []
+                    for bi in boards.indices {
+                        let sections = boards[bi]["sections"] as? [[String: Any]] ?? []
+                        for si in sections.indices {
+                            let tasks = sections[si]["tasks"] as? [[String: Any]] ?? []
+                            for ti in tasks.indices where tasks[ti]["id"] as? String == occurrence.seriesId { locations.append((bi, si, ti)) }
+                        }
+                    }
+                    guard locations.count == 1, let (bi, si, ti) = locations.first,
+                          boards[bi]["archived"] as? Bool != true,
+                          var sections = boards[bi]["sections"] as? [[String: Any]],
+                          sections[si]["archived"] as? Bool != true,
+                          var tasks = sections[si]["tasks"] as? [[String: Any]],
+                          tasks[ti]["archived"] as? Bool != true else { throw KairosPlannerMerge.Conflict() }
+                    tasks[ti] = try KairosRecurrence.settingStatus(task: tasks[ti], occurrence: occurrence, status: status, timestamp: timestamp)
+                    sections[si]["tasks"] = tasks
+                    boards[bi]["sections"] = sections
+                    transaction.updateData(["boards": boards], forDocument: reference)
+                    return true
+                } catch {
+                    errorPointer?.pointee = error as NSError
+                    return nil
+                }
+            }
+            guard generation == token, Auth.auth().currentUser?.uid == uid else { return false }
+            errorMessage = nil
+            return true
+        } catch {
+            guard generation == token else { return false }
+            errorMessage = error.localizedDescription
+            return false
+        }
     }
 
     // MARK: - Boards
