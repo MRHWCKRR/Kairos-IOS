@@ -7,15 +7,14 @@ struct ScheduleView: View {
 
     private var events: [KairosScheduleEvent] {
         (planRepo.currentPlan?.scheduleEvents ?? []).sorted {
-            if $0.day != $1.day { return $0.day < $1.day }
-            return $0.start < $1.start
+            ($0.date ?? "", $0.day ?? 99, $0.start) < ($1.date ?? "", $1.day ?? 99, $1.start)
         }
     }
 
-    private var groupedEvents: [(day: Int, events: [KairosScheduleEvent])] {
-        Dictionary(grouping: events, by: \.day)
-            .keys.sorted()
-            .map { day in (day: day, events: events.filter { $0.day == day }) }
+    private var groupedEvents: [(label: String, events: [KairosScheduleEvent])] {
+        var labels: [String] = []
+        for event in events where !labels.contains(event.scheduleLabel) { labels.append(event.scheduleLabel) }
+        return labels.map { label in (label: label, events: events.filter { $0.scheduleLabel == label }) }
     }
 
     var body: some View {
@@ -26,8 +25,8 @@ struct ScheduleView: View {
                     if groupedEvents.isEmpty {
                         emptyState
                     } else {
-                        ForEach(groupedEvents, id: \.day) { group in
-                            daySection(group.day, events: group.events)
+                        ForEach(groupedEvents, id: \.label) { group in
+                            daySection(group.label, events: group.events)
                         }
                     }
                 }
@@ -74,9 +73,9 @@ struct ScheduleView: View {
         .kairosCard()
     }
 
-    private func daySection(_ day: Int, events: [KairosScheduleEvent]) -> some View {
+    private func daySection(_ label: String, events: [KairosScheduleEvent]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(dayTitle(day)).font(.headline.weight(.semibold)).padding(.horizontal, 4)
+            Text(label).font(.headline.weight(.semibold)).padding(.horizontal, 4)
             VStack(spacing: 0) {
                 ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
                     scheduleRow(event)
@@ -114,7 +113,6 @@ struct ScheduleView: View {
         .frame(maxWidth: .infinity).padding(.vertical, 52).kairosCard()
     }
 
-    private func dayTitle(_ day: Int) -> String { "Day \(day)" }
 }
 
 private struct CalendarAccessSheet: View {
@@ -129,7 +127,7 @@ private struct CalendarAccessSheet: View {
             VStack(alignment: .leading, spacing: 20) {
                 Image(systemName: "calendar.badge.plus").font(.system(size: 42)).foregroundStyle(KairosColors.accent)
                 Text("Apple Calendar").font(.title2.weight(.bold))
-                Text("Add your Kairos study sessions to Apple Calendar. Day 1 starts today, with later days following automatically.")
+                Text("Add your Kairos study sessions to Apple Calendar. Dated sessions keep their date; weekly sessions use their weekday.")
                     .font(.body).foregroundStyle(.secondary)
 
                 switch calendarManager.authorizationState {
@@ -168,8 +166,9 @@ private struct CalendarAccessSheet: View {
 
         do {
             for event in events {
-                guard let start = date(for: event.start, day: event.day, base: base),
-                      let end = date(for: event.end, day: event.day, base: base), end > start else { continue }
+                guard let targetDay = event.scheduledDay(relativeTo: base),
+                      let start = date(for: event.start, on: targetDay),
+                      let end = date(for: event.end, on: targetDay), end > start else { continue }
                 _ = try calendarManager.addEvent(
                     title: event.title,
                     start: start,
@@ -184,10 +183,9 @@ private struct CalendarAccessSheet: View {
         }
     }
 
-    private func date(for time: String, day: Int, base: Date) -> Date? {
+    private func date(for time: String, on targetDay: Date) -> Date? {
         let parts = time.split(separator: ":").compactMap { Int($0) }
-        guard parts.count >= 2, day > 0, (0...23).contains(parts[0]), (0...59).contains(parts[1]) else { return nil }
-        guard let targetDay = Calendar.current.date(byAdding: .day, value: day - 1, to: base) else { return nil }
+        guard parts.count == 2, (0...23).contains(parts[0]), (0...59).contains(parts[1]) else { return nil }
         return Calendar.current.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: targetDay)
     }
 }

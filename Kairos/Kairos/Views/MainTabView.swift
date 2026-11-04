@@ -12,10 +12,14 @@ struct MainTabView: View {
     }
 
     var body: some View {
-        ZStack { tabContent }
+        VStack(spacing: 0) {
+            ZStack { tabContent }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            premiumTabBar.padding(.top, 8).padding(.bottom, 8)
+        }
+            .kairosBackground()
             .tint(accent)
             .preferredColorScheme(preferredScheme)
-            .safeAreaInset(edge: .bottom, spacing: 0) { premiumTabBar.padding(.bottom, 8) }
             .onOpenURL { url in
                 guard url.scheme == KairosDeepLink.scheme, url.host == KairosDeepLink.focusTimerPath else { return }
                 select(0)
