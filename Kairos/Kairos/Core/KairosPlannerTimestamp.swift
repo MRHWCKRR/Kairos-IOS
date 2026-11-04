@@ -4,7 +4,7 @@ import CoreFoundation
 /// Read compatibility for metadata exported as timestamp component maps.
 /// Native Firestore Timestamp values are handled directly by the repository.
 enum KairosPlannerTimestamp {
-    static func date(from value: Any?) -> Date? {
+    nonisolated static func date(from value: Any?) -> Date? {
         if let date = value as? Date { return valid(date) }
         if let string = value as? String {
             let formatter = ISO8601DateFormatter()
@@ -26,7 +26,7 @@ enum KairosPlannerTimestamp {
         return valid(Date(timeIntervalSince1970: seconds + nanos / 1_000_000_000))
     }
 
-    private static func integer(_ value: Any?) -> Double? {
+    nonisolated private static func integer(_ value: Any?) -> Double? {
         guard let number = value as? NSNumber,
               CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
         let value = number.doubleValue
