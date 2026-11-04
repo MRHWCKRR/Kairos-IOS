@@ -104,4 +104,28 @@ final class OccurrenceChecklistTests: XCTestCase {
         XCTAssertEqual(saved["focusLoggedSeconds"] as? Int, 120)
         XCTAssertTrue(try occurrence(updated).task.checklist?.isEmpty == true)
     }
+
+    func testAddRemoveAndReorderDoNotChangeTheTemplate() throws {
+        let original = task()
+        let selected = try occurrence(original)
+        let old = try XCTUnwrap(selected.task.checklist)
+        let added = KairosChecklistItem(id: "new", title: "New step", completed: false)
+        let updated = try KairosRecurrence.settingChecklist(task: original, occurrence: selected, items: [added, old[1]])
+        XCTAssertEqual(try occurrence(updated).task.checklist?.map(\.id), ["new", "b"])
+        XCTAssertEqual(try occurrence(updated, "2026-11-06").task.checklist?.map(\.id), ["a", "b"])
+    }
+    func testConcurrentTemplateStepEditsMergeWithOccurrenceProgress() throws {
+        let original = task()
+        let selected = try occurrence(original)
+        var remote = original
+        var template = try XCTUnwrap(remote["checklist"] as? [[String: Any]])
+        template[0]["title"] = "Updated series step"
+        remote["checklist"] = template
+        var items = try XCTUnwrap(selected.task.checklist)
+        items[1].completed = true
+        let updated = try KairosRecurrence.settingChecklist(task: remote, occurrence: selected, items: items)
+        let result = try occurrence(updated)
+        XCTAssertEqual(result.task.checklist?[0].title, "Updated series step")
+        XCTAssertTrue(result.task.checklist?[1].completed == true)
+    }
 }
