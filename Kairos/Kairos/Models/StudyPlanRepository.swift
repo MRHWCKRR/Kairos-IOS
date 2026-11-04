@@ -38,12 +38,27 @@ final class StudyPlanRepository {
                     guard let snapshot else { self.errorMessage = "Could not load your planner."; return }
                     // Do not fall back to an older plan when the newest one cannot decode.
                     let newest = snapshot.documents.max {
-                        (($0.data()["createdAt"] as? Timestamp)?.dateValue() ?? .distantPast) <
-                        (($1.data()["createdAt"] as? Timestamp)?.dateValue() ?? .distantPast)
+                        (Self.creationDate($0.data()["createdAt"]) ?? .distantPast) <
+                        (Self.creationDate($1.data()["createdAt"]) ?? .distantPast)
                     }
                     do {
-                        self.currentPlan = try newest?.data(as: KairosStudyPlan.self)
-                        self.rawPlan = newest?.data() ?? [:]
+                        if let newest {
+                            let raw = newest.data()
+                            var readable = raw
+                            if !(raw["createdAt"] is Timestamp) {
+                                if let date = Self.creationDate(raw["createdAt"]) {
+                                    readable["createdAt"] = Timestamp(date: date)
+                                } else {
+                                    // Creation metadata must not hide readable tasks.
+                                    readable["createdAt"] = NSNull()
+                                }
+                            }
+                            self.currentPlan = try Firestore.Decoder().decode(KairosStudyPlan.self, from: readable, in: newest.reference)
+                            self.rawPlan = raw
+                        } else {
+                            self.currentPlan = nil
+                            self.rawPlan = [:]
+                        }
                         self.plannerRevision = UUID()
                         self.hasLoadedSnapshot = true
                         self.errorMessage = nil
@@ -56,6 +71,11 @@ final class StudyPlanRepository {
                     }
                 }
             }
+    }
+
+    nonisolated private static func creationDate(_ value: Any?) -> Date? {
+        if let timestamp = value as? Timestamp { return timestamp.dateValue() }
+        return KairosPlannerTimestamp.date(from: value)
     }
 
     func stopListening() {
