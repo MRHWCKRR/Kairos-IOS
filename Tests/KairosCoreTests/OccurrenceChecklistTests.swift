@@ -89,4 +89,19 @@ final class OccurrenceChecklistTests: XCTestCase {
         let selected = try occurrence(original)
         XCTAssertThrowsError(try KairosRecurrence.settingChecklist(task: original, occurrence: selected, items: [KairosChecklistItem(id:"a",title:" ",completed:false)]))
     }
+
+    func testHistoricalChecklistKeepsStatusAndEmptyOverrideClearsSteps() throws {
+        var original = task()
+        var rule = try XCTUnwrap(original["recurrence"] as? [String: Any])
+        rule["endType"] = "date"; rule["endDate"] = "2026-11-04"
+        rule["exceptions"] = ["2026-11-05":["status":"completed","completedAt":"saved","focusLoggedSeconds":120]]
+        original["recurrence"] = rule
+        let selected = try occurrence(original)
+        let updated = try KairosRecurrence.settingChecklist(task: original, occurrence: selected, items: [])
+        let saved = try exception(updated)
+        XCTAssertEqual(saved["status"] as? String, "completed")
+        XCTAssertEqual(saved["completedAt"] as? String, "saved")
+        XCTAssertEqual(saved["focusLoggedSeconds"] as? Int, 120)
+        XCTAssertTrue(try occurrence(updated).task.checklist?.isEmpty == true)
+    }
 }

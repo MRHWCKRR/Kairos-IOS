@@ -77,7 +77,7 @@ struct OccurrenceDetailsView: View {
         guard !saving, !planRepo.isSaving else { return }
         do { try KairosChecklist.validate(items) }
         catch {
-            error = "Give each step a title of 1–180 characters, with no more than 100 steps."
+            self.error = "Give each step a title of 1–180 characters, with no more than 100 steps."
             return
         }
         guard items != (occurrence.task.checklist ?? []) else { dismiss(); return }
