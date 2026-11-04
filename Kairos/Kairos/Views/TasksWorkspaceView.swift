@@ -24,9 +24,21 @@ struct TasksWorkspaceView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
                     header
-                    summary
-                    boardList
-                    if let error = planRepo.errorMessage { Text(error).font(.footnote).foregroundStyle(.red) }
+                    if planRepo.isLoading {
+                        ProgressView("Loading your planner…").frame(maxWidth: .infinity).padding(.vertical, 40)
+                    } else if planRepo.plannerIsUnavailable {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Label("Your planner couldn’t load", systemImage: "exclamationmark.triangle")
+                                .font(.headline)
+                            Text(planRepo.errorMessage ?? "Retry loading your planner.")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                            Button("Retry") { planRepo.retryLoading() }.buttonStyle(.bordered)
+                        }.padding(20).kairosCard(cornerRadius: 24)
+                    } else {
+                        summary
+                        boardList
+                        if let error = planRepo.errorMessage { Text(error).font(.footnote).foregroundStyle(.red) }
+                    }
                 }
                 .padding(.horizontal, KairosMetrics.pageHorizontal)
                 .padding(.top, 16)
@@ -238,6 +250,7 @@ struct TasksWorkspaceView: View {
             .shadow(color: KairosColors.accent.opacity(0.28), radius: 18, y: 8)
             .draggable("kairos-create")
             .simultaneousGesture(TapGesture().onEnded { isCreateExpanded.toggle() })
+            .disabled(planRepo.isLoading || planRepo.plannerIsUnavailable)
             .accessibilityLabel("Add")
             .accessibilityHint("Tap to choose what to add, or drag onto a board, section, or task")
             .padding(.trailing, 18).padding(.bottom, 8)

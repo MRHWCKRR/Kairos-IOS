@@ -16,6 +16,12 @@ final class StudyPlanRepository {
     private var listeningUserID: String?
     private var generation = UUID()
     private var hasLoadedSnapshot = false
+    var plannerIsUnavailable: Bool { !isLoading && !hasLoadedSnapshot && errorMessage != nil }
+
+    func retryLoading() {
+        guard let userID = listeningUserID, !isSaving else { return }
+        startListening(userID: userID)
+    }
     private var rawPlan: [String: Any] = [:]
 
     func startListening(userID: String) {
@@ -43,7 +49,7 @@ final class StudyPlanRepository {
                         self.errorMessage = nil
                     } catch {
                         self.hasLoadedSnapshot = false
-                        self.errorMessage = "This planner contains data this build cannot read. Update Kairos before editing it."
+                        self.errorMessage = KairosPlannerDecoding.message(for: error)
                     }
                 }
             }

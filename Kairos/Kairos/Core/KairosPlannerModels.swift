@@ -35,9 +35,23 @@ struct KairosScheduleEvent: Codable, Identifiable, Equatable {
     var id: String
     var title: String
     var category: String
-    var day: Int
+    var day: Int?
     var start: String
     var end: String
+    var date: String? = nil
+}
+
+extension KairosScheduleEvent {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        category = try c.decodeIfPresent(String.self, forKey: .category) ?? "other"
+        day = try c.decodeIfPresent(Int.self, forKey: .day)
+        start = try c.decode(String.self, forKey: .start)
+        end = try c.decode(String.self, forKey: .end)
+        date = try c.decodeIfPresent(String.self, forKey: .date)
+    }
 }
 
 // Older web plans omit flags that are false. Decode those defaults without

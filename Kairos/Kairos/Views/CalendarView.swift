@@ -20,7 +20,9 @@ struct CalendarView: View {
             .sorted { ($0.dueTime ?? "99:99") < ($1.dueTime ?? "99:99") }
     }
     private var events: [KairosScheduleEvent] {
-        (planRepo.currentPlan?.scheduleEvents ?? []).sorted { $0.day == $1.day ? $0.start < $1.start : $0.day < $1.day }
+        (planRepo.currentPlan?.scheduleEvents ?? []).sorted {
+            ($0.date ?? "", $0.day ?? 99, $0.start) < ($1.date ?? "", $1.day ?? 99, $1.start)
+        }
     }
 
     var body: some View {
@@ -166,7 +168,7 @@ struct CalendarView: View {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(event.title).font(.subheadline.weight(.semibold))
-                        Text("Day \(event.day) · \(event.start)–\(event.end) · \(event.category)").font(.caption).foregroundStyle(.secondary)
+                        Text("\(event.scheduleLabel) · \(event.start)–\(event.end) · \(event.category)").font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
                     if calendarManager.authorizationState == .authorized { Button { export(event) } label: { Image(systemName: "calendar.badge.plus") }.buttonStyle(.glass) }
@@ -228,7 +230,7 @@ struct CalendarView: View {
         let a = event.start.split(separator: ":").compactMap { Int($0) }
         let b = event.end.split(separator: ":").compactMap { Int($0) }
         guard a.count == 2, b.count == 2, (0...23).contains(a[0]), (0...59).contains(a[1]), (0...23).contains(b[0]), (0...59).contains(b[1]) else { return nil }
-        let base = Calendar.current.date(byAdding: .day, value: max(event.day - 1, 0), to: Calendar.current.startOfDay(for: selectedDate)) ?? selectedDate
+        guard let base = event.scheduledDay(relativeTo: selectedDate) else { return nil }
         guard let start = Calendar.current.date(bySettingHour: a[0], minute: a[1], second: 0, of: base), let end = Calendar.current.date(bySettingHour: b[0], minute: b[1], second: 0, of: base), end > start else { return nil }
         return (start, end)
     }
