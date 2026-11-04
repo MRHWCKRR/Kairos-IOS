@@ -53,7 +53,7 @@ enum KairosRecurrence {
         return text
     }
 
-    nonisolated private static func run(task: [String: Any], day: String, status: String? = nil, timestamp: String = "") throws -> Data {
+    nonisolated private static func run(task: [String: Any], day: String, status: String? = nil, timestamp: String = "", checklist: [KairosChecklistItem]? = nil) throws -> Data {
         #if SWIFT_PACKAGE
         let bundle = Bundle.module
         #else
@@ -63,7 +63,10 @@ enum KairosRecurrence {
               let context = JSContext() else { throw Unavailable() }
         context.evaluateScript(try String(contentsOf: url, encoding: .utf8))
         if context.exception != nil { throw Unavailable() }
-        let args: [String: Any] = ["task": try input(task), "day": day, "status": status.map { $0 as Any } ?? NSNull(), "timestamp": timestamp]
+        var args: [String: Any] = ["task": try input(task), "day": day, "status": status.map { $0 as Any } ?? NSNull(), "timestamp": timestamp]
+        if let checklist {
+            args["checklist"] = checklist.map { ["id": $0.id, "title": $0.title, "completed": $0.completed] as [String: Any] }
+        }
         let json = try JSONSerialization.data(withJSONObject: args)
         guard let argument = String(data: json, encoding: .utf8),
               let output = context.objectForKeyedSubscript("kairosOccurrenceRequest")?.call(withArguments: [argument])?.toString(),
@@ -97,6 +100,66 @@ enum KairosRecurrence {
             exception["override"] = existing
         }
         exceptions[occurrence.occurrenceDate] = exception
+        rule["exceptions"] = exceptions
+        var result = task
+        result["recurrence"] = rule
+        return result
+    }
+
+    nonisolated private static func checklistContext(_ task: [String: Any], date: String) throws -> Data {
+        var value = try input(task)
+        value.removeValue(forKey: "checklist")
+        guard var rule = value["recurrence"] as? [String: Any] else { throw Unavailable() }
+        let exceptions = rule["exceptions"] as? [String: Any] ?? [:]
+        var selected = exceptions[date] as? [String: Any] ?? [:]
+        selected["status"] = selected["status"] as? String ?? "pending"
+        selected.removeValue(forKey: "focusLoggedSeconds")
+        selected.removeValue(forKey: "remainingMinutes")
+        if var override = selected["override"] as? [String: Any] {
+            override.removeValue(forKey: "checklist")
+            selected["override"] = override.isEmpty ? nil : override
+        }
+        rule["exceptions"] = [date: selected]
+        value["recurrence"] = rule
+        return try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
+    }
+
+    nonisolated static func settingChecklist(task: [String: Any], occurrence: KairosRecurringOccurrence, items: [KairosChecklistItem]) throws -> [String: Any] {
+        try KairosChecklist.validate(items)
+        guard let baselineData = occurrence.revision.data(using: .utf8),
+              let baseline = try JSONSerialization.jsonObject(with: baselineData) as? [String: Any],
+              task["id"] as? String == occurrence.seriesId,
+              try checklistContext(baseline, date: occurrence.occurrenceDate) == checklistContext(task, date: occurrence.occurrenceDate),
+              let current = try occurrences(task: task, on: occurrence.displayDate).first(where: { $0.id == occurrence.id }) else {
+            throw KairosPlannerMerge.Conflict()
+        }
+        let merged = try KairosChecklist.merge(base: occurrence.task.checklist ?? [], local: items, remote: current.task.checklist ?? [])
+        let data = try run(task: task, day: occurrence.occurrenceDate, checklist: merged)
+        guard let update = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              var rule = task["recurrence"] as? [String: Any] else { throw Unavailable() }
+        var exceptions = rule["exceptions"] as? [String: Any] ?? [:]
+        var selected = exceptions[occurrence.occurrenceDate] as? [String: Any] ?? [:]
+        var override = selected["override"] as? [String: Any] ?? [:]
+        let rawItems = override["checklist"] as? [[String: Any]] ?? task["checklist"] as? [[String: Any]] ?? []
+        // Retain unknown metadata on surviving steps while applying explicit
+        // title/completion edits, insertion, removal and reordering.
+        var rawByID: [String: [String: Any]] = [:]
+        for item in rawItems {
+            guard let id = item["id"] as? String, rawByID[id] == nil else { throw Unavailable() }
+            rawByID[id] = item
+        }
+        if let pin = update["override"] as? [String: Any] {
+            for (key, value) in pin where key != "checklist" { override[key] = value }
+        }
+        override["checklist"] = merged.map { item -> [String: Any] in
+            var raw = rawByID[item.id] ?? [:]
+            raw["id"] = item.id
+            raw["title"] = item.title
+            raw["completed"] = item.completed
+            return raw
+        }
+        selected["override"] = override
+        exceptions[occurrence.occurrenceDate] = selected
         rule["exceptions"] = exceptions
         var result = task
         result["recurrence"] = rule

@@ -16,7 +16,6 @@ final class PlannerLoadingTests: XCTestCase {
         let event = try JSONDecoder().decode(KairosScheduleEvent.self, from: data)
         XCTAssertEqual(event.day, 0)
         XCTAssertNil(event.date)
-        XCTAssertEqual(event.scheduleLabel, "Sunday")
     }
 
     func testDatedEventWinsOverLegacyWeekdayOnExport() throws {

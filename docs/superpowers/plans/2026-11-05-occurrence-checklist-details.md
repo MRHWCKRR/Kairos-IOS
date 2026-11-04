@@ -1,0 +1,7 @@
+# Occurrence details and independent checklist progress
+
+Open one logical series/date occurrence from Calendar, show its projected details and edit its checklist using the existing step editor. Keep the initial projected checklist as an editor baseline. Retain drafts/errors on failure, prevent duplicate submissions, and dismiss only after successful persistence or an unchanged save.
+
+Save only the selected exception override.checklist through the same account/ownership/archive/identity-checked Firestore transaction used for occurrence status. Compare rule/selected status/schedule context, excluding unrelated dates and focus ledgers. Merge checklist edits by stable ID using KairosChecklist.merge so separate edits combine while competing edits fail. Preserve unknown per-step and per-exception metadata. Use the bundled web engine's applyOccurrenceOverride behavior for moved/historical pins.
+
+Series rule editing, time changes and statistics integration remain subsequent work. Verify isolated progress, concurrent edits and conflicts, metadata/focus preservation, moved logical identity and validation limits. Compile on macOS CI; local engine smoke checks can validate only JavaScript while hosted jobs are unavailable. Routine merge is authorized, with any unverified build state disclosed.
