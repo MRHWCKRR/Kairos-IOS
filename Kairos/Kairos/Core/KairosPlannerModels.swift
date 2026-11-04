@@ -24,6 +24,11 @@ struct KairosTask: Codable, Identifiable, Equatable {
     var taskDescription: String? = nil
     var dueTime: String? = nil
     var parentTaskID: String? = nil
+    var notes: String? = nil
+    var priority: String? = nil
+    var estimatedMinutes: Int? = nil
+    var checklist: [KairosChecklistItem]? = nil
+    var recurrence: KairosRecurrenceMarker? = nil
 }
 
 struct KairosScheduleEvent: Codable, Identifiable, Equatable {
@@ -69,6 +74,27 @@ extension KairosTask {
         taskDescription = try c.decodeIfPresent(String.self, forKey: .taskDescription)
         dueTime = try c.decodeIfPresent(String.self, forKey: .dueTime)
         parentTaskID = try c.decodeIfPresent(String.self, forKey: .parentTaskID)
+        notes = try c.decodeIfPresent(String.self, forKey: .notes)
+        priority = try c.decodeIfPresent(String.self, forKey: .priority)
+        estimatedMinutes = try c.decodeIfPresent(Int.self, forKey: .estimatedMinutes)
+        checklist = try c.decodeIfPresent([KairosChecklistItem].self, forKey: .checklist)
+        recurrence = try c.decodeIfPresent(KairosRecurrenceMarker.self, forKey: .recurrence)
     }
 }
 
+
+struct KairosChecklistItem: Codable, Identifiable, Equatable {
+    var id: String
+    var title: String
+    var completed: Bool
+}
+
+// The complete rule remains in the raw Firestore document. Native clients only
+// inspect enabled until occurrence editing is supported.
+struct KairosRecurrenceMarker: Codable, Equatable {
+    var enabled: Bool = false
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+    }
+}

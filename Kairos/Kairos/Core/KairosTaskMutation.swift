@@ -12,6 +12,10 @@ enum KairosFieldEdit<Value> {
 }
 
 struct KairosTaskPatch {
+    var notes: KairosFieldEdit<String?> = .unchanged
+    var priority: KairosFieldEdit<String?> = .unchanged
+    var estimatedMinutes: KairosFieldEdit<Int?> = .unchanged
+    var checklist: KairosFieldEdit<[KairosChecklistItem]> = .unchanged
     var title: KairosFieldEdit<String> = .unchanged
     var description: KairosFieldEdit<String?> = .unchanged
     var date: KairosFieldEdit<String?> = .unchanged
@@ -69,6 +73,17 @@ enum KairosTaskMutation {
             switch command {
             case .update(_, let patch, let expected):
                 guard !tasks[ti].archived, expected == nil || expected?.id == taskID else { throw Invalid() }
+                if case .set(let notes) = patch.notes, let notes, notes.utf16.count > 3000 { throw Invalid() }
+                if case .set(let priority) = patch.priority, let priority, !["low", "medium", "high"].contains(priority) { throw Invalid() }
+                if case .set(let minutes) = patch.estimatedMinutes, let minutes, !(1...1440).contains(minutes) { throw Invalid() }
+                try patch.notes.apply(to: &tasks[ti].notes, expected: expected.map { $0.notes })
+                try patch.priority.apply(to: &tasks[ti].priority, expected: expected.map { $0.priority })
+                try patch.estimatedMinutes.apply(to: &tasks[ti].estimatedMinutes, expected: expected.map { $0.estimatedMinutes })
+                if case .set(let items) = patch.checklist {
+                    try KairosChecklist.validate(items)
+                    if tasks[ti].recurrence?.enabled == true && items.contains(where: \.completed) { throw Invalid() }
+                    tasks[ti].checklist = try KairosChecklist.merge(base: expected.map { $0.checklist ?? [] } ?? tasks[ti].checklist ?? [], local: items, remote: tasks[ti].checklist ?? [])
+                }
                 try patch.title.apply(to: &tasks[ti].title, expected: expected?.title)
                 try patch.description.apply(to: &tasks[ti].taskDescription, expected: expected.map { $0.taskDescription })
                 try patch.date.apply(to: &tasks[ti].date, expected: expected.map { $0.date })
@@ -89,7 +104,7 @@ enum KairosTaskMutation {
                     parent = item.parentTaskID
                 }
             case .setCompleted(_, let completed):
-                guard !tasks[ti].archived else { throw Invalid() }
+                guard !tasks[ti].archived, tasks[ti].recurrence?.enabled != true else { throw Invalid() }
                 tasks[ti].completed = completed
                 if let parent = tasks[ti].parentTaskID { try reconcile(&tasks, startingAt: parent, complete: completed) }
             case .archive(_, let archived):

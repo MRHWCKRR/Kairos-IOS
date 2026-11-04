@@ -211,7 +211,7 @@ struct TasksWorkspaceView: View {
                     HStack(spacing: 8) {
                         if let date = task.date { Label(Self.displayDate(date, dueTime: task.dueTime), systemImage: "calendar") }
                         if task.parentTaskID != nil { Label("Subtask", systemImage: "arrow.turn.down.right") }
-                        if task.taskDescription?.isEmpty == false { Image(systemName: "text.alignleft") }
+                        if (task.notes ?? task.taskDescription)?.isEmpty == false { Image(systemName: "text.alignleft") }
                     }
                     .font(.caption2).foregroundStyle(.secondary)
                 }
@@ -311,7 +311,11 @@ struct TaskDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let context: TaskDetailContext
     @State private var title = ""
-    @State private var taskDescription = ""
+    @State private var taskNotes = ""
+    @State private var priority = ""
+    @State private var hasEstimate = false
+    @State private var estimateText = ""
+    @State private var checklist: [KairosChecklistItem] = []
     @State private var hasDueDate = false
     @State private var dueDate = Date()
     @State private var hasDueTime = false
@@ -337,6 +341,8 @@ struct TaskDetailView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     titleCard
                     detailsCard
+                    metadataCard
+                    KairosChecklistEditor(items: $checklist, allowsCompletion: originalTask?.recurrence?.enabled != true)
                     scheduleCard
                     childrenCard
                     if let saveError { Text(saveError).font(.footnote).foregroundStyle(.red) }
@@ -369,9 +375,28 @@ struct TaskDetailView: View {
 
     private var detailsCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Description", systemImage: "text.alignleft").font(.subheadline.weight(.semibold))
-            TextEditor(text: $taskDescription).frame(minHeight: 110).scrollContentBackground(.hidden)
+            Label("Notes", systemImage: "text.alignleft").font(.subheadline.weight(.semibold))
+            TextEditor(text: $taskNotes).frame(minHeight: 110).scrollContentBackground(.hidden)
                 .padding(8).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }.padding(18).kairosCard(cornerRadius: 22)
+    }
+
+    private var metadataCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Picker("Priority", selection: $priority) {
+                Text("None").tag("")
+                Text("Low").tag("low")
+                Text("Medium").tag("medium")
+                Text("High").tag("high")
+                if !["", "low", "medium", "high"].contains(priority) { Text(priority).tag(priority) }
+            }
+            Toggle("Estimated time", isOn: $hasEstimate)
+            if hasEstimate {
+                TextField("Minutes (1–1440)", text: $estimateText)
+                    .keyboardType(.numberPad).accessibilityLabel("Estimated minutes")
+            }
+            Text("Notes support up to 3000 characters.")
+                .font(.caption).foregroundStyle(.secondary)
         }.padding(18).kairosCard(cornerRadius: 22)
     }
 
@@ -406,7 +431,11 @@ struct TaskDetailView: View {
         initialized = true
         originalTask = task
         title = task.title
-        taskDescription = task.taskDescription ?? ""
+        taskNotes = task.notes ?? task.taskDescription ?? ""
+        priority = task.priority ?? ""
+        hasEstimate = task.estimatedMinutes != nil
+        estimateText = task.estimatedMinutes.map(String.init) ?? ""
+        checklist = task.checklist ?? []
         if let dateKey = task.date { hasDueDate = true; dueDate = Self.date(from: dateKey) ?? Date() }
         if let value = task.dueTime, let date = Self.time(from: value) { hasDueTime = true; dueTime = date }
     }
@@ -415,12 +444,19 @@ struct TaskDetailView: View {
         guard !submitting, let originalTask else { return }
         var patch = KairosTaskPatch()
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let details = taskDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        let description: String? = details.isEmpty ? nil : taskDescription
+        let estimate = hasEstimate ? Int(estimateText) : nil
+        guard !hasEstimate || (estimate.map { (1...1440).contains($0) } == true) else {
+            saveError = "Enter an estimate from 1 to 1440 minutes."
+            return
+        }
         let dateKey = hasDueDate ? Self.dateKey(from: dueDate) : nil
         let timeKey = hasDueTime ? Self.timeKey(from: dueTime) : nil
         if name != originalTask.title { patch.title = .set(name) }
-        if description != originalTask.taskDescription { patch.description = .set(description) }
+        if taskNotes != (originalTask.notes ?? originalTask.taskDescription ?? "") { patch.notes = .set(taskNotes) }
+        let selectedPriority: String? = priority.isEmpty ? nil : priority
+        if selectedPriority != originalTask.priority { patch.priority = .set(selectedPriority) }
+        if estimate != originalTask.estimatedMinutes { patch.estimatedMinutes = .set(estimate) }
+        if checklist != (originalTask.checklist ?? []) { patch.checklist = .set(checklist) }
         if dateKey != originalTask.date { patch.date = .set(dateKey) }
         if timeKey != originalTask.dueTime { patch.dueTime = .set(timeKey) }
         submitting = true
