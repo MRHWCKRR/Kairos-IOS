@@ -55,76 +55,41 @@ final class StudyPlanRepository {
         currentPlan = nil
         rawPlan = [:]
         isLoading = false
+        isSaving = false
         hasLoadedSnapshot = false
         errorMessage = nil
     }
 
     @discardableResult
     func toggleTask(boardID: String, sectionID: String, taskID: String) async -> Bool {
-        guard var plan = currentPlan,
-              let bi = plan.boards.firstIndex(where: { $0.id == boardID }),
-              let si = plan.boards[bi].sections.firstIndex(where: { $0.id == sectionID }),
-              let ti = plan.boards[bi].sections[si].tasks.firstIndex(where: { $0.id == taskID }) else { return false }
-        let before = currentPlan
-        let willComplete = !plan.boards[bi].sections[si].tasks[ti].completed
-        plan.boards[bi].sections[si].tasks[ti].completed = willComplete
-
-        if willComplete {
-            setParentCompletion(
-                in: &plan.boards[bi].sections[si].tasks,
-                startingAt: taskID
-            )
-        } else if let parentID = plan.boards[bi].sections[si].tasks[ti].parentTaskID {
-            markAncestorsIncomplete(
-                in: &plan.boards[bi].sections[si].tasks,
-                parentID: parentID
-            )
+        guard let task = currentPlan?.boards.first(where: { $0.id == boardID })?
+            .sections.first(where: { $0.id == sectionID })?.tasks.first(where: { $0.id == taskID }) else {
+            errorMessage = KairosTaskMutation.Invalid().localizedDescription
+            return false
         }
-        return await persist(before: before, after: plan)
+        return await performTask(.setCompleted(taskID: taskID, completed: !task.completed))
     }
 
-    private func setParentCompletion(
-        in tasks: inout [KairosTask],
-        startingAt taskID: String
-    ) {
-        guard let task = tasks.first(where: { $0.id == taskID }),
-              task.completed,
-              let parentID = task.parentTaskID,
-              let parentIndex = tasks.firstIndex(where: { $0.id == parentID })
-        else { return }
-
-        let children = tasks.filter {
-            $0.parentTaskID == parentID && !$0.archived
-        }
-        guard !children.isEmpty else { return }
-
-        tasks[parentIndex].completed = children.allSatisfy(\.completed)
-
-        if tasks[parentIndex].completed {
-            setParentCompletion(in: &tasks, startingAt: parentID)
-        }
+    @discardableResult
+    private func performTask(_ command: KairosTaskCommand) async -> Bool {
+        await mutateBoards { boards in boards = try KairosTaskMutation.apply(command, to: boards) }
     }
 
-    private func markAncestorsIncomplete(
-        in tasks: inout [KairosTask],
-        parentID: String
-    ) {
-        guard let index = tasks.firstIndex(where: { $0.id == parentID })
-        else { return }
-
-        tasks[index].completed = false
-
-        if let grandparentID = tasks[index].parentTaskID {
-            markAncestorsIncomplete(in: &tasks, parentID: grandparentID)
+    @discardableResult
+    private func mutateBoards(_ transform: (inout [KairosBoard]) throws -> Void) async -> Bool {
+        guard let userID = listeningUserID else {
+            errorMessage = "Sign in before editing your planner."
+            return false
         }
-    }
-
-    private func mutateBoards(_ transform: (inout [KairosBoard]) -> Void) async {
-        guard let userID = listeningUserID else { return }
         let before = currentPlan
         var plan = before ?? KairosStudyPlan(id: nil, userID: userID, createdAt: nil, boards: [], dayInsights: nil, scheduleEvents: nil)
-        transform(&plan.boards)
-        _ = await persist(before: before, after: plan)
+        do {
+            try transform(&plan.boards)
+            return await persist(before: before, after: plan)
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
     }
 
     private func persist(before: KairosStudyPlan?, after: KairosStudyPlan, includeEvents: Bool = false) async -> Bool {
@@ -138,7 +103,7 @@ final class StudyPlanRepository {
         let token = generation
         let reference = db.collection("study_plans").document(before?.id ?? uid)
         isSaving = true
-        defer { isSaving = false }
+        defer { if generation == token { isSaving = false } }
         do {
             let encoder = Firestore.Encoder()
             var base: [String: Any] = ["boards": try (before?.boards ?? []).map { try encoder.encode($0) }]
@@ -210,27 +175,31 @@ final class StudyPlanRepository {
     }
 
     // MARK: - Boards
-    func addBoard(title: String) async {
-        await mutateBoards { boards in
+    @discardableResult
+    func addBoard(title: String) async -> Bool {
+        return await mutateBoards { boards in
             boards.append(KairosBoard(id: "board-\(UUID().uuidString)", title: title, archived: false, sections: []))
         }
     }
 
-    func renameBoard(boardID: String, title: String) async {
-        await mutateBoards { boards in
-            if let i = boards.firstIndex(where: { $0.id == boardID }) { boards[i].title = title }
+    @discardableResult
+    func renameBoard(boardID: String, title: String) async -> Bool {
+        return await mutateBoards { boards in
+            guard let i = boards.firstIndex(where: { $0.id == boardID }) else { throw KairosTaskMutation.Invalid() }
+            boards[i].title = title
         }
     }
 
+    @discardableResult
     func updateBoard(
         boardID: String,
         title: String? = nil,
         description: String? = nil,
         preserveDescription: Bool = false
-    ) async {
-        await mutateBoards { boards in
+    ) async -> Bool {
+        return await mutateBoards { boards in
             guard let index = boards.firstIndex(where: { $0.id == boardID })
-            else { return }
+            else { throw KairosTaskMutation.Invalid() }
 
             if let title {
                 boards[index].title = title
@@ -241,175 +210,108 @@ final class StudyPlanRepository {
         }
     }
 
-    func setBoardArchived(boardID: String, archived: Bool) async {
-        await mutateBoards { boards in
-            if let i = boards.firstIndex(where: { $0.id == boardID }) { boards[i].archived = archived }
+    @discardableResult
+    func setBoardArchived(boardID: String, archived: Bool) async -> Bool {
+        return await mutateBoards { boards in
+            guard let i = boards.firstIndex(where: { $0.id == boardID }) else { throw KairosTaskMutation.Invalid() }
+            boards[i].archived = archived
         }
     }
 
-    func deleteBoardForever(boardID: String) async {
-        await mutateBoards { boards in boards.removeAll { $0.id == boardID } }
+    @discardableResult
+    func deleteBoardForever(boardID: String) async -> Bool {
+        return await mutateBoards { boards in
+            guard boards.contains(where: { $0.id == boardID }) else { throw KairosTaskMutation.Invalid() }
+            boards.removeAll { $0.id == boardID }
+        }
     }
 
     // MARK: - Sections
-    func addSection(boardID: String, title: String) async {
-        await mutateBoards { boards in
-            guard let bi = boards.firstIndex(where: { $0.id == boardID }) else { return }
+    @discardableResult
+    func addSection(boardID: String, title: String) async -> Bool {
+        return await mutateBoards { boards in
+            guard let bi = boards.firstIndex(where: { $0.id == boardID && !$0.archived }) else { throw KairosTaskMutation.Invalid() }
             boards[bi].sections.append(KairosSection(id: "sec-\(UUID().uuidString)", title: title, archived: false, tasks: []))
         }
     }
 
-    func renameSection(sectionID: String, title: String) async {
-        await mutateBoards { boards in
+    @discardableResult
+    func renameSection(sectionID: String, title: String) async -> Bool {
+        return await mutateBoards { boards in
             for bi in boards.indices {
                 if let si = boards[bi].sections.firstIndex(where: { $0.id == sectionID }) {
                     boards[bi].sections[si].title = title
                     return
                 }
             }
+            throw KairosTaskMutation.Invalid()
         }
     }
 
-    func setSectionArchived(sectionID: String, archived: Bool) async {
-        await mutateBoards { boards in
+    @discardableResult
+    func setSectionArchived(sectionID: String, archived: Bool) async -> Bool {
+        return await mutateBoards { boards in
             for bi in boards.indices {
                 if let si = boards[bi].sections.firstIndex(where: { $0.id == sectionID }) {
                     boards[bi].sections[si].archived = archived
                     return
                 }
             }
+            throw KairosTaskMutation.Invalid()
         }
     }
 
-    func deleteSectionForever(boardID: String, sectionID: String) async {
+    @discardableResult
+    func deleteSectionForever(boardID: String, sectionID: String) async -> Bool {
         await mutateBoards { boards in
-            if let bi = boards.firstIndex(where: { $0.id == boardID }) {
-                boards[bi].sections.removeAll { $0.id == sectionID }
-            }
+            guard let bi = boards.firstIndex(where: { $0.id == boardID }),
+                  boards[bi].sections.contains(where: { $0.id == sectionID }) else { throw KairosTaskMutation.Invalid() }
+            boards[bi].sections.removeAll { $0.id == sectionID }
         }
     }
 
     // MARK: - Tasks
-    func addTask(sectionID: String, title: String) async {
-        await mutateBoards { boards in
-            for bi in boards.indices {
-                if let si = boards[bi].sections.firstIndex(where: { $0.id == sectionID }) {
-                    boards[bi].sections[si].tasks.append(
-                        KairosTask(id: "task-\(UUID().uuidString)", title: title, completed: false, archived: false, date: nil)
-                    )
-                    return
-                }
-            }
-        }
+    @discardableResult
+    func addTask(sectionID: String, title: String) async -> Bool {
+        await performTask(.create(sectionID: sectionID, taskID: "task-\(UUID().uuidString)", title: title, parentTaskID: nil))
     }
 
-    func addSubtask(
-        parentTaskID: String,
-        sectionID: String,
-        title: String
-    ) async {
-        await mutateBoards { boards in
-            for bi in boards.indices {
-                guard let si = boards[bi].sections.firstIndex(
-                    where: { $0.id == sectionID }
-                ) else { continue }
-
-                boards[bi].sections[si].tasks.append(
-                    KairosTask(
-                        id: "task-\(UUID().uuidString)",
-                        title: title,
-                        completed: false,
-                        archived: false,
-                        date: nil,
-                        taskDescription: nil,
-                        dueTime: nil,
-                        parentTaskID: parentTaskID
-                    )
-                )
-                return
-            }
-        }
+    @discardableResult
+    func addSubtask(parentTaskID: String, sectionID: String, title: String) async -> Bool {
+        await performTask(.create(sectionID: sectionID, taskID: "task-\(UUID().uuidString)", title: title, parentTaskID: parentTaskID))
     }
 
-    func updateTask(
-        taskID: String,
-        title: String? = nil,
-        description: String? = nil,
-        date: String? = nil,
-        dueTime: String? = nil,
-        parentTaskID: String? = nil
-    ) async {
-        await mutateBoards { boards in
-            for bi in boards.indices {
-                for si in boards[bi].sections.indices {
-                    guard let ti = boards[bi].sections[si].tasks.firstIndex(
-                        where: { $0.id == taskID }
-                    ) else { continue }
-
-                    if let title {
-                        boards[bi].sections[si].tasks[ti].title = title
-                    }
-                    boards[bi].sections[si].tasks[ti].taskDescription = description
-                    boards[bi].sections[si].tasks[ti].date = date
-                    boards[bi].sections[si].tasks[ti].dueTime = dueTime
-
-                    if parentTaskID != nil {
-                        boards[bi].sections[si].tasks[ti].parentTaskID = parentTaskID
-                    }
-                    return
-                }
-            }
-        }
+    @discardableResult
+    func updateTask(taskID: String, patch: KairosTaskPatch, expected: KairosTask? = nil) async -> Bool {
+        await performTask(.update(taskID: taskID, patch: patch, expected: expected))
     }
 
-    func renameTask(taskID: String, title: String) async {
-        await mutateBoards { boards in
-            for bi in boards.indices {
-                for si in boards[bi].sections.indices {
-                    if let ti = boards[bi].sections[si].tasks.firstIndex(where: { $0.id == taskID }) {
-                        boards[bi].sections[si].tasks[ti].title = title
-                        return
-                    }
-                }
-            }
-        }
+    @discardableResult
+    func renameTask(taskID: String, title: String, expected: KairosTask? = nil) async -> Bool {
+        var patch = KairosTaskPatch()
+        patch.title = .set(title)
+        return await updateTask(taskID: taskID, patch: patch, expected: expected)
     }
 
-    func setTaskArchived(taskID: String, archived: Bool) async {
-        await mutateBoards { boards in
-            for bi in boards.indices {
-                for si in boards[bi].sections.indices {
-                    if let ti = boards[bi].sections[si].tasks.firstIndex(where: { $0.id == taskID }) {
-                        boards[bi].sections[si].tasks[ti].archived = archived
-                        return
-                    }
-                }
-            }
-        }
+    @discardableResult
+    func setTaskArchived(taskID: String, archived: Bool) async -> Bool {
+        await performTask(.archive(taskID: taskID, archived: archived))
     }
 
-    func deleteTaskForever(sectionID: String, taskID: String) async {
-        await mutateBoards { boards in
-            for bi in boards.indices {
-                if let si = boards[bi].sections.firstIndex(where: { $0.id == sectionID }) {
-                    boards[bi].sections[si].tasks.removeAll { $0.id == taskID }
-                    return
-                }
-            }
-        }
+    @discardableResult
+    func deleteTaskForever(sectionID: String, taskID: String) async -> Bool {
+        await performTask(.delete(sectionID: sectionID, taskID: taskID))
     }
 
-    func setTaskDate(sectionID: String, taskID: String, dateKey: String?) async {
-        await mutateBoards { boards in
-            for bi in boards.indices {
-                for si in boards[bi].sections.indices where boards[bi].sections[si].id == sectionID {
-                    if let ti = boards[bi].sections[si].tasks.firstIndex(where: { $0.id == taskID }) {
-                        boards[bi].sections[si].tasks[ti].date = dateKey
-                        return
-                    }
-                }
-            }
+    @discardableResult
+    func setTaskDate(sectionID: String, taskID: String, dateKey: String?) async -> Bool {
+        guard currentPlan?.boards.contains(where: { $0.sections.contains(where: { $0.id == sectionID && $0.tasks.contains(where: { $0.id == taskID }) }) }) == true else {
+            errorMessage = KairosTaskMutation.Invalid().localizedDescription
+            return false
         }
+        var patch = KairosTaskPatch()
+        patch.date = .set(dateKey)
+        return await updateTask(taskID: taskID, patch: patch)
     }
 
     // MARK: - Reviewed AI plan
