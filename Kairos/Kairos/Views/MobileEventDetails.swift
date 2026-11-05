@@ -49,6 +49,7 @@ struct MobileEventDetails: View {
             }.disabled(saving).interactiveDismissDisabled()
             .navigationTitle(event == nil ? "New fixed event" : "Event details").navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { PlannerSearchButton().disabled(saving) }
                 ToolbarItem(placement: .cancellationAction) { Button(event?.readOnly == true ? "Done" : "Cancel") { dismiss() }.disabled(saving) }
                 if event?.readOnly != true { ToolbarItem(placement: .confirmationAction) { Button("Save") { save(removing: false) }.disabled(saving || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) } }
             }

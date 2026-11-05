@@ -24,6 +24,46 @@ final class StudyPlanRepository {
     }
     private var rawPlan: [String: Any] = [:]
 
+    // Search owns no listeners or writes, and never exposes a previous account.
+    var searchScope: String? {
+        guard hasLoadedSnapshot, !isLoading, let owner = listeningUserID,
+              let user = Auth.auth().currentUser, user.uid == owner, user.isEmailVerified else { return nil }
+        return "\(generation)-\(owner)-\(currentPlan?.id ?? "empty")"
+    }
+    func searchInputJSON() throws -> String {
+        guard searchScope != nil else { throw KairosPlannerSearch.Unavailable() }
+        return try KairosPlannerSearch.inputJSON(rawPlan)
+    }
+    func searchResultIsAvailable(_ row: KairosSearchRow) -> Bool {
+        guard searchScope != nil, let boards = currentPlan?.boards else { return false }
+        let matches = boards.filter { $0.id == row.target.boardId }
+        guard matches.count == 1, let board = matches.first, !board.archived else { return false }
+        if row.target.kind == "board" { return true }
+        let sections = board.sections.filter { $0.id == row.target.sectionId }
+        guard sections.count == 1, let section = sections.first, !section.archived else { return false }
+        let all = boards.flatMap(\.sections).flatMap(\.tasks).filter { $0.id == row.target.taskId }
+        guard all.count == 1, let task = section.tasks.first(where: { $0.id == row.target.taskId }), !task.archived else { return false }
+        return row.target.occurrenceDate == nil || task.recurrence?.enabled == true
+    }
+    func searchOccurrence(_ row: KairosSearchRow) async throws -> KairosRecurringOccurrence {
+        guard searchResultIsAvailable(row), let logicalDay = row.target.occurrenceDate, let displayedDay = row.date else { throw KairosPlannerSearch.Unavailable() }
+        let scope = searchScope, revision = plannerRevision
+        let tasks = try KairosAIProposalEngine.maps(rawPlan["boards"]).flatMap { try KairosAIProposalEngine.maps($0["sections"]) }.flatMap { try KairosAIProposalEngine.maps($0["tasks"]) }
+        guard let task = tasks.first(where: { $0["id"] as? String == row.target.taskId }) else { throw KairosPlannerSearch.Unavailable() }
+        let payload = try KairosRecurrence.revision(task)
+        let work = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            let task = try KairosTouchSchedule.object(payload)
+            let occurrence = try KairosRecurrence.occurrences(task: task, on: displayedDay).first { $0.occurrenceDate == logicalDay && !["skipped", "deleted"].contains($0.status) }
+            try Task.checkCancellation()
+            guard let occurrence else { throw KairosPlannerSearch.Unavailable() }
+            return occurrence
+        }
+        let result = try await withTaskCancellationHandler(operation: { try await work.value }, onCancel: { work.cancel() })
+        guard searchScope == scope, plannerRevision == revision else { throw KairosPlannerSearch.Unavailable() }
+        return result
+    }
+
     func startListening(userID: String) {
         stopListening()
         listeningUserID = userID

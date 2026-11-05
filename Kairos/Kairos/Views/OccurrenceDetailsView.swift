@@ -59,6 +59,7 @@ struct OccurrenceDetailsView: View {
             .navigationTitle("Occurrence details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { PlannerSearchButton().disabled(saving) }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.disabled(saving)
                 }

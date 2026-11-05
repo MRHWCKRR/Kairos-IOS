@@ -31,6 +31,7 @@ struct KairosNameEditor: View {
             .navigationTitle(heading)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { PlannerSearchButton().disabled(submitting) }
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(submitting) }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(saveLabel) {

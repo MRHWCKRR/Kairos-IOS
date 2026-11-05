@@ -30,6 +30,7 @@ struct MobileTaskScheduler: View {
             }.disabled(saving).interactiveDismissDisabled()
             .navigationTitle("Schedule task").navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { PlannerSearchButton().disabled(saving) }
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(saving) }
                 ToolbarItem(placement: .confirmationAction) { Button("Save") { save(removing: false) }.disabled(saving) }
             }
@@ -80,9 +81,10 @@ struct MobileScheduleCreator: View {
             }.disabled(saving).interactiveDismissDisabled()
             .navigationTitle("New task").navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { PlannerSearchButton().disabled(saving) }
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(saving) }
                 ToolbarItem(placement: .confirmationAction) { Button("Add") { save() }.disabled(saving || sectionID.isEmpty || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
-            }.onAppear { sectionID = sections.first?.id ?? "" }
+            }.onAppear { if sectionID.isEmpty { sectionID = sections.first?.id ?? "" } }
         }.environment(\.timeZone, calendar.timeZone).environment(\.calendar, calendar)
     }
     private func save() {

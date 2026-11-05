@@ -15,7 +15,13 @@ struct MainTabView: View {
         VStack(spacing: 0) {
             ZStack { tabContent }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            premiumTabBar.padding(.top, 8).padding(.bottom, 8)
+            HStack(spacing: 0) {
+                premiumTabBar
+                PlannerSearchButton()
+                    .foregroundStyle(accent)
+                    .background(accent.opacity(0.1), in: Circle())
+                    .padding(.trailing, 14)
+            }.padding(.top, 8).padding(.bottom, 8)
         }
             .kairosBackground()
             .tint(accent)

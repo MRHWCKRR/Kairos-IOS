@@ -1,0 +1,9 @@
+# Mobile global search
+
+The magnifying glass beside the tab bar opens Search from Home, Boards, AI, Schedule and Goals. Task, occurrence, board, name/creation and scheduling editors also offer Search. Cmd-K opens it with a hardware keyboard. Search is a sheet above the current screen; results open an additional details sheet. Done/Cancel returns through these sheets without replacing the original view or its unsaved draft. Existing Save buttons still decide whether edits are committed.
+
+Search reuses the web matching/ranking model: normalized title, notes, board/section path and active assignment titles; All, Unfinished, Overdue and Completed filters; valid deadlines before scheduled dates; profile timezone for today. Series remain searchable. Recurring dated results cover original logical dates within 30 days either side of today, display the range, omit skipped/deleted dates, and preserve moved occurrence identities. Fifty rows are shown with the full match count and refinement guidance.
+
+Immutable JSON snapshots are indexed away from the UI thread, cached by authenticated owner/plan/revision/day/timezone and searched after a short debounce. No query history, extra listeners, writes or migrations. Account changes clear search state; stale/cancelled asynchronous work cannot install results. Destinations recheck active unique identities, including archived duplicates, and recurring editors reproject the current logical occurrence before opening. Search failures retain the query and offer Retry.
+
+Node smoke exercises matching, assignment paths, deadline precedence, status filters, recurring identity, duplicate rejection and read-only behavior. Swift tests cover the native bridge and output contracts. CI verifies the engine is bundled and builds the iOS app/widget. Manual iPhone/simulator sheet, keyboard and touch checks remain separate from compilation.

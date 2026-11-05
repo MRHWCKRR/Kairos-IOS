@@ -55,6 +55,7 @@ struct BoardDetailsView: View {
             .navigationTitle("Edit Board")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { PlannerSearchButton().disabled(submitting) }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.disabled(submitting)
                 }
