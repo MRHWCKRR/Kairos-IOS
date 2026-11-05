@@ -6,6 +6,11 @@ struct SettingsView: View {
             List {
                 Section {
                     NavigationLink {
+                        PlanningAccessibilityView()
+                    } label: {
+                        Label("Accessibility", systemImage: "accessibility")
+                    }
+                    NavigationLink {
                         NotificationSettingsView()
                     } label: {
                         Label("Notifications", systemImage: "bell.badge")

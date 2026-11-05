@@ -104,8 +104,9 @@ struct DashboardTodayView: View {
         }.disabled(busy || planRepo.isSaving).padding(.vertical, 8)
             .overlay(alignment: .bottom) { Divider().opacity(0.3) }
     }
+    private func displayTime(_ value: String) -> String { KairosTimeDisplay.time(value, format: profileRepo.accessibilitySettings?.timeFormat ?? "12") }
     private func when(_ row: KairosTodayRow) -> String {
-        if let start = row.start, !start.isEmpty { return "\(row.date ?? today) · \(start)\(row.end.flatMap { $0.isEmpty ? nil : "–" + $0 } ?? "")" }
+        if let start = row.start, !start.isEmpty { return "\(row.date ?? today) · \(displayTime(start))\(row.end.flatMap { $0.isEmpty ? nil : "–" + displayTime($0) } ?? "")" }
         if let due = row.dueDate { return due == today ? "Due today" : "Due \(due)" }
         return row.date ?? "No scheduled date"
     }

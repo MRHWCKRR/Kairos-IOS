@@ -73,6 +73,7 @@ struct CalendarView: View {
     @State private var touchMessage: String?
     @State private var suppressTapUntil = Date.distantPast
 
+    private func displayClock(_ minute: Int) -> String { KairosTimeDisplay.clock(minute, format: profileRepo.accessibilitySettings?.timeFormat ?? "12") }
     private var calendar: Calendar {
         var value = Calendar(identifier: .gregorian)
         value.timeZone = profileRepo.profile.flatMap { TimeZone(identifier: $0.timezone) } ?? .current
@@ -168,7 +169,7 @@ struct CalendarView: View {
                         VStack(spacing: 0) {
                             Color.clear.frame(height: 126)
                             ForEach(0..<24, id: \.self) { hour in
-                                Text(KairosScheduleProjection.clock(hour * 60)).font(.caption2.monospacedDigit()).foregroundStyle(.secondary).frame(width: 46, height: 56, alignment: .topTrailing).padding(.trailing, 6).id("hour-\(hour)")
+                                Text(displayClock(hour * 60)).font(.caption2.monospacedDigit()).foregroundStyle(.secondary).frame(width: 46, height: 56, alignment: .topTrailing).padding(.trailing, 6).id("hour-\(hour)")
                             }
                         }
                         ForEach(days) { day in
@@ -206,12 +207,12 @@ struct CalendarView: View {
                         timelineBlock(block, day: day)
                             .frame(width: max(44, geo.size.width / CGFloat(block.columns) - 6), height: max(44, CGFloat(block.end - block.start) * 56 / 60))
                             .offset(x: CGFloat(block.column) * geo.size.width / CGFloat(block.columns) + 3, y: CGFloat(block.start) * 56 / 60)
-                            .accessibilityLabel("\(block.title), \(KairosScheduleProjection.clock(block.start)) to \(KairosScheduleProjection.clock(block.end))")
+                            .accessibilityLabel("\(block.title), \(displayClock(block.start)) to \(displayClock(block.end))")
                     }
                     if let active = interaction, let placement = active.placement, placement.date == day.key || (mode == .day && active.sourceDate == day.key) {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(active.draft.title).font(.caption.weight(.semibold)).lineLimit(2)
-                            Text("\(placement.date) · \(KairosScheduleProjection.clock(placement.start))–\(KairosScheduleProjection.clock(placement.end))").font(.caption2).monospacedDigit()
+                            Text("\(placement.date) · \(displayClock(placement.start))–\(displayClock(placement.end))").font(.caption2).monospacedDigit()
                         }
                         .padding(8).frame(width: max(44, geo.size.width - 8), height: max(44, CGFloat(placement.duration) * 56 / 60), alignment: .topLeading)
                         .background(KairosColors.accent.opacity(0.18), in: RoundedRectangle(cornerRadius: 8))
@@ -257,10 +258,10 @@ struct CalendarView: View {
             if day.count == 0 { Text("Nothing scheduled. Add a task or choose one from your backlog.").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 20) }
             ForEach(day.tasks) { taskRow($0) }
             ForEach(day.occurrences) { occurrence in
-                Button { selectedOccurrence = occurrence } label: { HStack { Image(systemName: "repeat"); Text(occurrence.task.title); Spacer(); Text(occurrence.startTime ?? occurrence.status).font(.caption) }.padding(.vertical, 12) }.buttonStyle(.plain)
+                Button { selectedOccurrence = occurrence } label: { HStack { Image(systemName: "repeat"); Text(occurrence.task.title); Spacer(); Text(occurrence.startTime.map { KairosTimeDisplay.time($0, format: profileRepo.accessibilitySettings?.timeFormat ?? "12") } ?? occurrence.status).font(.caption) }.padding(.vertical, 12) }.buttonStyle(.plain)
             }
             ForEach(day.events) { event in
-                Button { selectedEvent = event } label: { HStack { Image(systemName: "calendar"); Text(event.title); Spacer(); Text(KairosScheduleProjection.clock(event.startMin)).font(.caption) }.padding(.vertical, 12) }.buttonStyle(.plain)
+                Button { selectedEvent = event } label: { HStack { Image(systemName: "calendar"); Text(event.title); Spacer(); Text(displayClock(event.startMin)).font(.caption) }.padding(.vertical, 12) }.buttonStyle(.plain)
             }
         }
     }
@@ -339,7 +340,7 @@ struct CalendarView: View {
             Button { open(block, day: day) } label: {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(block.title).font(.caption.weight(.semibold)).lineLimit(3)
-                    Text("\(KairosScheduleProjection.clock(block.start))–\(KairosScheduleProjection.clock(block.end))").font(.system(size: 10)).monospacedDigit().lineLimit(1)
+                    Text("\(displayClock(block.start))–\(displayClock(block.end))").font(.system(size: 10)).monospacedDigit().lineLimit(1)
                 }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(6)
                     .background(Color.secondary.opacity(0.16), in: RoundedRectangle(cornerRadius: 7))
             }.buttonStyle(.plain)
@@ -424,7 +425,7 @@ struct CalendarView: View {
         if let active = interaction {
             VStack(alignment: .leading, spacing: 5) {
                 Text(active.draft.title).font(.subheadline.weight(.semibold)).lineLimit(1)
-                if let placement = active.placement { Text("\(placement.date) · \(KairosScheduleProjection.clock(placement.start))–\(KairosScheduleProjection.clock(placement.end))").font(.subheadline).monospacedDigit() }
+                if let placement = active.placement { Text("\(placement.date) · \(displayClock(placement.start))–\(displayClock(placement.end))").font(.subheadline).monospacedDigit() }
                 else { Text("Release here to cancel").font(.subheadline) }
                 Text(active.mode == .resize ? "Release to resize · 5-minute snapping" : (mode == .day ? "Release to move · Drag to a screen edge to change day" : "Release to move · Drag across visible day columns"))
                     .font(.caption).foregroundStyle(.secondary)

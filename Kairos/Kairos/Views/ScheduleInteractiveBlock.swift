@@ -3,6 +3,8 @@ import SwiftUI
 enum ScheduleTouchMode: Equatable { case move, resize }
 
 struct ScheduleInteractiveBlock: View {
+    @Environment(UserProfileRepository.self) private var profileRepo
+    private func displayClock(_ minute: Int) -> String { KairosTimeDisplay.clock(minute, format: profileRepo.accessibilitySettings?.timeFormat ?? "12") }
     let title: String
     let start: Int
     let end: Int
@@ -29,7 +31,7 @@ struct ScheduleInteractiveBlock: View {
             Button(action: open) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title).font(.caption.weight(.semibold)).lineLimit(3).strikethrough(completed)
-                    Text("\(KairosScheduleProjection.clock(start))–\(KairosScheduleProjection.clock(end))").font(.system(size: 10)).monospacedDigit().lineLimit(1)
+                    Text("\(displayClock(start))–\(displayClock(end))").font(.system(size: 10)).monospacedDigit().lineLimit(1)
                     if recurring { Image(systemName: "repeat").font(.system(size: 9)) }
                 }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(6)
             }
@@ -50,7 +52,7 @@ struct ScheduleInteractiveBlock: View {
         .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(KairosColors.accent.opacity(active ? 1 : 0.2), lineWidth: active ? 2 : 0.5) }
         .opacity(active ? 0.35 : 1)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title), \(KairosScheduleProjection.clock(start)) to \(KairosScheduleProjection.clock(end))\(completed ? ", completed" : "")")
+        .accessibilityLabel("\(title), \(displayClock(start)) to \(displayClock(end))\(completed ? ", completed" : "")")
         .accessibilityHint(editable ? "Hold to move. Use the resize handle to change the end time." : "Open details to edit this task.")
         .accessibilityAction(named: "Move five minutes earlier") { if editable && !busy { adjust(.move, -5) } }
         .accessibilityAction(named: "Move five minutes later") { if editable && !busy { adjust(.move, 5) } }

@@ -26,6 +26,7 @@ struct MainTabView: View {
             .kairosBackground()
             .tint(accent)
             .preferredColorScheme(preferredScheme)
+            .environment(\.locale, KairosTimeDisplay.locale(format: profileRepo.accessibilitySettings?.timeFormat ?? "12"))
             .onOpenURL { url in
                 guard url.scheme == KairosDeepLink.scheme, url.host == KairosDeepLink.focusTimerPath else { return }
                 select(0)

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct OccurrenceDetailsView: View {
+    @Environment(UserProfileRepository.self) private var profileRepo
     @Environment(StudyPlanRepository.self) private var planRepo
     @Environment(\.dismiss) private var dismiss
     let occurrence: KairosRecurringOccurrence
@@ -96,10 +97,11 @@ struct OccurrenceDetailsView: View {
         .padding(18).kairosCard(cornerRadius: 22)
     }
 
+    private func displayTime(_ value: String) -> String { KairosTimeDisplay.time(value, format: profileRepo.accessibilitySettings?.timeFormat ?? "12") }
     private var timeLabel: String {
         guard let start = occurrence.startTime else { return "Flexible time" }
-        if let end = occurrence.endTime { return "\(start)–\(end)" }
-        return start
+        if let end = occurrence.endTime { return "\(displayTime(start))–\(displayTime(end))" }
+        return displayTime(start)
     }
 
     private func save() {
