@@ -77,6 +77,8 @@ struct AIHelperView: View {
                 HStack { Text(error).font(.caption).foregroundStyle(.red); Spacer(); Button("Retry") { vm.retryReply() }.disabled(vm.isLoading) }.padding(.horizontal, 16).padding(.vertical, 8)
             }
             if let error = vm.errorMessage { Text(error).font(.caption).foregroundStyle(.red).padding(.horizontal) }
+            if let error = profileRepo.aiProposalError { Text(error).font(.caption).foregroundStyle(.red).padding(.horizontal) }
+            if let notice = vm.notificationDeliveryNotice { Text(notice).font(.caption).foregroundStyle(.secondary).padding(.horizontal) }
             if let actions = vm.proposals[vm.activeChatID ?? ""], !actions.isEmpty {
                 Button("Review \(actions.count) proposed change\(actions.count == 1 ? "" : "s")", systemImage: "list.bullet.clipboard") { reviewingChanges = true }
                     .buttonStyle(.bordered).padding(.horizontal)
@@ -281,26 +283,20 @@ private struct AIChangeReview: View {
         NavigationStack {
             Form {
                 Section("Proposed changes") {
-                    ForEach(Array((viewModel.proposals[viewModel.activeChatID ?? ""] ?? []).enumerated()), id: \.offset) { _, action in
+                    ForEach(viewModel.profileRepo.aiProposals[viewModel.activeChatID ?? ""]?.rows ?? []) { row in
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(action.type.replacingOccurrences(of: "_", with: " ").capitalized).font(.headline)
-                            if let id = action.args.taskId {
-                                let task = viewModel.planRepo.currentPlan?.boards.flatMap { $0.sections.flatMap(\.tasks) }.first { $0.id == id }
-                                Text(task?.title ?? id)
-                            }
-                            if let id = action.args.boardId { Text(viewModel.planRepo.currentPlan?.boards.first { $0.id == id }?.title ?? id) }
-                            if let id = action.args.sectionId { Text(viewModel.planRepo.currentPlan?.boards.flatMap(\.sections).first { $0.id == id }?.title ?? id) }
-                            if let title = action.args.newTitle ?? action.args.title { Text(title) }
-                            if let date = action.args.date { LabeledContent("Date", value: date) }
-                            if let time = action.args.startTime { LabeledContent("Start", value: time) }
-                            if let time = action.args.endTime { LabeledContent("End", value: time) }
-                            if let completed = action.args.completed { Text(completed ? "Mark completed" : "Mark pending") }
-                            if action.type.hasPrefix("delete_") { Text("This removes the item and its contents from your planner.").font(.caption).foregroundStyle(.red) }
+                            Text(row.action).font(.headline)
+                            Text(row.title)
+                            LabeledContent("Before", value: row.before)
+                            LabeledContent("After", value: row.after)
+                            if row.destructive { Text("This removes the item or selected occurrence from your planner.").font(.caption).foregroundStyle(.red) }
                         }
                     }
                 }
                 if let error = viewModel.errorMessage { Text(error).foregroundStyle(.red) }
-                Button("Discard changes", role: .destructive) { if let id = viewModel.activeChatID { viewModel.proposals[id] = nil; viewModel.proposalRevisions[id] = nil }; dismiss() }
+                Text("This preview is saved to your account. If the planner changes, request a fresh preview before applying.").font(.caption).foregroundStyle(.secondary)
+                if viewModel.proposals[viewModel.activeChatID ?? ""]?.contains(where: { $0.type.contains("reminder") }) == true { Text("Reminder delivery uses your iOS notification permission and Kairos notification preference. Unscheduled tasks notify once they have a date and start time.").font(.caption).foregroundStyle(.secondary) }
+                Button("Discard changes", role: .destructive) { Task { if await viewModel.discardProposals() { dismiss() } } }
             }.disabled(viewModel.isApplyingPlan).interactiveDismissDisabled(viewModel.isApplyingPlan)
             .navigationTitle("Review changes").navigationBarTitleDisplayMode(.inline)
             .toolbar {

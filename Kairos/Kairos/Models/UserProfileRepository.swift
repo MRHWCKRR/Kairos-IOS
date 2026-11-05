@@ -18,6 +18,8 @@ final class UserProfileRepository {
     private var rawAIWorkspace: [String: Any]?
     private var rawLegacyHistory: [[String: Any]] = []
     private var profileHasLoaded = false
+    private(set) var aiProposals: [String: KairosAIProposal] = [:]
+    private(set) var aiProposalError: String?
     var aiWorkspaceOwnerID: String? { profileHasLoaded ? writableUserID : nil }
     var isLoading = false
     var errorMessage: String?
@@ -55,6 +57,7 @@ final class UserProfileRepository {
             self.clearValues()
             let raw = snapshot.data() ?? [:]
             self.profileHasLoaded = true
+            self.restoreAIProposals(raw, ownerID: userID)
             let decoder = Firestore.Decoder()
 
             if let settings = raw["settings"] as? [String: Any] {
@@ -127,6 +130,83 @@ final class UserProfileRepository {
         rawAIWorkspace = nil
         rawLegacyHistory = []
         profileHasLoaded = false
+        aiProposals = [:]
+        aiProposalError = nil
+    }
+
+    private func restoreAIProposals(_ raw: [String: Any], ownerID: String) {
+        do {
+            guard raw["aiNativeProposals"] == nil || raw["aiNativeProposals"] is [String: Any] else { throw KairosAIProposalEngine.Invalid("Saved AI previews could not be read safely.") }
+            var restored: [String: KairosAIProposal] = [:]
+            for (chatID, value) in raw["aiNativeProposals"] as? [String: Any] ?? [:] {
+                guard let map = value as? [String: Any] else { throw KairosAIProposalEngine.Invalid("A saved preview is unreadable. Update Kairos before continuing.") }
+                let proposal = try JSONDecoder().decode(KairosAIProposal.self, from: JSONSerialization.data(withJSONObject: map))
+                try KairosAIProposalEngine.validate(proposal)
+                guard proposal.chatID == chatID, proposal.ownerID == ownerID else { throw KairosAIProposalEngine.Invalid("A saved preview belongs to another account or conversation.") }
+                restored[chatID] = proposal
+            }
+            aiProposals = restored; aiProposalError = nil
+        } catch { aiProposals = [:]; aiProposalError = error.localizedDescription }
+    }
+
+    @discardableResult
+    func saveAIReply(_ message: KairosAIWorkspace.Message, proposal: KairosAIProposal?, chatID: String, ownerID: String) async -> Bool {
+        guard profileHasLoaded, writableUserID == ownerID, aiWorkspaceError == nil, aiProposalError == nil else { errorMessage = "Wait for your AI workspace and previews to load."; return false }
+        let token = generation, reference = db.collection("users").document(ownerID)
+        do {
+            let proposalMap: [String: Any]? = try proposal.map { value in
+                try KairosAIProposalEngine.validate(value)
+                return try JSONSerialization.jsonObject(with: JSONEncoder().encode(value)) as! [String: Any]
+            }
+            let result = try await db.runTransaction { transaction, pointer in
+                do {
+                    guard let user = Auth.auth().currentUser, user.uid == ownerID, user.isEmailVerified else { throw CancellationError() }
+                    let snapshot = try transaction.getDocument(reference)
+                    let raw = snapshot.data() ?? [:]
+                    guard raw["aiWorkspace"] == nil || raw["aiWorkspace"] is [String: Any], raw["aiNativeProposals"] == nil || raw["aiNativeProposals"] is [String: Any] else { throw KairosAIWorkspace.Invalid() }
+                    var proposals = raw["aiNativeProposals"] as? [String: Any] ?? [:]
+                    if let proposal, let proposalMap {
+                        guard proposal.ownerID == ownerID, proposal.chatID == chatID, proposals[chatID] == nil || (proposals[chatID] as? [String: Any])?["id"] as? String == proposal.id else { throw KairosAIProposalEngine.Invalid("This chat already has a saved preview. Review or discard it first.") }
+                        if let existing = proposals[chatID] as? [String: Any] { guard try KairosAIProposalEngine.digest(existing) == KairosAIProposalEngine.digest(proposalMap) else { throw KairosAIProposalEngine.Invalid("This saved preview changed on another device.") } }
+                        proposals[chatID] = proposalMap
+                    }
+                    guard try JSONSerialization.data(withJSONObject: proposals).count <= 100_000 else { throw KairosAIProposalEngine.Invalid("Saved previews are full. Review or discard an existing preview first.") }
+                    let workspace = try KairosAIWorkspace.applying(.append(chatID: chatID, messages: [message]), to: raw["aiWorkspace"] as? [String: Any], legacy: raw["aiChatHistory"] as? [[String: Any]] ?? [], owner: ownerID)
+                    transaction.setData(["aiWorkspace": workspace, "aiNativeProposals": proposals], forDocument: reference, merge: true)
+                    return ["aiWorkspace": workspace, "aiNativeProposals": proposals]
+                } catch { pointer?.pointee = error as NSError; return nil }
+            }
+            guard token == generation, writableUserID == ownerID, let raw = result as? [String: Any] else { return false }
+            rawAIWorkspace = raw["aiWorkspace"] as? [String: Any]
+            aiWorkspace = try KairosAIWorkspace.read(rawAIWorkspace, legacy: [], owner: ownerID)
+            restoreAIProposals(raw, ownerID: ownerID)
+            return true
+        } catch { guard generation == token else { return false }; errorMessage = "Could not save the reply and preview: \(error.localizedDescription)"; return false }
+    }
+
+    @discardableResult
+    func discardAIProposal(_ proposal: KairosAIProposal) async -> Bool {
+        guard writableUserID == proposal.ownerID else { return false }
+        let token = generation, reference = db.collection("users").document(proposal.ownerID)
+        do {
+            _ = try await db.runTransaction { transaction, pointer in
+                do {
+                    guard Auth.auth().currentUser?.uid == proposal.ownerID else { throw CancellationError() }
+                    let snapshot = try transaction.getDocument(reference)
+                    let raw = snapshot.data() ?? [:]
+                    guard var proposals = raw["aiNativeProposals"] as? [String: Any], (proposals[proposal.chatID] as? [String: Any])?["id"] as? String == proposal.id else { throw KairosAIProposalEngine.Invalid("The saved preview changed. Reopen this chat.") }
+                    proposals.removeValue(forKey: proposal.chatID)
+                    transaction.updateData(["aiNativeProposals": proposals], forDocument: reference)
+                    return true
+                } catch { pointer?.pointee = error as NSError; return nil }
+            }
+            guard token == generation, writableUserID == proposal.ownerID else { return false }
+            aiProposals[proposal.chatID] = nil; return true
+        } catch { guard token == generation else { return false }; errorMessage = error.localizedDescription; return false }
+    }
+    func acknowledgeAppliedAIProposal(_ proposal: KairosAIProposal) {
+        guard writableUserID == proposal.ownerID, aiProposals[proposal.chatID]?.id == proposal.id else { return }
+        aiProposals[proposal.chatID] = nil
     }
 
     @discardableResult
@@ -144,14 +224,22 @@ final class UserProfileRepository {
                     let snapshot = try transaction.getDocument(reference)
                     let data = snapshot.data() ?? [:]
                     guard data["aiWorkspace"] == nil || data["aiWorkspace"] is [String: Any] else { throw KairosAIWorkspace.Invalid() }
+                    if case .append(let chatID, let messages) = command, messages.contains(where: { $0.role == "user" }), (data["aiNativeProposals"] as? [String: Any])?[chatID] != nil { throw KairosAIProposalEngine.Invalid("Review or discard the saved preview before sending another message.") }
                     let updated = try KairosAIWorkspace.applying(command, to: data["aiWorkspace"] as? [String: Any], legacy: data["aiChatHistory"] as? [[String: Any]] ?? [], owner: ownerID)
                     transaction.setData(["aiWorkspace": updated], forDocument: reference, merge: true)
+                    if case .deleteChat(let chatID) = command {
+                        guard data["aiNativeProposals"] == nil || data["aiNativeProposals"] is [String: Any] else { throw KairosAIWorkspace.Invalid() }
+                        var proposals = data["aiNativeProposals"] as? [String: Any] ?? [:]
+                        proposals.removeValue(forKey: chatID)
+                        transaction.updateData(["aiNativeProposals": proposals], forDocument: reference)
+                    }
                     return updated
                 } catch { pointer?.pointee = error as NSError; return nil }
             }
             guard generation == token, writableUserID == ownerID, let updated = result as? [String: Any] else { return false }
             rawAIWorkspace = updated
             aiWorkspace = try KairosAIWorkspace.read(updated, legacy: [], owner: ownerID)
+            if case .deleteChat(let chatID) = command { aiProposals[chatID] = nil }
             return true
         } catch {
             guard generation == token else { return false }

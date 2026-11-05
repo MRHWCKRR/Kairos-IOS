@@ -34,7 +34,7 @@ enum KairosRecurrence {
         func pick(_ map: [String: Any], _ keys: [String]) -> [String: Any] {
             map.filter { keys.contains($0.key) }
         }
-        var result = pick(task, ["id","title","date","startTime","endTime","estimatedMinutes","notes","priority","checklist"])
+        var result = pick(task, ["id","title","date","startTime","endTime","estimatedMinutes","notes","priority","checklist","reminderMinutes"])
         if let raw = task["recurrence"] as? [String: Any] {
             var rule = pick(raw, ["enabled","preset","frequency","interval","weekdays","monthlyMode","monthDay","weekdayPosition","weekday","month","startDate","endType","endDate","count","mode"])
             if let value = raw["exceptions"], !(value is NSNull), !(value is [String: Any]) { throw Unavailable() }
@@ -43,7 +43,7 @@ enum KairosRecurrence {
                 guard let value = value as? [String: Any] else { throw Unavailable() }
                 var exception = pick(value, ["status","completedAt","skippedAt","focusLoggedSeconds","remainingMinutes"])
                 if let override = value["override"] as? [String: Any] {
-                    exception["override"] = pick(override, ["date","startTime","endTime","durationMinutes","title","notes","estimatedMinutes","checklist"])
+                    exception["override"] = pick(override, ["date","startTime","endTime","durationMinutes","title","notes","estimatedMinutes","checklist","reminderMinutes"])
                 }
                 exceptions[date] = exception
             }

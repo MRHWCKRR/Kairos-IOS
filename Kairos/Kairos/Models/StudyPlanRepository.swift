@@ -208,6 +208,22 @@ final class StudyPlanRepository {
     }
 
     // MARK: - Recurring occurrences
+    func taskReminderCandidates(timezone: String) async throws -> [KairosReminderCandidate] {
+        guard hasLoadedSnapshot, !isLoading else { return [] }
+        let calendar = KairosAIProposalEngine.calendar(timezone)
+        let today = calendar.startOfDay(for: Date())
+        let days = (0..<35).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }.map { KairosDate.dayKey(for: $0, timeZone: calendar.timeZone) }
+        let occurrences = try await recurringOccurrences(onDays: days)
+        var candidates: [KairosReminderCandidate] = []
+        let tasks = currentPlan?.boards.filter { !$0.archived }.flatMap { $0.sections.filter { !$0.archived } }.flatMap { $0.tasks.filter { !$0.archived && !$0.completed && $0.recurrence?.enabled != true } } ?? []
+        for task in tasks {
+            if let date = task.date, let start = task.startTime, let minutes = task.reminderMinutes { candidates.append(.init(id: task.id, title: task.title, date: date, startTime: start, minutesBefore: minutes)) }
+        }
+        for occurrence in occurrences.values.flatMap({ $0 }) where occurrence.status == "pending" {
+            if let start = occurrence.startTime, let minutes = occurrence.task.reminderMinutes { candidates.append(.init(id: occurrence.id, title: occurrence.task.title, date: occurrence.displayDate, startTime: start, minutesBefore: minutes)) }
+        }
+        return candidates
+    }
     func eventSegments(on day: String) throws -> [KairosEventSegment] {
         try KairosScheduleProjection.events(rawPlan["scheduleEvents"] as? [[String: Any]] ?? [], on: day)
     }
@@ -511,6 +527,78 @@ final class StudyPlanRepository {
     }
 
     // MARK: - Reviewed AI plan
+    func aiReviewFingerprint() throws -> String {
+        guard hasLoadedSnapshot, !isLoading else { throw KairosAIProposalEngine.Invalid("Wait for your planner to load.") }
+        return try KairosAIProposalEngine.fingerprint(rawPlan)
+    }
+
+    func makeAIProposal(actions: [KairosChatAction], ownerID: String, chatID: String, timezone: String, request: String, expectedFingerprint: String) throws -> KairosAIProposal {
+        guard Auth.auth().currentUser?.uid == ownerID, listeningUserID == ownerID, try aiReviewFingerprint() == expectedFingerprint else { throw KairosAIProposalEngine.Invalid("Your planner changed while Kairos was replying. Ask again to review the latest plan.") }
+        return try KairosAIProposalEngine.make(actions: actions, plan: rawPlan, ownerID: ownerID, chatID: chatID, planID: currentPlan?.id ?? ownerID, timezone: timezone, request: request)
+    }
+
+    @discardableResult
+    func applySavedAIProposal(_ proposal: KairosAIProposal) async -> Bool {
+        guard !isSaving, hasLoadedSnapshot, !isLoading, let user = Auth.auth().currentUser, user.isEmailVerified,
+              user.uid == listeningUserID, user.uid == proposal.ownerID, (currentPlan?.id ?? user.uid) == proposal.planID else { errorMessage = "Wait for the preview’s verified account and planner to load."; return false }
+        let uid = user.uid, token = generation
+        let planRef = db.collection("study_plans").document(proposal.planID)
+        let userRef = db.collection("users").document(uid)
+        // A confirmed receipt can settle a retry even when local state has moved.
+        let prepared = try? KairosAIProposalEngine.prepare(proposal, plan: rawPlan)
+        isSaving = true
+        defer { if generation == token { isSaving = false } }
+        do {
+            try KairosAIProposalEngine.validate(proposal)
+            _ = try await db.runTransaction { transaction, pointer in
+                do {
+                    guard let activeUser = Auth.auth().currentUser, activeUser.uid == uid, activeUser.isEmailVerified else { throw CancellationError() }
+                    let planSnapshot = try transaction.getDocument(planRef)
+                    let userSnapshot = try transaction.getDocument(userRef)
+                    let remote = planSnapshot.data() ?? [:], profile = userSnapshot.data() ?? [:]
+                    guard !planSnapshot.exists || remote["userID"] as? String == uid else { throw KairosPlannerMerge.Conflict() }
+                    if try KairosAIProposalEngine.wasApplied(proposal, plan: remote) { return true }
+                    guard let saved = (profile["aiNativeProposals"] as? [String: Any])?[proposal.chatID] as? [String: Any] else { throw KairosAIProposalEngine.Invalid("This preview was discarded or changed on another device.") }
+                    let stored = try JSONDecoder().decode(KairosAIProposal.self, from: JSONSerialization.data(withJSONObject: saved))
+                    guard try KairosAIProposalEngine.payloadFingerprint(stored) == KairosAIProposalEngine.payloadFingerprint(proposal),
+                          try KairosAIProposalEngine.fingerprint(remote) == proposal.beforeFingerprint, let prepared else { throw KairosAIProposalEngine.Invalid("Your planner or preview changed. Discard it and request a fresh preview.") }
+                    let settings = profile["settings"] as? [String: Any]
+                    let userProfile = settings?["profile"] as? [String: Any]
+                    guard userProfile?["timezone"] as? String == nil || userProfile?["timezone"] as? String == proposal.timezone else { throw KairosAIProposalEngine.Invalid("Your timezone changed. Request a fresh preview.") }
+                    guard let workspaceRaw = profile["aiWorkspace"] as? [String: Any],
+                          let chat = try KairosAIWorkspace.read(workspaceRaw, legacy: [], owner: uid).chats.first(where: { $0.id == proposal.chatID }), !chat.hasUnfinishedWebActions else { throw KairosAIProposalEngine.Invalid("This chat was removed or has an unfinished web change.") }
+                    let merged = try KairosPlannerMerge.merge(base: prepared.before, local: prepared.after, remote: remote)
+                    let response = KairosAIWorkspace.Message(id: "applied-" + proposal.id, role: "assistant", content: "Applied the reviewed changes to your planner.")
+                    let workspace = try KairosAIWorkspace.applying(.append(chatID: proposal.chatID, messages: [response]), to: workspaceRaw, legacy: [], owner: uid)
+                    var proposals = profile["aiNativeProposals"] as? [String: Any] ?? [:]
+                    proposals.removeValue(forKey: proposal.chatID)
+                    var receipts = try KairosAIProposalEngine.maps(remote["aiNativeActionReceipts"])
+                    receipts.append(try KairosAIProposalEngine.receipt(proposal))
+                    var floor = remote["aiNativeActionReceiptFloor"] as? Double ?? 0
+                    while true {
+                        let bytes = try JSONSerialization.data(withJSONObject: receipts).count
+                        if receipts.count <= 100 && bytes <= 64_000 { break }
+                        guard receipts.count > 1 else { throw KairosAIProposalEngine.Invalid("This apply receipt is too large.") }
+                        floor = max(floor, receipts.removeFirst()["createdAt"] as? Double ?? 0)
+                    }
+                    var fields: [String: Any] = ["boards": merged["boards"] ?? [], "scheduleEvents": merged["scheduleEvents"] ?? [], "aiNativeActionReceipts": receipts, "aiNativeActionReceiptFloor": floor]
+                    if planSnapshot.exists { transaction.updateData(fields, forDocument: planRef) }
+                    else { fields["userID"] = uid; fields["createdAt"] = FieldValue.serverTimestamp(); transaction.setData(fields, forDocument: planRef) }
+                    var profilePatch: [String: Any] = ["aiWorkspace": workspace, "aiNativeProposals": proposals]
+                    var progress = profile
+                    for id in prepared.completedTaskIDs {
+                        let patch = try KairosProgress.taskCompletion(data: progress, taskID: id, dayKey: KairosDate.dayKey(for: Date(), timeZone: TimeZone(identifier: proposal.timezone) ?? .current))
+                        progress.merge(patch) { _, new in new }; profilePatch.merge(patch) { _, new in new }
+                    }
+                    transaction.updateData(profilePatch, forDocument: userRef)
+                    return true
+                } catch { pointer?.pointee = error as NSError; return nil }
+            }
+            guard token == generation, Auth.auth().currentUser?.uid == uid else { return false }
+            errorMessage = nil; return true
+        } catch { guard token == generation else { return false }; errorMessage = error.localizedDescription; return false }
+    }
+
     @discardableResult
     func applyChatActions(_ actions: [KairosChatAction], revision: UUID) async -> Bool {
         guard plannerRevision == revision else { errorMessage = "The planner changed. Ask Kairos to review the latest schedule before applying this proposal."; return false }

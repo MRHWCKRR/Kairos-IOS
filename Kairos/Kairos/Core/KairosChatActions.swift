@@ -11,6 +11,14 @@ struct KairosChatAction: Codable, Identifiable, Sendable {
         var startTime: String?
         var endTime: String?
         var completed: Bool?
+        var minutesBefore: Int?
+        var eventId: String?
+        var occurrenceDate: String?
+        var status: String?
+        var day: Int?
+        var start: String?
+        var end: String?
+        var category: String?
     }
     let type: String
     let args: Arguments
@@ -33,20 +41,22 @@ enum KairosChatActions {
     static let instructions = """
     Return ONLY JSON {"reply":"Markdown response","actions":[]}.
     You may propose these actions only, with args exactly as listed:
+    create_schedule_event {title,date?,day?,start,end,category?}; update_schedule_event {eventId,occurrenceDate?,newTitle?,date?,start?,end?,category?}; delete_schedule_event {eventId,occurrenceDate?}; set_task_reminder {taskId,minutesBefore}; remove_task_reminder {taskId}; update_task_occurrence {taskId,occurrenceDate,date?,startTime?,endTime?,status?}.
     create_task {sectionId,title,date?,startTime?,endTime?}; update_task {taskId,newTitle?,date?,startTime?,endTime?,completed?}; complete_task {taskId}; delete_task {taskId};
     create_board {title}; update_board {boardId,newTitle}; delete_board {boardId}; create_section {boardId,title}; update_section {sectionId,newTitle}; delete_section {boardId,sectionId}.
-    Dates are YYYY-MM-DD and times HH:MM. Use actual IDs from the current planner, never invent target IDs. Actions are proposals awaiting review, not executed changes. Do not claim success. Do not propose multiple actions targeting the same item. Recurring tasks must be changed through occurrence details in Schedule; do not change a series. For unsupported actions (reminders, fixed events, recurrence, automatic planning), explain that the user must use the web workspace. Do not pretend to perform them. Ask one clarification if a target or required field is unclear.
+    Dates are YYYY-MM-DD and times HH:MM. Use actual IDs from the current planner, never invent target IDs. Actions are proposals awaiting review, not executed changes. Do not claim success. Do not propose multiple actions targeting the same item. For a weekly fixed event update/delete require its original occurrenceDate. Never silently edit a series. For a recurring task use update_task_occurrence with its original occurrenceDate and status pending/completed/skipped. Task reminder minutesBefore is 1–10080; a series reminder applies to every occurrence. Create events with exactly one of date or day (0=Sunday to6=Saturday); weekly events start from today. Categories: sleep,class,tutoring,training,other. Automatic multi-assignment planning, whole-series edits, event import/feed actions remain web-only. Ask a clarification if a target or required field is unclear.
     """
 
-    static func apply(_ actions: [KairosChatAction], to source: [KairosBoard]) throws -> [KairosBoard] {
+    static func apply(_ actions: [KairosChatAction], to source: [KairosBoard], idPrefix: String? = nil) throws -> [KairosBoard] {
         guard !actions.isEmpty, actions.count <= 10 else { throw KairosTaskMutation.Invalid() }
         var boards = source
-        for action in actions {
+        for (actionIndex, action) in actions.enumerated() {
+            let identity = idPrefix.map { $0 + "-\(actionIndex)" } ?? UUID().uuidString
             let a = action.args
             switch action.type {
             case "create_task":
                 guard let section = a.sectionId, let title = a.title else { throw KairosTaskMutation.Invalid() }
-                let id = "task-" + UUID().uuidString
+                let id = "task-" + identity
                 boards = try KairosTaskMutation.apply(.create(sectionID: section, taskID: id, title: title, parentTaskID: nil), to: boards)
                 var patch = KairosTaskPatch()
                 if let date = a.date { patch.date = .set(date) }
@@ -75,7 +85,7 @@ enum KairosChatActions {
                 }
             case "create_board":
                 guard let title = a.title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw KairosTaskMutation.Invalid() }
-                boards.append(.init(id: "board-" + UUID().uuidString, title: title, archived: false, sections: []))
+                boards.append(.init(id: "board-" + identity, title: title, archived: false, sections: []))
             case "update_board", "delete_board", "create_section", "delete_section":
                 guard let id = a.boardId, let bi = boards.firstIndex(where: { $0.id == id && !$0.archived }) else { throw KairosTaskMutation.Invalid() }
                 if action.type == "delete_board" { boards.remove(at: bi) }
@@ -83,7 +93,7 @@ enum KairosChatActions {
                     guard let title = a.newTitle, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw KairosTaskMutation.Invalid() }; boards[bi].title = title
                 } else if action.type == "create_section" {
                     guard let title = a.title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw KairosTaskMutation.Invalid() }
-                    boards[bi].sections.append(.init(id: "sec-" + UUID().uuidString, title: title, archived: false, tasks: []))
+                    boards[bi].sections.append(.init(id: "sec-" + identity, title: title, archived: false, tasks: []))
                 } else {
                     guard let id = a.sectionId, boards[bi].sections.contains(where: { $0.id == id && !$0.archived }) else { throw KairosTaskMutation.Invalid() }
                     boards[bi].sections.removeAll { $0.id == id }

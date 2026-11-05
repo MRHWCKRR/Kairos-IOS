@@ -10,9 +10,10 @@ final class AIHelperViewModel {
     var drafts: [String: String] = [:]
     var pendingChats = Set<String>()
     var chatErrors: [String: String] = [:]
-    var proposals: [String: [KairosChatAction]] = [:]
-    var proposalRevisions: [String: UUID] = [:]
-    var failedResponses: [String: KairosAIWorkspace.Message] = [:]
+    struct PendingReply { let message: KairosAIWorkspace.Message; let proposal: KairosAIProposal? }
+    var proposals: [String: [KairosChatAction]] { profileRepo.aiProposals.mapValues(\.actions) }
+    var failedResponses: [String: PendingReply] = [:]
+    var notificationDeliveryNotice: String?
     var startingMessage = false
     var isEditingWorkspace = false
     var isGeneratingBoard = false
@@ -43,7 +44,7 @@ final class AIHelperViewModel {
     func syncHistoryFromProfile() {
         if ownerID != profileRepo.aiWorkspaceOwnerID {
             ownerID = profileRepo.aiWorkspaceOwnerID
-            activeChatID = nil; activeProjectID = nil; drafts = [:]; pendingChats = []; chatErrors = [:]; proposals = [:]; proposalRevisions = [:]; failedResponses = [:]
+            activeChatID = nil; activeProjectID = nil; drafts = [:]; pendingChats = []; chatErrors = [:]; failedResponses = [:]
         }
         if !chats.contains(where: { $0.id == activeChatID }) {
             activeChatID = chats.first(where: { $0.id == profileRepo.aiWorkspace?.activeChatID })?.id ?? chats.first?.id
@@ -104,11 +105,12 @@ final class AIHelperViewModel {
         chatErrors[chatID] = nil
         do {
             if let response = failedResponses[chatID] {
-                let saved = await profileRepo.editAIWorkspace(.append(chatID: chatID, messages: [response]), ownerID: owner)
+                let saved = await profileRepo.saveAIReply(response.message, proposal: response.proposal, chatID: chatID, ownerID: owner)
                 if saved { failedResponses[chatID] = nil } else { chatErrors[chatID] = profileRepo.errorMessage }
                 return
             }
-            let revision = planRepo.plannerRevision
+            let fingerprint = try? planRepo.aiReviewFingerprint()
+            let timezone = profileRepo.profile?.timezone ?? TimeZone.current.identifier
             let project = projects.first { $0.id == chat.projectID }
             var contextParts: [String] = [
                 "You are Kairos AI, a helpful productivity assistant. Use current planner and project information when relevant. Never claim an unexecuted change succeeded.",
@@ -140,32 +142,41 @@ final class AIHelperViewModel {
             let reply = try await aiRepository.sendChatRequest(messages: [ChatMessage(role: "system", content: context + "\n\n" + KairosChatActions.instructions)] + history)
             guard profileRepo.aiWorkspaceOwnerID == owner else { return }
             let parsed = try KairosChatResponse.parse(reply)
+            var proposal: KairosAIProposal?
             if !parsed.actions.isEmpty {
-                _ = try KairosChatActions.apply(parsed.actions, to: planRepo.currentPlan?.boards ?? [])
-                proposals[chatID] = parsed.actions; proposalRevisions[chatID] = revision
+                guard let fingerprint else { throw KairosAIProposalEngine.Invalid("Wait for your planner to load before requesting a change.") }
+                proposal = try planRepo.makeAIProposal(actions: parsed.actions, ownerID: owner, chatID: chatID, timezone: timezone, request: chat.messages.last(where: { $0.role == "user" })?.content ?? "", expectedFingerprint: fingerprint)
             }
             let response = KairosAIWorkspace.Message(id: "message-" + UUID().uuidString, role: "assistant", content: parsed.reply.isEmpty ? "Review the proposed changes below." : parsed.reply)
-            let saved = await profileRepo.editAIWorkspace(.append(chatID: chatID, messages: [response]), ownerID: owner)
-            if !saved { failedResponses[chatID] = response; chatErrors[chatID] = profileRepo.errorMessage ?? "The reply could not be saved. Retry when connected." }
+            let saved = await profileRepo.saveAIReply(response, proposal: proposal, chatID: chatID, ownerID: owner)
+            if !saved { failedResponses[chatID] = PendingReply(message: response, proposal: proposal); chatErrors[chatID] = profileRepo.errorMessage ?? "The reply and preview could not be saved. Retry when connected." }
         } catch {
             guard profileRepo.aiWorkspaceOwnerID == owner else { return }
             chatErrors[chatID] = error.localizedDescription
         }
     }
     func applyProposals() async -> Bool {
-        guard let chatID = activeChatID, let uid = ownerID, let actions = proposals[chatID], let revision = proposalRevisions[chatID], !isApplyingPlan else { return false }
+        guard let chatID = activeChatID, let uid = ownerID, let proposal = profileRepo.aiProposals[chatID], !isApplyingPlan else { return false }
         guard currentChat?.hasUnfinishedWebActions != true else { errorMessage = "Finish the pending change on the web before applying another proposal."; return false }
-        let previousTasks = planRepo.currentPlan?.boards.flatMap { $0.sections.flatMap(\.tasks) } ?? []
-        let completedIDs = actions.filter { $0.type == "complete_task" || $0.args.completed == true }.compactMap { $0.args.taskId }.filter { id in previousTasks.contains { $0.id == id && !$0.completed } }
         isApplyingPlan = true
         defer { isApplyingPlan = false }
-        let saved = await planRepo.applyChatActions(actions, revision: revision)
+        let saved = await planRepo.applySavedAIProposal(proposal)
         guard profileRepo.aiWorkspaceOwnerID == uid else { return false }
         if saved {
-            proposals[chatID] = nil; proposalRevisions[chatID] = nil
-            for id in completedIDs { await profileRepo.recordTaskCompletion(taskID: id) }
-            _ = await profileRepo.editAIWorkspace(.append(chatID: chatID, messages: [.init(id: "message-" + UUID().uuidString, role: "assistant", content: "Applied the reviewed changes to your planner.")]), ownerID: uid)
+            profileRepo.acknowledgeAppliedAIProposal(proposal)
+            errorMessage = nil
+            if proposal.actions.contains(where: { $0.type == "set_task_reminder" }) {
+                notificationDeliveryNotice = await KairosTaskReminderScheduler.enableFromUserAction(notificationsEnabled: profileRepo.notificationSettings?.enabled != false)
+            }
         } else { errorMessage = planRepo.errorMessage }
+        return saved
+    }
+    func discardProposals() async -> Bool {
+        guard let chatID = activeChatID, let proposal = profileRepo.aiProposals[chatID], !isApplyingPlan else { return false }
+        isApplyingPlan = true
+        defer { isApplyingPlan = false }
+        let saved = await profileRepo.discardAIProposal(proposal)
+        if !saved { errorMessage = profileRepo.errorMessage }
         return saved
     }
     func createPlanFromChat() {
