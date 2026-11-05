@@ -31,4 +31,8 @@ final class PlannerSearchTests: XCTestCase {
     func testMalformedDateCannotIndexPlanner() throws {
         XCTAssertThrowsError(try KairosPlannerSearch.build(planJSON: "{\"boards\":[]}", today: "2026-02-30"))
     }
+    func testArchivedMalformedRecurrenceDoesNotHideReadableTasks() throws {
+        let index = try makeIndex([["id": "a", "title": "Readable"], ["id": "old", "title": "Legacy", "archived": true, "recurrence": ["enabled": true, "exceptions": "legacy"]]])
+        XCTAssertEqual(try KairosPlannerSearch.search(index, query: "Readable", status: .all).total, 1)
+    }
 }
