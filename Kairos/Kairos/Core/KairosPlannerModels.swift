@@ -29,6 +29,9 @@ struct KairosTask: Codable, Identifiable, Equatable, Sendable {
     var estimatedMinutes: Int? = nil
     var checklist: [KairosChecklistItem]? = nil
     var recurrence: KairosRecurrenceMarker? = nil
+    var startTime: String? = nil
+    var endTime: String? = nil
+    var dueDate: String? = nil
 }
 
 struct KairosScheduleEvent: Codable, Identifiable, Equatable {
@@ -93,6 +96,9 @@ extension KairosTask {
         estimatedMinutes = try c.decodeIfPresent(Int.self, forKey: .estimatedMinutes)
         checklist = try c.decodeIfPresent([KairosChecklistItem].self, forKey: .checklist)
         recurrence = try c.decodeIfPresent(KairosRecurrenceMarker.self, forKey: .recurrence)
+        startTime = try c.decodeIfPresent(String.self, forKey: .startTime)
+        endTime = try c.decodeIfPresent(String.self, forKey: .endTime)
+        dueDate = try c.decodeIfPresent(String.self, forKey: .dueDate)
     }
 }
 

@@ -333,6 +333,11 @@ struct TaskDetailView: View {
     @State private var dueDate = Date()
     @State private var hasDueTime = false
     @State private var dueTime = Date()
+    @State private var hasScheduledTime = false
+    @State private var scheduledStart = Date()
+    @State private var scheduledEnd = Date()
+    @State private var hasDeadline = false
+    @State private var deadline = Date()
     @State private var showSubtaskCreator = false
     @State private var originalTask: KairosTask?
     @State private var submitting = false
@@ -416,11 +421,18 @@ struct TaskDetailView: View {
     private var scheduleCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Schedule", systemImage: "calendar").font(.subheadline.weight(.semibold))
-            Toggle("Due date", isOn: $hasDueDate)
+            Toggle("Scheduled date", isOn: $hasDueDate)
             if hasDueDate { DatePicker("Date", selection: $dueDate, displayedComponents: .date) }
+            Toggle("Scheduled time", isOn: $hasScheduledTime)
+            if hasScheduledTime {
+                DatePicker("Start", selection: $scheduledStart, displayedComponents: .hourAndMinute)
+                DatePicker("End", selection: $scheduledEnd, displayedComponents: .hourAndMinute)
+            }
+            Toggle("Deadline", isOn: $hasDeadline)
+            if hasDeadline { DatePicker("Due date", selection: $deadline, displayedComponents: .date) }
             Toggle("Due time", isOn: $hasDueTime)
             if hasDueTime { DatePicker("Time", selection: $dueTime, displayedComponents: .hourAndMinute) }
-            Text("Scheduled tasks automatically appear on the matching day in Kairos Calendar. Apple Calendar export remains opt-in.")
+            Text("Scheduled time appears in Schedule on mobile and web. Your deadline is separate.")
                 .font(.caption).foregroundStyle(.secondary)
         }.padding(18).kairosCard(cornerRadius: 22)
     }
@@ -451,6 +463,9 @@ struct TaskDetailView: View {
         checklist = task.checklist ?? []
         if let dateKey = task.date { hasDueDate = true; dueDate = Self.date(from: dateKey) ?? Date() }
         if let value = task.dueTime, let date = Self.time(from: value) { hasDueTime = true; dueTime = date }
+        if let value = task.startTime, let date = Self.time(from: value) { hasScheduledTime = true; scheduledStart = date }
+        if let value = task.endTime, let date = Self.time(from: value) { scheduledEnd = date }
+        if let value = task.dueDate, let date = Self.date(from: value) { hasDeadline = true; deadline = date }
     }
 
     private func save() {
@@ -472,6 +487,12 @@ struct TaskDetailView: View {
         if checklist != (originalTask.checklist ?? []) { patch.checklist = .set(checklist) }
         if dateKey != originalTask.date { patch.date = .set(dateKey) }
         if timeKey != originalTask.dueTime { patch.dueTime = .set(timeKey) }
+        let start = hasScheduledTime ? Self.timeKey(from: scheduledStart) : nil
+        let end = hasScheduledTime ? Self.timeKey(from: scheduledEnd) : nil
+        if start != originalTask.startTime { patch.startTime = .set(start) }
+        if end != originalTask.endTime { patch.endTime = .set(end) }
+        let deadlineKey = hasDeadline ? Self.dateKey(from: deadline) : nil
+        if deadlineKey != originalTask.dueDate { patch.dueDate = .set(deadlineKey) }
         submitting = true
         saveError = nil
         Task {

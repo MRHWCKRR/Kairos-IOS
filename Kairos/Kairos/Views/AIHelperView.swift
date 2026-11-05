@@ -3,152 +3,251 @@ import SwiftUI
 struct AIHelperView: View {
     @Environment(UserProfileRepository.self) private var profileRepo
     @Environment(StudyPlanRepository.self) private var planRepo
-    @Environment(\.dismiss) private var dismiss
     @State private var viewModel: AIHelperViewModel?
+    @State private var showingHistory = false
     @FocusState private var inputFocused: Bool
 
     var body: some View {
         NavigationStack {
             Group {
-                if let viewModel { content(viewModel) }
-                else { ProgressView().tint(KairosColors.accent) }
+                if let vm = viewModel {
+                    if profileRepo.isLoading { ProgressView("Loading workspace…") }
+                    else if let error = profileRepo.aiWorkspaceError { ContentUnavailableView("Workspace unavailable", systemImage: "exclamationmark.triangle", description: Text(error)) }
+                    else if let project = vm.projects.first(where: { $0.id == vm.activeProjectID }) { projectHome(project, vm: vm) }
+                    else { conversation(vm) }
+                } else { ProgressView() }
             }
-            .navigationTitle("AI Helper")
+            .kairosBackground()
+            .navigationTitle("Kairos AI")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if let viewModel {
-                    ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Chats and projects", systemImage: "sidebar.left") { inputFocused = false; showingHistory = true }
+                }
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if let vm = viewModel {
+                        Button("New chat", systemImage: "square.and.pencil") { Task { await vm.newChat() } }.disabled(vm.isEditingWorkspace || profileRepo.aiWorkspace == nil)
                         Menu {
-                            Button { viewModel.createPlanFromChat() } label: { Label("Create Plan From Chat", systemImage: "list.bullet.clipboard") }
-                            Button(role: .destructive) { viewModel.clearChat() } label: { Label("New Chat", systemImage: "sparkles") }
-                        } label: { Image(systemName: "ellipsis.circle") }
+                            Button("Create plan from chat", systemImage: "list.bullet.clipboard") { vm.createPlanFromChat() }.disabled(vm.chatMessages.isEmpty || vm.isLoading)
+                        } label: { Image(systemName: "ellipsis") }
                     }
                 }
+                ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { inputFocused = false } }
             }
-        }
-        .task {
-            if viewModel == nil { viewModel = AIHelperViewModel(profileRepo: profileRepo, planRepo: planRepo) }
-            else { viewModel?.syncHistoryFromProfile() }
+            .sheet(isPresented: $showingHistory) {
+                if let vm = viewModel { AIWorkspaceHistory(viewModel: vm).presentationDragIndicator(.visible) }
+            }
+            .task { if viewModel == nil { viewModel = AIHelperViewModel(profileRepo: profileRepo, planRepo: planRepo) } }
+            .onChange(of: profileRepo.aiWorkspace?.chats.map(\.id)) { _, _ in viewModel?.syncHistoryFromProfile() }
+            .onChange(of: profileRepo.aiWorkspaceOwnerID) { _, _ in viewModel?.syncHistoryFromProfile() }
         }
     }
 
-    @ViewBuilder
-    private func content(_ vm: AIHelperViewModel) -> some View {
+    private func conversation(_ vm: AIHelperViewModel) -> some View {
         VStack(spacing: 0) {
+            if let chat = vm.currentChat, !chat.messages.isEmpty {
+                Text(chat.title).font(.caption).foregroundStyle(.secondary).lineLimit(1).padding(.horizontal).padding(.top, 4)
+            }
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 14) {
-                        if vm.chatMessages.isEmpty { emptyState }
-                        ForEach(Array(vm.chatMessages.enumerated()), id: \.offset) { index, message in ChatBubble(message: message).id(index) }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 18)
-                    .padding(.bottom, vm.isLoading && !vm.isGeneratingBoard ? 72 : 18)
+                    LazyVStack(alignment: .leading, spacing: 24) {
+                        if vm.currentChat?.messages.isEmpty != false {
+                            VStack(spacing: 10) {
+                                Text("What can I help with?").font(.title2.weight(.semibold))
+                                Text("Study, planning, organisation, and ideas.").font(.subheadline).foregroundStyle(.secondary)
+                            }.frame(maxWidth: .infinity).padding(.vertical, 70)
+                        }
+                        ForEach(vm.currentChat?.messages ?? []) { message in
+                            AIMessageRow(message: message)
+                        }
+                        if vm.pendingChats.contains(vm.activeChatID ?? "") {
+                            HStack(spacing: 10) { ProgressView().controlSize(.small); Text("Thinking…").font(.subheadline).foregroundStyle(.secondary) }
+                        }
+                        Color.clear.frame(height: 1).id("chat-bottom")
+                    }.padding(20)
                 }
                 .scrollDismissesKeyboard(.interactively)
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if vm.isLoading && !vm.isGeneratingBoard { TypingIndicator().padding(.horizontal, 16).padding(.bottom, 4) }
-                }
-                .onChange(of: vm.chatMessages.count) { _, _ in
-                    guard vm.chatMessages.count > 0 else { return }
-                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(vm.chatMessages.count - 1, anchor: .bottom) }
-                }
+                .onChange(of: vm.currentChat?.messages.last?.id) { _, _ in withAnimation { proxy.scrollTo("chat-bottom", anchor: .bottom) } }
+                .onChange(of: vm.activeChatID) { _, _ in proxy.scrollTo("chat-bottom", anchor: .bottom) }
             }
-
-            if let error = vm.errorMessage { Text(error).font(.footnote).foregroundStyle(.red).padding(.horizontal, 16).padding(.bottom, 6) }
-            inputBar(vm)
+            if let error = vm.chatErrors[vm.activeChatID ?? ""] {
+                HStack { Text(error).font(.caption).foregroundStyle(.red); Spacer(); Button("Retry") { vm.retryReply() }.disabled(vm.isLoading) }.padding(.horizontal, 16).padding(.vertical, 8)
+            }
+            if let error = vm.errorMessage { Text(error).font(.caption).foregroundStyle(.red).padding(.horizontal) }
+            composer(vm)
         }
-        .kairosBackground()
         .overlay {
-            if vm.isGeneratingBoard {
-                ZStack {
-                    Color.black.opacity(0.22).ignoresSafeArea()
-                    VStack(spacing: 14) {
-                        ProgressView().tint(KairosColors.accent)
-                        Text("Architecting your board…").font(.headline)
-                        Text("Turning the conversation into a study plan").font(.caption).foregroundStyle(.secondary)
-                    }
-                    .multilineTextAlignment(.center).padding(24).frame(maxWidth: 300).kairosCard(cornerRadius: 22)
-                }
-            }
+            if vm.isGeneratingBoard { ProgressView("Preparing plan…").padding(24).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16)) }
         }
         .sheet(isPresented: Binding(get: { vm.showConfirmationDialog }, set: { if !$0 { vm.dismissDialog() } })) {
             PlanConfirmationSheet(viewModel: vm, existingBoards: planRepo.currentPlan?.boards.filter { !$0.archived } ?? [])
         }
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 12) {
-            ZStack {
-                Circle().fill(KairosColors.accent.opacity(0.12)).frame(width: 72, height: 72)
-                Image(systemName: "sparkles").font(.system(size: 30, weight: .semibold)).foregroundStyle(KairosColors.accent)
-            }
-            Text("Your AI Study Coach").font(.title3.weight(.bold))
-            Text("Ask a question, describe an assignment, or tell Kairos what you want to study.").font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 340)
-        }
-        .frame(maxWidth: .infinity).padding(.top, 48).padding(.bottom, 30)
-    }
-
-    private func inputBar(_ vm: AIHelperViewModel) -> some View {
+    private func composer(_ vm: AIHelperViewModel) -> some View {
         HStack(alignment: .bottom, spacing: 10) {
-            TextField("Ask anything…", text: Binding(get: { vm.userInput }, set: { vm.userInput = $0 }), axis: .vertical)
-                .lineLimit(1...5)
-                .focused($inputFocused)
-                .submitLabel(.send)
-                .onSubmit { if !vm.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { vm.handleSend() } }
-                .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay { RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(.white.opacity(0.14), lineWidth: 1) }
-
-            Button { vm.handleSend() } label: { Image(systemName: "arrow.up").font(.system(size: 16, weight: .bold)).frame(width: 42, height: 42) }
-                .buttonStyle(.glassProminent).tint(KairosColors.accent)
-                .disabled(vm.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vm.isLoading)
+            TextField("Message Kairos", text: Binding(get: { vm.userInput }, set: { vm.userInput = $0 }), axis: .vertical)
+                .lineLimit(1...6).focused($inputFocused).padding(.leading, 8).padding(.vertical, 10)
+            Button { vm.handleSend() } label: {
+                Image(systemName: "arrow.up").font(.headline).foregroundStyle(.white).frame(width: 38, height: 38).background(KairosColors.accent, in: Circle())
+            }
+            .accessibilityLabel("Send message")
+            .disabled(vm.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vm.isLoading || vm.isEditingWorkspace || profileRepo.aiWorkspaceOwnerID == nil)
+            .opacity(vm.isLoading || vm.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.4 : 1)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        // MainTabView owns the floating navigation bar. Explicitly lift the
-        // composer visually so it cannot sit underneath that bar on iOS 26.
-        .padding(.bottom, 8)
-        .background(.bar)
-        .offset(y: -76)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if inputFocused {
-                HStack {
-                    Spacer()
-                    Button("Done") { inputFocused = false }
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(KairosColors.accent)
+        .padding(8).background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24))
+        .padding(.horizontal, 14).padding(.vertical, 8)
+    }
+
+    private func projectHome(_ project: KairosAIWorkspace.Project, vm: AIHelperViewModel) -> some View {
+        List {
+            Section {
+                Text(project.title).font(.title2.weight(.semibold))
+                if !project.description.isEmpty { Text(project.description).foregroundStyle(.secondary) }
+            }
+            Section("Shared context") { Text(project.sharedContext.isEmpty ? "Add project context from Chats and projects." : project.sharedContext).font(.subheadline) }
+            Section("Chats") {
+                Button("New chat in project", systemImage: "square.and.pencil") { Task { await vm.newChat(projectID: project.id) } }
+                ForEach(vm.chats.filter { $0.projectID == project.id }) { chat in
+                    Button { vm.activeChatID = chat.id; vm.activeProjectID = nil } label: { Text(chat.title).foregroundStyle(.primary) }
                 }
-                .padding(.horizontal, 16).padding(.vertical, 4).background(.bar)
             }
+        }.scrollContentBackground(.hidden)
+    }
+}
+
+private struct AIMessageRow: View {
+    let message: KairosAIWorkspace.Message
+    var body: some View {
+        HStack(alignment: .top) {
+            if message.role == "user" { Spacer(minLength: 40) }
+            Group {
+                if message.role == "user" {
+                    Text(message.content).padding(.horizontal, 16).padding(.vertical, 11).background(KairosColors.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 20))
+                } else {
+                    AIMarkdownText(content: message.content).frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }.textSelection(.enabled)
         }
     }
 }
 
-private struct ChatBubble: View {
-    let message: ChatMessage
-    private var isUser: Bool { message.role == "user" }
+private struct AIMarkdownText: View {
+    let content: String
     var body: some View {
-        VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
-            HStack(alignment: .bottom, spacing: 8) {
-                if !isUser { Image(systemName: "sparkles").font(.caption.weight(.semibold)).foregroundStyle(KairosColors.accent) }
-                Text(message.content).textSelection(.enabled).padding(.horizontal, 15).padding(.vertical, 11)
-                    .background(isUser ? KairosColors.accent : Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .foregroundStyle(isUser ? .white : .primary)
+        let pieces = content.components(separatedBy: "```")
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(pieces.enumerated()), id: \.offset) { index, piece in
+                if index % 2 == 1 {
+                    ScrollView(.horizontal) { Text(piece).font(.system(.caption, design: .monospaced)).padding(12) }
+                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                } else {
+                    Text((try? AttributedString(markdown: piece, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(piece))
+                        .font(.body).lineSpacing(4)
+                }
             }
-            Text(isUser ? "You" : "Kairos AI").font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 4)
-        }.frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+        }
+        .environment(\.openURL, OpenURLAction { url in ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") ? .systemAction : .discarded })
     }
 }
 
-private struct TypingIndicator: View {
+private struct AIWorkspaceHistory: View {
+    @Bindable var viewModel: AIHelperViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var renameChat: KairosAIWorkspace.Chat?
+    @State private var deleteChat: KairosAIWorkspace.Chat?
+    @State private var editProject: KairosAIWorkspace.Project?
+    @State private var creatingProject = false
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "sparkles").foregroundStyle(KairosColors.accent)
-            ProgressView().controlSize(.small)
-            Text("Kairos is thinking…").font(.caption).foregroundStyle(.secondary)
-            Spacer()
+        NavigationStack {
+            List {
+                Section {
+                    Button("New chat", systemImage: "square.and.pencil") { Task { await viewModel.newChat(); if viewModel.errorMessage == nil { dismiss() } } }
+                    Button("All chats", systemImage: "bubble.left.and.bubble.right") { viewModel.activeProjectID = nil }
+                }
+                Section {
+                    ForEach(viewModel.projects) { project in
+                        Button { viewModel.activeProjectID = project.id; dismiss() } label: { Label(project.title, systemImage: "folder").foregroundStyle(.primary) }
+                            .contextMenu { Button("Edit project") { editProject = project } }
+                    }
+                    Button("New project", systemImage: "folder.badge.plus") { creatingProject = true }
+                } header: { Text("Projects") }
+                Section("Chats") {
+                    ForEach(viewModel.chats) { chat in
+                        Button { viewModel.activeChatID = chat.id; viewModel.activeProjectID = nil; dismiss() } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(chat.title).lineLimit(1)
+                                    if let project = viewModel.projects.first(where: { $0.id == chat.projectID }) { Text(project.title).font(.caption).foregroundStyle(.secondary) }
+                                }
+                                Spacer()
+                                if viewModel.pendingChats.contains(chat.id) { ProgressView().controlSize(.small) }
+                                else if viewModel.activeChatID == chat.id { Image(systemName: "checkmark").foregroundStyle(KairosColors.accent) }
+                            }.foregroundStyle(.primary)
+                        }
+                        .contextMenu {
+                            Button("Rename", systemImage: "pencil") { renameChat = chat }
+                            Menu("Move to project") {
+                                Button("No project") { Task { await viewModel.edit(.moveChat(id: chat.id, projectID: "")) } }
+                                ForEach(viewModel.projects) { project in Button(project.title) { Task { await viewModel.edit(.moveChat(id: chat.id, projectID: project.id)) } } }
+                            }
+                            Button("Delete", systemImage: "trash", role: .destructive) { deleteChat = chat }
+                        }
+                    }
+                }
+                if let error = viewModel.errorMessage { Text(error).font(.footnote).foregroundStyle(.red) }
+            }
+            .disabled(viewModel.isEditingWorkspace)
+            .safeAreaInset(edge: .bottom) {
+                HStack { Text("AI workspace").font(.caption).foregroundStyle(.secondary); Spacer(); Link("View plans", destination: URL(string: "https://kairos-web.kirosapp.workers.dev/plans.html")!) }.padding().background(.bar)
+            }
+            .navigationTitle("Chats and projects").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .sheet(item: $renameChat) { chat in
+                KairosNameEditor(heading: "Rename chat", initialValue: chat.title, saveLabel: "Save", failureMessage: { viewModel.errorMessage }) { title in await viewModel.edit(.renameChat(id: chat.id, title: title)) }
+            }
+            .sheet(item: $editProject) { project in AIProjectEditor(viewModel: viewModel, project: project) }
+            .sheet(isPresented: $creatingProject) { AIProjectEditor(viewModel: viewModel, project: nil) }
+            .confirmationDialog("Delete this chat?", isPresented: Binding(get: { deleteChat != nil }, set: { if !$0 { deleteChat = nil } }), titleVisibility: .visible) {
+                Button("Delete chat", role: .destructive) { if let chat = deleteChat { Task { if await viewModel.edit(.deleteChat(id: chat.id)) { viewModel.syncHistoryFromProfile() }; deleteChat = nil } } }
+            } message: { Text("This also removes the conversation from your web workspace.") }
         }
-        .padding(.horizontal, 14).padding(.vertical, 10).background(.regularMaterial, in: Capsule()).frame(maxWidth: 190, alignment: .leading)
+    }
+}
+
+private struct AIProjectEditor: View {
+    @Bindable var viewModel: AIHelperViewModel
+    let project: KairosAIWorkspace.Project?
+    @Environment(\.dismiss) private var dismiss
+    @State private var title: String
+    @State private var description: String
+    @State private var context: String
+    @State private var confirmingDelete = false
+    init(viewModel: AIHelperViewModel, project: KairosAIWorkspace.Project?) {
+        self.viewModel = viewModel; self.project = project
+        _title = State(initialValue: project?.title ?? ""); _description = State(initialValue: project?.description ?? ""); _context = State(initialValue: project?.sharedContext ?? "")
+    }
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Project") { TextField("Name", text: $title); TextField("Description", text: $description, axis: .vertical).lineLimit(2...5) }
+                Section("Shared context") { TextEditor(text: $context).frame(minHeight: 140); Text("Used across chats in this project on mobile and web.").font(.caption).foregroundStyle(.secondary) }
+                if let error = viewModel.errorMessage { Text(error).foregroundStyle(.red) }
+                if project != nil { Button("Delete project", role: .destructive) { confirmingDelete = true } }
+            }
+            .disabled(viewModel.isEditingWorkspace).interactiveDismissDisabled()
+            .navigationTitle(project == nil ? "New project" : "Edit project").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(viewModel.isEditingWorkspace) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { Task { if await viewModel.edit(.saveProject(id: project?.id ?? "project-" + UUID().uuidString, title: title, description: description, context: context, creating: project == nil)) { dismiss() } } }
+                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isEditingWorkspace)
+                }
+            }
+            .confirmationDialog("Delete project? Chats will be kept in All chats.", isPresented: $confirmingDelete, titleVisibility: .visible) {
+                Button("Delete project", role: .destructive) { if let project { Task { if await viewModel.edit(.deleteProject(id: project.id)) { viewModel.activeProjectID = nil; dismiss() } } } }
+            }
+        }
     }
 }
 

@@ -21,6 +21,9 @@ struct KairosTaskPatch {
     var date: KairosFieldEdit<String?> = .unchanged
     var dueTime: KairosFieldEdit<String?> = .unchanged
     var parentTaskID: KairosFieldEdit<String?> = .unchanged
+    var startTime: KairosFieldEdit<String?> = .unchanged
+    var endTime: KairosFieldEdit<String?> = .unchanged
+    var dueDate: KairosFieldEdit<String?> = .unchanged
 }
 
 enum KairosTaskCommand {
@@ -88,6 +91,9 @@ enum KairosTaskMutation {
                 try patch.description.apply(to: &tasks[ti].taskDescription, expected: expected.map { $0.taskDescription })
                 try patch.date.apply(to: &tasks[ti].date, expected: expected.map { $0.date })
                 try patch.dueTime.apply(to: &tasks[ti].dueTime, expected: expected.map { $0.dueTime })
+                try patch.startTime.apply(to: &tasks[ti].startTime, expected: expected.map { $0.startTime })
+                try patch.endTime.apply(to: &tasks[ti].endTime, expected: expected.map { $0.endTime })
+                try patch.dueDate.apply(to: &tasks[ti].dueDate, expected: expected.map { $0.dueDate })
                 try patch.parentTaskID.apply(to: &tasks[ti].parentTaskID, expected: expected.map { $0.parentTaskID })
                 guard !tasks[ti].title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw Invalid() }
                 // Existing links may point at an archived parent. Only a new

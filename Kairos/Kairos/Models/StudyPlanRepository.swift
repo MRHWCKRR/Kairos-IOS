@@ -208,6 +208,20 @@ final class StudyPlanRepository {
     }
 
     // MARK: - Recurring occurrences
+    func eventSegments(on day: String) throws -> [KairosEventSegment] {
+        try KairosScheduleProjection.events(rawPlan["scheduleEvents"] as? [[String: Any]] ?? [], on: day)
+    }
+
+    @discardableResult
+    func addScheduledTask(sectionID: String, title: String, day: String, start: String?, end: String?) async -> Bool {
+        let id = "task-\(UUID().uuidString)"
+        return await mutateBoards { boards in
+            boards = try KairosTaskMutation.apply(.create(sectionID: sectionID, taskID: id, title: title, parentTaskID: nil), to: boards)
+            var patch = KairosTaskPatch(); patch.date = .set(day); patch.startTime = .set(start); patch.endTime = .set(end)
+            boards = try KairosTaskMutation.apply(.update(taskID: id, patch: patch, expected: nil), to: boards)
+        }
+    }
+
     func recurringOccurrences(on day: String) async throws -> [KairosRecurringOccurrence] {
         var payloads: [String] = []
         var ids = Set<String>()

@@ -64,8 +64,8 @@ struct MainTabView: View {
         HStack(spacing: 4) {
             tabButton(0, title: "Home", icon: "house.fill")
             tabButton(1, title: "Boards", icon: "square.stack.3d.up.fill")
-            tabButton(2, title: "AI", icon: "sparkles", prominent: true)
-            tabButton(3, title: "Calendar", icon: "calendar")
+            tabButton(2, title: "AI", icon: "bubble.left.and.bubble.right.fill", prominent: true)
+            tabButton(3, title: "Schedule", icon: "calendar")
             tabButton(4, title: "Goals", icon: "trophy.fill")
         }
         .padding(5).frame(maxWidth: 430)
