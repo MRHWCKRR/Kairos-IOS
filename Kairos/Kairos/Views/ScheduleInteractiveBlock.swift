@@ -34,7 +34,7 @@ struct ScheduleInteractiveBlock: View {
                 }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(6)
             }
             .buttonStyle(.plain)
-            .highPriorityGesture(moveGesture, including: editable && !busy ? .all : .none)
+            .highPriorityGesture(moveGesture, including: editable && !busy ? .all : .subviews)
             if editable {
                 Button(action: editDetails) {
                     Image(systemName: "arrow.up.and.down").font(.system(size: 11, weight: .semibold))
@@ -43,7 +43,7 @@ struct ScheduleInteractiveBlock: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Resize \(title)")
-                .highPriorityGesture(resizeGesture, including: busy ? .none : .all)
+                .highPriorityGesture(resizeGesture, including: busy ? .subviews : .all)
             }
         }
         .background(KairosColors.accent.opacity(completed ? 0.08 : 0.16), in: RoundedRectangle(cornerRadius: 7))
