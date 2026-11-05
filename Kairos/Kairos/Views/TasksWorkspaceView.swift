@@ -13,6 +13,10 @@ struct TasksWorkspaceView: View {
     @State private var optimisticCompletedIDs: Set<String> = []
     @State private var pendingTaskIDs: Set<String> = []
     @State private var isCreateExpanded = false
+    @State private var editingBoard: KairosBoard?
+    @State private var renamingSection: KairosSection?
+    @State private var showingArchive = false
+    @State private var archiveTarget: ArchiveTarget?
 
     private var boards: [KairosBoard] { planRepo.currentPlan?.boards.filter { !$0.archived } ?? [] }
     private var tasks: [KairosTask] { boards.flatMap { $0.sections.filter { !$0.archived } }.flatMap { $0.tasks.filter { !$0.archived } } }
@@ -47,6 +51,28 @@ struct TasksWorkspaceView: View {
             .kairosBackground()
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .bottom, spacing: 0) { creationDock }
+            .sheet(item: $editingBoard) { board in
+                BoardDetailsView(board: board).environment(planRepo)
+            }
+            .sheet(item: $renamingSection) { section in
+                KairosNameEditor(heading: "Rename section", initialValue: section.title, failureMessage: { planRepo.errorMessage }) { title in
+                    await planRepo.renameSection(sectionID: section.id, title: title)
+                }
+            }
+            .sheet(isPresented: $showingArchive) { PlannerArchiveView().environment(planRepo) }
+            .confirmationDialog("Archive this item?", isPresented: Binding(get: { archiveTarget != nil }, set: { if !$0 { archiveTarget = nil } }), titleVisibility: .visible, presenting: archiveTarget) { target in
+                Button("Archive", role: .destructive) {
+                    archiveTarget = nil
+                    Task {
+                        switch target {
+                        case .board(let id): _ = await planRepo.setBoardArchived(boardID: id, archived: true)
+                        case .section(let id): _ = await planRepo.setSectionArchived(sectionID: id, archived: true)
+                        case .task(let id): _ = await planRepo.setTaskArchived(taskID: id, archived: true)
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) { archiveTarget = nil }
+            } message: { _ in Text("You can restore it from Archive. Its contents will be preserved.") }
             .sheet(item: $selectedTask) { context in
                 TaskDetailView(context: context)
                     .environment(planRepo)
@@ -76,7 +102,12 @@ struct TasksWorkspaceView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text("Tasks").font(.system(size: 34, weight: .bold, design: .rounded)).tracking(-1)
+            HStack {
+                Text("Tasks").font(.system(size: 34, weight: .bold, design: .rounded)).tracking(-1)
+                Spacer()
+                Button { showingArchive = true } label: { Label("Archive", systemImage: "archivebox") }
+                    .font(.subheadline).disabled(planRepo.isLoading || planRepo.plannerIsUnavailable)
+            }
             Text("Everything you need to get done, organized into focused checklists.")
                 .font(.subheadline).foregroundStyle(.secondary)
         }
@@ -154,7 +185,12 @@ struct TasksWorkspaceView: View {
                     Text("\(done) of \(boardTasks.count) complete").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Image(systemName: "square.stack.3d.up.fill").foregroundStyle(.tertiary)
+                Menu {
+                    Button("Edit board", systemImage: "pencil") { editingBoard = board }
+                    Button("Archive board", systemImage: "archivebox", role: .destructive) { archiveTarget = .board(board.id) }
+                } label: { Image(systemName: "ellipsis").padding(10) }
+                .disabled(planRepo.isSaving)
+                .accessibilityLabel("Options for \(board.title)")
             }
             if !boardTasks.isEmpty { ProgressView(value: Double(done), total: Double(boardTasks.count)).tint(KairosColors.accent).scaleEffect(y: 1.2) }
             ForEach(sections) { section in sectionBlock(board: board, section: section) }
@@ -183,6 +219,12 @@ struct TasksWorkspaceView: View {
                 }
                 Spacer()
                 if !visible.isEmpty && open.isEmpty { Image(systemName: "checkmark.seal.fill").foregroundStyle(KairosColors.accent) }
+                Menu {
+                    Button("Rename section", systemImage: "pencil") { renamingSection = section }
+                    Button("Archive section", systemImage: "archivebox", role: .destructive) { archiveTarget = .section(section.id) }
+                } label: { Image(systemName: "ellipsis").padding(8) }
+                .disabled(planRepo.isSaving)
+                .accessibilityLabel("Options for \(section.title)")
             }
             ForEach(open) { task in taskRow(board: board, section: section, task: task) }
             if showingCompleted && !done.isEmpty {
@@ -214,13 +256,17 @@ struct TasksWorkspaceView: View {
                         Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
                     }
                 }
-            }.buttonStyle(.plain).accessibilityLabel(completed ? "Mark \(task.title) incomplete" : "Complete \(task.title)")
+            }.buttonStyle(.plain)
+                .disabled(task.recurrence?.enabled == true || pendingTaskIDs.contains(task.id) || planRepo.isSaving)
+                .accessibilityLabel(task.recurrence?.enabled == true ? "Recurring task: \(task.title)" : completed ? "Mark \(task.title) incomplete" : "Complete \(task.title)")
+                .accessibilityHint(task.recurrence?.enabled == true ? "Complete individual occurrences in Schedule." : "")
 
             Button { selectedTask = TaskDetailContext(taskID: task.id, boardID: board.id, sectionID: section.id) } label: {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(task.title).font(.subheadline.weight(completed ? .medium : .semibold)).foregroundStyle(completed ? .secondary : .primary)
                         .strikethrough(completed, color: KairosColors.accent).multilineTextAlignment(.leading)
                     HStack(spacing: 8) {
+                        if task.recurrence?.enabled == true { Label("Repeats · manage occurrences in Schedule", systemImage: "repeat") }
                         if let date = task.date { Label(Self.displayDate(date, dueTime: task.dueTime), systemImage: "calendar") }
                         if task.parentTaskID != nil { Label("Subtask", systemImage: "arrow.turn.down.right") }
                         if (task.notes ?? task.taskDescription)?.isEmpty == false { Image(systemName: "text.alignleft") }
@@ -229,6 +275,12 @@ struct TasksWorkspaceView: View {
                 }
                 Spacer(minLength: 0)
             }.buttonStyle(.plain)
+            Menu {
+                Button("Task details", systemImage: "pencil") { selectedTask = TaskDetailContext(taskID: task.id, boardID: board.id, sectionID: section.id) }
+                Button("Archive task", systemImage: "archivebox", role: .destructive) { archiveTarget = .task(task.id) }
+            } label: { Image(systemName: "ellipsis").padding(8) }
+            .disabled(planRepo.isSaving || pendingTaskIDs.contains(task.id))
+            .accessibilityLabel("Options for \(task.title)")
         }
         .frame(minHeight: 52)
         .contentShape(Rectangle())
@@ -258,6 +310,7 @@ struct TasksWorkspaceView: View {
     }
 
     private func toggle(boardID: String, section: KairosSection, task: KairosTask) {
+        guard task.recurrence?.enabled != true, !planRepo.isSaving else { return }
         guard pendingTaskIDs.insert(task.id).inserted else { return }
         let wasCompleted = task.completed || optimisticCompletedIDs.contains(task.id)
         let willComplete = !wasCompleted
@@ -280,6 +333,12 @@ struct TasksWorkspaceView: View {
         if let dueTime { return "\(base) · \(dueTime)" }
         return base
     }
+}
+
+private enum ArchiveTarget {
+    case board(String)
+    case section(String)
+    case task(String)
 }
 
 struct TaskDetailContext: Identifiable {

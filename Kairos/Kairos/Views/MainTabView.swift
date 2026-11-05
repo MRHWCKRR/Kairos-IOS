@@ -35,7 +35,7 @@ struct MainTabView: View {
 
     @ViewBuilder
     private var tabContent: some View {
-        DashboardView { tab in select(tab) }
+        DashboardView(onNavigate: { tab in select(tab) }, isActive: selectedTab == 0)
             .opacity(selectedTab == 0 ? 1 : 0)
             .allowsHitTesting(selectedTab == 0)
             .accessibilityHidden(selectedTab != 0)

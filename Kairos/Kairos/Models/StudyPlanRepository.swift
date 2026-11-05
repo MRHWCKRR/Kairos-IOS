@@ -34,6 +34,34 @@ final class StudyPlanRepository {
         guard searchScope != nil else { throw KairosPlannerSearch.Unavailable() }
         return try KairosPlannerSearch.inputJSON(rawPlan)
     }
+    func todayInputJSON() throws -> String {
+        var value = try KairosTouchSchedule.object(searchInputJSON())
+        value["scheduleEvents"] = KairosScheduleProjection.eventInput(rawPlan["scheduleEvents"] as? [[String: Any]] ?? [])
+        return try KairosTouchSchedule.json(value)
+    }
+    func todayTask(_ row: KairosTodayRow, revision: UUID) -> KairosTask? {
+        guard row.kind == "task", row.occurrenceDate == nil, revision == plannerRevision,
+              searchResultIsAvailable(row.searchRow),
+              let board = currentPlan?.boards.first(where: { $0.id == row.boardId }),
+              let section = board.sections.first(where: { $0.id == row.sectionId }),
+              let task = section.tasks.first(where: { $0.id == row.taskId }), task.recurrence?.enabled != true, !task.completed else { return nil }
+        return task
+    }
+    @discardableResult
+    func completeTodayTask(_ row: KairosTodayRow, revision: UUID) async -> Bool {
+        guard !isSaving, let task = todayTask(row, revision: revision) else {
+            errorMessage = "This task changed. Review Today before trying again."; return false
+        }
+        return await performTask(.setCompleted(taskID: task.id, completed: true))
+    }
+    @discardableResult
+    func planTodayTask(_ row: KairosTodayRow, revision: UUID, day: String) async -> Bool {
+        guard !isSaving, let task = todayTask(row, revision: revision), task.scheduleLocked != true else {
+            errorMessage = "This task changed or its schedule is locked. Open its details to review it."; return false
+        }
+        var patch = KairosTaskPatch(); patch.date = .set(day)
+        return await updateTask(taskID: task.id, patch: patch, expected: task)
+    }
     func searchResultIsAvailable(_ row: KairosSearchRow) -> Bool {
         guard searchScope != nil, let boards = currentPlan?.boards else { return false }
         let matches = boards.filter { $0.id == row.target.boardId }
@@ -517,8 +545,7 @@ final class StudyPlanRepository {
     @discardableResult
     func renameBoard(boardID: String, title: String) async -> Bool {
         return await mutateBoards { boards in
-            guard let i = boards.firstIndex(where: { $0.id == boardID }) else { throw KairosTaskMutation.Invalid() }
-            boards[i].title = title
+            boards = try KairosBoardMutation.apply(.renameBoard(boardID: boardID, title: title), to: boards)
         }
     }
 
@@ -527,16 +554,20 @@ final class StudyPlanRepository {
         boardID: String,
         title: String? = nil,
         description: String? = nil,
-        preserveDescription: Bool = false
+        preserveDescription: Bool = false,
+        expected: KairosBoard? = nil
     ) async -> Bool {
         return await mutateBoards { boards in
             guard let index = boards.firstIndex(where: { $0.id == boardID })
             else { throw KairosTaskMutation.Invalid() }
-
-            if let title {
-                boards[index].title = title
+            boards = try KairosBoardMutation.apply(.renameBoard(boardID: boardID, title: boards[index].title), to: boards)
+            if let expected, expected.id != boardID { throw KairosPlannerMerge.Conflict() }
+            if let title, expected == nil || title != expected?.title {
+                if let expected, boards[index].title != expected.title && boards[index].title != title { throw KairosPlannerMerge.Conflict() }
+                boards = try KairosBoardMutation.apply(.renameBoard(boardID: boardID, title: title), to: boards)
             }
-            if description != nil || !preserveDescription {
+            if (description != nil || !preserveDescription), expected == nil || description != expected?.boardDescription {
+                if let expected, boards[index].boardDescription != expected.boardDescription && boards[index].boardDescription != description { throw KairosPlannerMerge.Conflict() }
                 boards[index].boardDescription = description
             }
         }
@@ -545,8 +576,7 @@ final class StudyPlanRepository {
     @discardableResult
     func setBoardArchived(boardID: String, archived: Bool) async -> Bool {
         return await mutateBoards { boards in
-            guard let i = boards.firstIndex(where: { $0.id == boardID }) else { throw KairosTaskMutation.Invalid() }
-            boards[i].archived = archived
+            boards = try KairosBoardMutation.apply(.archiveBoard(boardID: boardID, archived: archived), to: boards)
         }
     }
 
@@ -570,26 +600,14 @@ final class StudyPlanRepository {
     @discardableResult
     func renameSection(sectionID: String, title: String) async -> Bool {
         return await mutateBoards { boards in
-            for bi in boards.indices {
-                if let si = boards[bi].sections.firstIndex(where: { $0.id == sectionID }) {
-                    boards[bi].sections[si].title = title
-                    return
-                }
-            }
-            throw KairosTaskMutation.Invalid()
+            boards = try KairosBoardMutation.apply(.renameSection(sectionID: sectionID, title: title), to: boards)
         }
     }
 
     @discardableResult
     func setSectionArchived(sectionID: String, archived: Bool) async -> Bool {
         return await mutateBoards { boards in
-            for bi in boards.indices {
-                if let si = boards[bi].sections.firstIndex(where: { $0.id == sectionID }) {
-                    boards[bi].sections[si].archived = archived
-                    return
-                }
-            }
-            throw KairosTaskMutation.Invalid()
+            boards = try KairosBoardMutation.apply(.archiveSection(sectionID: sectionID, archived: archived), to: boards)
         }
     }
 

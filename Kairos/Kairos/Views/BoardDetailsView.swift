@@ -9,6 +9,7 @@ struct BoardDetailsView: View {
     @State private var description: String
     @State private var submitting = false
     @State private var saveError: String?
+    @State private var confirmingArchive = false
 
     init(board: KairosBoard) {
         self.board = board
@@ -40,18 +41,25 @@ struct BoardDetailsView: View {
 
                 Section {
                     Button("Archive Board", role: .destructive) {
-                        guard !submitting else { return }
-                        submitting = true
-                        Task {
-                            let saved = await planRepo.setBoardArchived(boardID: board.id, archived: true)
-                            submitting = false
-                            if saved { dismiss() } else { saveError = planRepo.errorMessage }
-                        }
+                        confirmingArchive = true
                     }
                 }
             }
-            .disabled(submitting)
+            .disabled(submitting || planRepo.isSaving)
             .interactiveDismissDisabled()
+            .confirmationDialog("Archive this board?", isPresented: $confirmingArchive, titleVisibility: .visible) {
+                Button("Archive Board", role: .destructive) {
+                    guard !submitting, !planRepo.isSaving else { return }
+                    submitting = true
+                    saveError = nil
+                    Task {
+                        let saved = await planRepo.setBoardArchived(boardID: board.id, archived: true)
+                        submitting = false
+                        if saved { dismiss() } else { saveError = planRepo.errorMessage ?? "Could not archive. Try again." }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { Text("Your sections and tasks will be preserved. Restore the board from Archive when you need it again.") }
             .navigationTitle("Edit Board")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -62,7 +70,7 @@ struct BoardDetailsView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
                         .fontWeight(.semibold)
-                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(submitting || planRepo.isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
@@ -71,14 +79,15 @@ struct BoardDetailsView: View {
     private func save() {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty, !submitting else { return }
+        guard !trimmedName.isEmpty, !submitting, !planRepo.isSaving else { return }
         submitting = true
         saveError = nil
         Task {
             let saved = await planRepo.updateBoard(
                 boardID: board.id,
                 title: trimmedName,
-                description: trimmedDescription.isEmpty ? nil : trimmedDescription
+                description: trimmedDescription.isEmpty ? nil : trimmedDescription,
+                expected: board
             )
             submitting = false
             if saved { dismiss() } else { saveError = planRepo.errorMessage ?? "Could not save. Your edits are still here." }
