@@ -5,6 +5,7 @@ struct AIHelperView: View {
     @Environment(StudyPlanRepository.self) private var planRepo
     @State private var viewModel: AIHelperViewModel?
     @State private var showingHistory = false
+    @State private var reviewingChanges = false
     @FocusState private var inputFocused: Bool
 
     var body: some View {
@@ -74,6 +75,10 @@ struct AIHelperView: View {
                 HStack { Text(error).font(.caption).foregroundStyle(.red); Spacer(); Button("Retry") { vm.retryReply() }.disabled(vm.isLoading) }.padding(.horizontal, 16).padding(.vertical, 8)
             }
             if let error = vm.errorMessage { Text(error).font(.caption).foregroundStyle(.red).padding(.horizontal) }
+            if let actions = vm.proposals[vm.activeChatID ?? ""], !actions.isEmpty {
+                Button("Review \(actions.count) proposed change\(actions.count == 1 ? "" : "s")", systemImage: "list.bullet.clipboard") { reviewingChanges = true }
+                    .buttonStyle(.bordered).padding(.horizontal)
+            }
             composer(vm)
         }
         .overlay {
@@ -82,6 +87,7 @@ struct AIHelperView: View {
         .sheet(isPresented: Binding(get: { vm.showConfirmationDialog }, set: { if !$0 { vm.dismissDialog() } })) {
             PlanConfirmationSheet(viewModel: vm, existingBoards: planRepo.currentPlan?.boards.filter { !$0.archived } ?? [])
         }
+        .sheet(isPresented: $reviewingChanges) { AIChangeReview(viewModel: vm) }
     }
 
     private func composer(_ vm: AIHelperViewModel) -> some View {
@@ -92,7 +98,7 @@ struct AIHelperView: View {
                 Image(systemName: "arrow.up").font(.headline).foregroundStyle(.white).frame(width: 38, height: 38).background(KairosColors.accent, in: Circle())
             }
             .accessibilityLabel("Send message")
-            .disabled(vm.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vm.isLoading || vm.isEditingWorkspace || profileRepo.aiWorkspaceOwnerID == nil)
+            .disabled(vm.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vm.isLoading || vm.isEditingWorkspace || vm.startingMessage || profileRepo.aiWorkspaceOwnerID == nil)
             .opacity(vm.isLoading || vm.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.4 : 1)
         }
         .padding(8).background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24))
@@ -251,12 +257,50 @@ private struct AIProjectEditor: View {
     }
 }
 
+private struct AIChangeReview: View {
+    @Bindable var viewModel: AIHelperViewModel
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Proposed changes") {
+                    ForEach(Array((viewModel.proposals[viewModel.activeChatID ?? ""] ?? []).enumerated()), id: \.offset) { _, action in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(action.type.replacingOccurrences(of: "_", with: " ").capitalized).font(.headline)
+                            if let id = action.args.taskId {
+                                let task = viewModel.planRepo.currentPlan?.boards.flatMap { $0.sections.flatMap(\.tasks) }.first { $0.id == id }
+                                Text(task?.title ?? id)
+                            }
+                            if let id = action.args.boardId { Text(viewModel.planRepo.currentPlan?.boards.first { $0.id == id }?.title ?? id) }
+                            if let id = action.args.sectionId { Text(viewModel.planRepo.currentPlan?.boards.flatMap(\.sections).first { $0.id == id }?.title ?? id) }
+                            if let title = action.args.newTitle ?? action.args.title { Text(title) }
+                            if let date = action.args.date { LabeledContent("Date", value: date) }
+                            if let time = action.args.startTime { LabeledContent("Start", value: time) }
+                            if let time = action.args.endTime { LabeledContent("End", value: time) }
+                            if let completed = action.args.completed { Text(completed ? "Mark completed" : "Mark pending") }
+                            if action.type.hasPrefix("delete_") { Text("This removes the item and its contents from your planner.").font(.caption).foregroundStyle(.red) }
+                        }
+                    }
+                }
+                if let error = viewModel.errorMessage { Text(error).foregroundStyle(.red) }
+                Button("Discard changes", role: .destructive) { if let id = viewModel.activeChatID { viewModel.proposals[id] = nil; viewModel.proposalRevisions[id] = nil }; dismiss() }
+            }.disabled(viewModel.isApplyingPlan).interactiveDismissDisabled(viewModel.isApplyingPlan)
+            .navigationTitle("Review changes").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() }.disabled(viewModel.isApplyingPlan) }
+                ToolbarItem(placement: .confirmationAction) { Button("Apply") { Task { if await viewModel.applyProposals() { dismiss() } } }.disabled(viewModel.isApplyingPlan) }
+            }
+        }
+    }
+}
+
 private struct PlanConfirmationSheet: View {
     @Bindable var viewModel: AIHelperViewModel
     let existingBoards: [KairosBoard]
     var body: some View {
         NavigationStack {
             Form {
+                if let error = viewModel.errorMessage { Text(error).font(.footnote).foregroundStyle(.red) }
                 Section("Where should we add these tasks?") {
                     Picker("Destination", selection: $viewModel.targetBoardMode) {
                         Text("A new board").tag(AIHelperViewModel.TargetBoardMode.new)
@@ -281,11 +325,12 @@ private struct PlanConfirmationSheet: View {
                     }
                 }
             }
-            .scrollContentBackground(.hidden).background(Color.clear)
+            .scrollContentBackground(.hidden).background(Color.clear).disabled(viewModel.isApplyingPlan)
+            .interactiveDismissDisabled(viewModel.isApplyingPlan)
             .navigationTitle("Configure Board").navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { viewModel.dismissDialog() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Add to Boards") { viewModel.confirmPlan() }.fontWeight(.semibold) }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { viewModel.dismissDialog() }.disabled(viewModel.isApplyingPlan) }
+                ToolbarItem(placement: .confirmationAction) { Button("Add to Boards") { viewModel.confirmPlan() }.fontWeight(.semibold).disabled(viewModel.isApplyingPlan) }
             }
         }
         .presentationDetents([.medium, .large]).presentationDragIndicator(.visible)

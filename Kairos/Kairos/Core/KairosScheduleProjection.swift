@@ -16,6 +16,11 @@ struct KairosEventSegment: Decodable, Identifiable, Sendable {
 }
 
 enum KairosScheduleProjection {
+    nonisolated static func validDay(_ key: String) -> Bool {
+        let formatter = DateFormatter(); formatter.calendar = Calendar(identifier: .gregorian); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.timeZone = TimeZone(secondsFromGMT: 0); formatter.dateFormat = "yyyy-MM-dd"; formatter.isLenient = false
+        guard let date = formatter.date(from: key) else { return false }
+        return formatter.string(from: date) == key
+    }
     nonisolated static func minutes(_ time: String?) -> Int? {
         guard let time else { return nil }
         let parts = time.split(separator: ":", omittingEmptySubsequences: false)

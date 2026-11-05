@@ -48,6 +48,7 @@ struct CalendarView: View {
     @State private var creatingTask = false
     @State private var showCompleted = true
     @State private var showEvents = true
+    @State private var showSkipped = false
 
     private var calendar: Calendar {
         var value = Calendar(identifier: .gregorian)
@@ -74,7 +75,7 @@ struct CalendarView: View {
         }
         return (0..<count).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
     }
-    private var loadID: String { "\(key(selectedDate))-\(mode.rawValue)-\(planRepo.plannerRevision)-\(showCompleted)-\(showEvents)-\(calendar.timeZone.identifier)" }
+    private var loadID: String { "\(key(selectedDate))-\(mode.rawValue)-\(planRepo.plannerRevision)-\(showCompleted)-\(showEvents)-\(showSkipped)-\(calendar.timeZone.identifier)" }
 
     var body: some View {
         NavigationStack {
@@ -97,7 +98,7 @@ struct CalendarView: View {
                 ToolbarItem(placement: .topBarLeading) { Button("Backlog", systemImage: "tray") { showingBacklog = true } }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button(showingDayDetails ? "Timeline" : "Agenda", systemImage: showingDayDetails ? "clock" : "list.bullet") { showingDayDetails.toggle() }.labelStyle(.iconOnly)
-                    Menu { Toggle("Completed tasks", isOn: $showCompleted); Toggle("Fixed events", isOn: $showEvents) } label: { Image(systemName: "line.3.horizontal.decrease") }.accessibilityLabel("Schedule filters")
+                    Menu { Toggle("Completed tasks", isOn: $showCompleted); Toggle("Skipped occurrences", isOn: $showSkipped); Toggle("Fixed events", isOn: $showEvents) } label: { Image(systemName: "line.3.horizontal.decrease") }.accessibilityLabel("Schedule filters")
                     Button("Add task", systemImage: "plus") { creatingTask = true }.disabled(planRepo.isLoading || planRepo.plannerIsUnavailable)
                 }
             }
@@ -249,7 +250,7 @@ struct CalendarView: View {
             for date in dates {
                 try Task.checkCancellation()
                 let dateKey = key(date)
-                let occurrences = try await planRepo.recurringOccurrences(on: dateKey).filter { $0.status == "pending" || (showCompleted && $0.status == "completed") }
+                let occurrences = try await planRepo.recurringOccurrences(on: dateKey).filter { $0.status == "pending" || (showCompleted && $0.status == "completed") || (showSkipped && $0.status == "skipped") }
                 result.append(.init(date: date, key: dateKey, tasks: tasks.filter { $0.task.date == dateKey && (showCompleted || !$0.task.completed) }, occurrences: occurrences, events: showEvents ? try planRepo.eventSegments(on: dateKey) : []))
             }
             try Task.checkCancellation(); days = result; loading = false

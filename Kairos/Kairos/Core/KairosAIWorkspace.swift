@@ -69,7 +69,8 @@ enum KairosAIWorkspace {
             return value
         }
         let id = "legacy-\(owner)"
-        return ["version": 2, "activeChatId": id, "projects": [], "chats": legacy.isEmpty ? [] : [["id": id, "title": "", "messages": legacy, "order": 0]]]
+        let migrated: [String: Any] = ["version": 2, "activeChatId": id, "projects": [], "chats": legacy.isEmpty ? [] : [["id": id, "title": "", "messages": legacy, "order": 0]]]
+        return try raw(migrated, legacy: [], owner: owner)
     }
 
     nonisolated static func read(_ value: [String: Any]?, legacy: [[String: Any]], owner: String) throws -> Snapshot {

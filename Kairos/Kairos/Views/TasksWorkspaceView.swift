@@ -322,6 +322,8 @@ struct TaskCreationSheet: View {
 struct TaskDetailView: View {
     @Environment(StudyPlanRepository.self) private var planRepo
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.calendar) private var editorCalendar
+    @Environment(\.timeZone) private var editorTimeZone
     let context: TaskDetailContext
     @State private var title = ""
     @State private var taskNotes = ""
@@ -461,11 +463,11 @@ struct TaskDetailView: View {
         hasEstimate = task.estimatedMinutes != nil
         estimateText = task.estimatedMinutes.map(String.init) ?? ""
         checklist = task.checklist ?? []
-        if let dateKey = task.date { hasDueDate = true; dueDate = Self.date(from: dateKey) ?? Date() }
-        if let value = task.dueTime, let date = Self.time(from: value) { hasDueTime = true; dueTime = date }
-        if let value = task.startTime, let date = Self.time(from: value) { hasScheduledTime = true; scheduledStart = date }
-        if let value = task.endTime, let date = Self.time(from: value) { scheduledEnd = date }
-        if let value = task.dueDate, let date = Self.date(from: value) { hasDeadline = true; deadline = date }
+        if let dateKey = task.date { hasDueDate = true; dueDate = date(from: dateKey) ?? Date() }
+        if let value = task.dueTime, let date = time(from: value) { hasDueTime = true; dueTime = date }
+        if let value = task.startTime, let date = time(from: value) { hasScheduledTime = true; scheduledStart = date }
+        if let value = task.endTime, let date = time(from: value) { scheduledEnd = date }
+        if let value = task.dueDate, let date = date(from: value) { hasDeadline = true; deadline = date }
     }
 
     private func save() {
@@ -477,8 +479,8 @@ struct TaskDetailView: View {
             saveError = "Enter an estimate from 1 to 1440 minutes."
             return
         }
-        let dateKey = hasDueDate ? Self.dateKey(from: dueDate) : nil
-        let timeKey = hasDueTime ? Self.timeKey(from: dueTime) : nil
+        let dateKey = hasDueDate ? dateKey(from: dueDate) : nil
+        let timeKey = hasDueTime ? timeKey(from: dueTime) : nil
         if name != originalTask.title { patch.title = .set(name) }
         if taskNotes != (originalTask.notes ?? originalTask.taskDescription ?? "") { patch.notes = .set(taskNotes) }
         let selectedPriority: String? = priority.isEmpty ? nil : priority
@@ -487,11 +489,11 @@ struct TaskDetailView: View {
         if checklist != (originalTask.checklist ?? []) { patch.checklist = .set(checklist) }
         if dateKey != originalTask.date { patch.date = .set(dateKey) }
         if timeKey != originalTask.dueTime { patch.dueTime = .set(timeKey) }
-        let start = hasScheduledTime ? Self.timeKey(from: scheduledStart) : nil
-        let end = hasScheduledTime ? Self.timeKey(from: scheduledEnd) : nil
+        let start = hasScheduledTime ? timeKey(from: scheduledStart) : nil
+        let end = hasScheduledTime ? timeKey(from: scheduledEnd) : nil
         if start != originalTask.startTime { patch.startTime = .set(start) }
         if end != originalTask.endTime { patch.endTime = .set(end) }
-        let deadlineKey = hasDeadline ? Self.dateKey(from: deadline) : nil
+        let deadlineKey = hasDeadline ? dateKey(from: deadline) : nil
         if deadlineKey != originalTask.dueDate { patch.dueDate = .set(deadlineKey) }
         submitting = true
         saveError = nil
@@ -503,10 +505,10 @@ struct TaskDetailView: View {
         }
     }
 
-    private static func dateKey(from date: Date) -> String { let f = DateFormatter(); f.calendar = .current; f.dateFormat = "yyyy-MM-dd"; return f.string(from: date) }
-    private static func date(from key: String) -> Date? { let f = DateFormatter(); f.calendar = .current; f.dateFormat = "yyyy-MM-dd"; return f.date(from: key) }
-    private static func timeKey(from date: Date) -> String { let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: date) }
-    private static func time(from key: String) -> Date? { let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.date(from: key) }
+    private func dateKey(from date: Date) -> String { let f = DateFormatter(); f.calendar = editorCalendar; f.timeZone = editorTimeZone; f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date) }
+    private func date(from key: String) -> Date? { let f = DateFormatter(); f.calendar = editorCalendar; f.timeZone = editorTimeZone; f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"; return f.date(from: key) }
+    private func timeKey(from date: Date) -> String { let f = DateFormatter(); f.calendar = editorCalendar; f.timeZone = editorTimeZone; f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "HH:mm"; return f.string(from: date) }
+    private func time(from key: String) -> Date? { let f = DateFormatter(); f.calendar = editorCalendar; f.timeZone = editorTimeZone; f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "HH:mm"; return f.date(from: key) }
 }
 
 #Preview {

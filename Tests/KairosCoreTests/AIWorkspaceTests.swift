@@ -10,6 +10,7 @@ final class AIWorkspaceTests: XCTestCase {
         XCTAssertTrue(try KairosAIWorkspace.read(empty, legacy: legacy, owner: "u").chats.isEmpty)
         XCTAssertThrowsError(try KairosAIWorkspace.read(["version": 3, "chats": []], legacy: legacy, owner: "u"))
         XCTAssertThrowsError(try KairosAIWorkspace.read(["chats": "bad"], legacy: legacy, owner: "u"))
+        XCTAssertThrowsError(try KairosAIWorkspace.read(nil, legacy: [["role": "user"]], owner: "u"))
     }
 
     func testAppendPreservesRemoteChatsAndUnknownMemory() throws {

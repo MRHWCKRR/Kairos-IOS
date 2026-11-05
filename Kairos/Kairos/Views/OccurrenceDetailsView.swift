@@ -7,12 +7,14 @@ struct OccurrenceDetailsView: View {
 
     // A one-time editor baseline: live snapshots must not replace unsaved steps.
     @State private var items: [KairosChecklistItem]
+    @State private var status: String
     @State private var saving = false
     @State private var error: String?
 
     init(occurrence: KairosRecurringOccurrence) {
         self.occurrence = occurrence
         _items = State(initialValue: occurrence.task.checklist ?? [])
+        _status = State(initialValue: occurrence.status)
     }
 
     var body: some View {
@@ -20,6 +22,11 @@ struct OccurrenceDetailsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     details
+                    Picker("Status", selection: $status) {
+                        Text("Pending").tag("pending")
+                        Text("Completed").tag("completed")
+                        Text("Skipped").tag("skipped")
+                    }.pickerStyle(.segmented)
                     KairosChecklistEditor(items: $items, allowsCompletion: true)
                     if let error { Text(error).font(.footnote).foregroundStyle(.red) }
                     if saving { ProgressView("Saving…") }
@@ -80,11 +87,11 @@ struct OccurrenceDetailsView: View {
             self.error = "Give each step a title of 1–180 characters, with no more than 100 steps."
             return
         }
-        guard items != (occurrence.task.checklist ?? []) else { dismiss(); return }
+        guard items != (occurrence.task.checklist ?? []) || status != occurrence.status else { dismiss(); return }
         saving = true
         error = nil
         Task {
-            let saved = await planRepo.saveOccurrenceChecklist(occurrence, items: items)
+            let saved = await planRepo.saveOccurrenceDetails(occurrence, items: items, status: status)
             saving = false
             if saved { dismiss() }
             else { error = planRepo.errorMessage ?? "Could not save. Your checklist edits are still here." }

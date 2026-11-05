@@ -265,6 +265,21 @@ final class StudyPlanRepository {
         }
     }
 
+    @discardableResult
+    func saveOccurrenceDetails(_ occurrence: KairosRecurringOccurrence, items: [KairosChecklistItem], status: String) async -> Bool {
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        return await mutateOccurrence(occurrence) { task in
+            var updated = task
+            if items != (occurrence.task.checklist ?? []) { updated = try KairosRecurrence.settingChecklist(task: task, occurrence: occurrence, items: items) }
+            if status != occurrence.status {
+                guard try KairosRecurrence.revision(task) == occurrence.revision,
+                      let refreshed = try KairosRecurrence.occurrences(task: updated, on: occurrence.displayDate).first(where: { $0.id == occurrence.id }) else { throw KairosPlannerMerge.Conflict() }
+                updated = try KairosRecurrence.settingStatus(task: updated, occurrence: refreshed, status: status, timestamp: timestamp)
+            }
+            return updated
+        }
+    }
+
     private func mutateOccurrence(_ occurrence: KairosRecurringOccurrence, transform: @escaping @Sendable ([String: Any]) throws -> [String: Any]) async -> Bool {
         guard !isSaving else { errorMessage = "Wait for the current save to finish."; return false }
         guard hasLoadedSnapshot, !isLoading, let user = Auth.auth().currentUser,
@@ -459,6 +474,12 @@ final class StudyPlanRepository {
     }
 
     // MARK: - Reviewed AI plan
+    @discardableResult
+    func applyChatActions(_ actions: [KairosChatAction], revision: UUID) async -> Bool {
+        guard plannerRevision == revision else { errorMessage = "The planner changed. Ask Kairos to review the latest schedule before applying this proposal."; return false }
+        return await mutateBoards { boards in boards = try KairosChatActions.apply(actions, to: boards) }
+    }
+
     @discardableResult
     func applyAiPlan(sections: [KairosSection], recurringEvents: [KairosScheduleEvent], newBoardTitle: String?, existingBoardID: String?) async -> Bool {
         guard let uid = listeningUserID else { return false }

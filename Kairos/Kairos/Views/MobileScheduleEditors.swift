@@ -111,7 +111,9 @@ struct MobileEventDetails: View {
                 Button("Export to Apple Calendar", systemImage: "calendar.badge.plus") {
                     Task {
                         guard await calendarManager.requestAccess() else { message = "Allow Calendar access in iOS Settings to export."; return }
-                        guard let day = KairosScheduleDates.parse(event.date, calendar: calendar), let start = calendar.date(byAdding: .minute, value: event.startMin, to: day), let end = calendar.date(byAdding: .minute, value: event.endMin, to: day) else { return }
+                        guard let day = KairosScheduleDates.parse(event.date, calendar: calendar),
+                              let start = calendar.date(bySettingHour: event.startMin / 60, minute: event.startMin % 60, second: 0, of: day),
+                              let end = event.endMin == 1440 ? calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: day)) : calendar.date(bySettingHour: event.endMin / 60, minute: event.endMin % 60, second: 0, of: day) else { return }
                         do { let added = try calendarManager.addEventIfNeeded(title: event.title, start: start, end: end, notes: "Exported from Kairos"); message = added ? "Saved to Apple Calendar." : "Already in Apple Calendar." } catch { message = error.localizedDescription }
                     }
                 }
