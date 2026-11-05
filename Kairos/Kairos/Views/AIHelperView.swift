@@ -215,6 +215,18 @@ private struct AIWorkspaceHistory: View {
                         }
                     }
                 }
+                let orphaned = viewModel.profileRepo.aiProposals.values.filter { proposal in !viewModel.chats.contains { $0.id == proposal.chatID } }.sorted { $0.createdAt < $1.createdAt }
+                if !orphaned.isEmpty {
+                    Section("Previews from deleted chats") {
+                        ForEach(orphaned) { proposal in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(proposal.rows.first?.title ?? "Saved changes")
+                                Text("This conversation was removed on another device.").font(.caption).foregroundStyle(.secondary)
+                                Button("Discard preview", role: .destructive) { Task { _ = await viewModel.discardSavedProposal(proposal) } }.disabled(viewModel.isApplyingPlan)
+                            }
+                        }
+                    }
+                }
                 if let error = viewModel.errorMessage { Text(error).font(.footnote).foregroundStyle(.red) }
             }
             .disabled(viewModel.isEditingWorkspace)
@@ -295,6 +307,7 @@ private struct AIChangeReview: View {
                 }
                 if let error = viewModel.errorMessage { Text(error).foregroundStyle(.red) }
                 Text("This preview is saved to your account. If the planner changes, request a fresh preview before applying.").font(.caption).foregroundStyle(.secondary)
+                if let proposal = viewModel.profileRepo.aiProposals[viewModel.activeChatID ?? ""] { LabeledContent("Timezone", value: proposal.timezone).font(.caption) }
                 if viewModel.proposals[viewModel.activeChatID ?? ""]?.contains(where: { $0.type.contains("reminder") }) == true { Text("Reminder delivery uses your iOS notification permission and Kairos notification preference. Unscheduled tasks notify once they have a date and start time.").font(.caption).foregroundStyle(.secondary) }
                 Button("Discard changes", role: .destructive) { Task { if await viewModel.discardProposals() { dismiss() } } }
             }.disabled(viewModel.isApplyingPlan).interactiveDismissDisabled(viewModel.isApplyingPlan)

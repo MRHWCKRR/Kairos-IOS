@@ -116,7 +116,7 @@ final class AIHelperViewModel {
             var contextParts: [String] = [
                 "You are Kairos AI, a helpful productivity assistant. Use current planner and project information when relevant. Never claim an unexecuted change succeeded.",
                 "Current user name: " + (profileRepo.profile?.displayName ?? ""),
-                "Today: " + KairosDate.dayKey(for: Date()),
+                "Today: " + KairosDate.dayKey(for: Date(), timeZone: TimeZone(identifier: timezone) ?? .current),
                 "Project: " + (project?.title ?? ""),
                 project?.description ?? "", project?.sharedContext ?? "",
                 "Conversation memory: " + chat.summary,
@@ -189,7 +189,11 @@ final class AIHelperViewModel {
         return saved
     }
     func discardProposals() async -> Bool {
-        guard let chatID = activeChatID, let proposal = profileRepo.aiProposals[chatID], !isApplyingPlan else { return false }
+        guard let chatID = activeChatID, let proposal = profileRepo.aiProposals[chatID] else { return false }
+        return await discardSavedProposal(proposal)
+    }
+    func discardSavedProposal(_ proposal: KairosAIProposal) async -> Bool {
+        guard !isApplyingPlan else { return false }
         isApplyingPlan = true
         defer { isApplyingPlan = false }
         let saved = await profileRepo.discardAIProposal(proposal)
