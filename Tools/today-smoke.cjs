@@ -1,0 +1,14 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const dir=path.join(__dirname,'../Kairos/Kairos/Core/Resources'),ctx=vm.createContext({structuredClone});
+for(const file of ['recurrence-engine.js','schedule-engine.js','today-engine.js'])if(fs.existsSync(path.join(dir,file)))vm.runInContext(fs.readFileSync(path.join(dir,file),'utf8'),ctx);
+assert.equal(typeof ctx.kairosTodayRequest,'function','Native web-compatible Today is not implemented');
+const build=state=>JSON.parse(ctx.kairosTodayRequest(JSON.stringify({state,today:'2026-11-05'})));
+const tasks=[{id:'old',title:'Old schedule',date:'2026-11-01',dueDate:'2026-11-10'},{id:'due',title:'Due today',dueDate:'2026-11-05'},{id:'future',title:'Future scheduled',date:'2026-11-10'},{id:'free',title:'To plan'},{id:'done',title:'Done',completed:true},{id:'dup',title:'Duplicate'},{id:'dup',title:'Archived duplicate',archived:true}];
+const state={boards:[{id:'b',title:'Study',sections:[{id:'s',title:'Work',tasks}]}],scheduleEvents:[{id:'e',title:'Class',date:'2026-11-05',start:'08:00',end:'09:00'}]};
+const before=JSON.stringify(state),r=build(state);
+assert.deepEqual(r.overdue.map(x=>x.title),['Old schedule'],'Today matches web attention rules, which consider missed scheduled dates as well as deadlines');
+assert.deepEqual(r.today.map(x=>x.title),['Class','Due today']);assert.deepEqual(r.unscheduled.map(x=>x.title),['To plan']);assert.equal(JSON.stringify(state),before);
+const recurrence={enabled:true,frequency:'daily',interval:1,startDate:'2026-11-03',mode:'fixed',endType:'count',count:3,exceptions:{'2026-11-03':{override:{date:'2026-11-05'}},'2026-11-04':{status:'completed'},'2026-11-05':{status:'skipped'}}};
+const rr=build({boards:[{id:'b',sections:[{id:'s',tasks:[{id:'r',title:'Review',date:'2026-11-03',recurrence}]}]}]});
+assert.equal(rr.today.length,1);assert.equal(rr.today[0].occurrenceDate,'2026-11-03');assert.equal(rr.overdue.length,0);assert.equal(rr.today[0].canComplete,false);
+console.log('Today: missed schedule/deadline grouping, event order, recurring identity, duplicates and read-only projection passed');
