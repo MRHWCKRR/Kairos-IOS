@@ -21,6 +21,14 @@ final class UserProfileRepository {
     private(set) var aiProposals: [String: KairosAIProposal] = [:]
     private(set) var aiProposalError: String?
     private(set) var allowsCompletedRescheduling = false
+    private(set) var planningSettings: KairosPlanningSettings?
+    private(set) var planningSettingsError: String?
+    private(set) var isSavingPlanningSettings = false
+    private(set) var isReloadingPlanningSettings = false
+    private(set) var planningReloadError: String?
+    private var planningEditorRevision = UUID()
+    private var settingsReadRevision = UUID()
+    var planningSettingsOwnerStamp: String? { profileHasLoaded && !isLoading ? writableUserID.map { "\(generation)-\($0)-\(planningEditorRevision)" } : nil }
     var aiWorkspaceOwnerID: String? { profileHasLoaded ? writableUserID : nil }
     var isLoading = false
     var errorMessage: String?
@@ -55,19 +63,21 @@ final class UserProfileRepository {
             // Decode each top-level section independently. A legacy or malformed
             // field elsewhere in the user document must not prevent saved settings
             // from being restored after a cold launch.
+            self.settingsReadRevision = UUID()
             self.clearValues()
             let raw = snapshot.data() ?? [:]
             self.profileHasLoaded = true
+            self.restorePlanningSettings(raw["settings"])
             self.restoreAIProposals(raw, ownerID: userID)
             let decoder = Firestore.Decoder()
 
             if let settings = raw["settings"] as? [String: Any] {
                 self.allowsCompletedRescheduling = (settings["planning"] as? [String: Any])?["rescheduleCompleted"] as? Bool == true
-                if let map = settings["profile"] as? [String: Any],
+                if let map = self.profileMap(settings["profile"]),
                    let value = try? decoder.decode(KairosUserProfile.self, from: map) {
                     self.profile = value
                 }
-                if let map = settings["accessibility"] as? [String: Any],
+                if let map = self.accessibilityMap(settings["accessibility"]),
                    let value = try? decoder.decode(KairosAccessibilitySettings.self, from: map) {
                     self.accessibilitySettings = value
                 }
@@ -114,6 +124,10 @@ final class UserProfileRepository {
         listener = nil
         listeningUserID = nil
         generation = UUID()
+        isSavingPlanningSettings = false
+        isReloadingPlanningSettings = false
+        planningReloadError = nil
+        planningEditorRevision = UUID()
         isLoading = false
         errorMessage = nil
         clearValues()
@@ -135,6 +149,92 @@ final class UserProfileRepository {
         aiProposals = [:]
         aiProposalError = nil
         allowsCompletedRescheduling = false
+        planningSettings = nil
+        planningSettingsError = nil
+    }
+
+    private func profileMap(_ raw: Any?) -> [String: Any]? {
+        guard raw == nil || raw is [String: Any] else { return nil }
+        var value: [String: Any] = ["displayName": "", "avatarURL": "", "birthday": "", "timezone": TimeZone.current.identifier]
+        value.merge(raw as? [String: Any] ?? [:]) { _, saved in saved }; return value
+    }
+    private func accessibilityMap(_ raw: Any?) -> [String: Any]? {
+        guard raw == nil || raw is [String: Any] else { return nil }
+        var value: [String: Any] = ["density": "default", "timeFormat": "12", "reduceMotion": false, "language": "en"]
+        value.merge(raw as? [String: Any] ?? [:]) { _, saved in saved }; return value
+    }
+    private func restorePlanningSettings(_ raw: Any?) {
+        do {
+            guard raw == nil || raw is [String: Any] else { throw KairosPlanningSettingsStore.Invalid("Saved settings cannot be read safely.") }
+            planningSettings = try KairosPlanningSettingsStore.read(raw as? [String: Any] ?? [:], fallbackTimezone: TimeZone.current.identifier)
+            planningSettingsError = nil
+        } catch { planningSettings = nil; planningSettingsError = error.localizedDescription }
+    }
+    func retryPlanningSettings() {
+        guard let uid = writableUserID, !isSavingPlanningSettings, !isReloadingPlanningSettings else { return }
+        if !profileHasLoaded { startListening(userID: uid); return }
+        let token = generation, revision = settingsReadRevision
+        isReloadingPlanningSettings = true; planningReloadError = nil
+        Task {
+            defer { if generation == token { isReloadingPlanningSettings = false } }
+            do {
+                let snapshot = try await db.collection("users").document(uid).getDocument(source: .server)
+                guard generation == token, writableUserID == uid else { return }
+                if settingsReadRevision == revision {
+                    let raw = snapshot.data()?["settings"]
+                    restorePlanningSettings(raw)
+                    if let settings = raw as? [String: Any] {
+                        let decoder = Firestore.Decoder()
+                        if let map = profileMap(settings["profile"]) { profile = try? decoder.decode(KairosUserProfile.self, from: map) }
+                        if let map = accessibilityMap(settings["accessibility"]) { accessibilitySettings = try? decoder.decode(KairosAccessibilitySettings.self, from: map) }
+                        allowsCompletedRescheduling = planningSettings?.rescheduleCompleted == true
+                    }
+                }
+                guard planningSettings != nil else {
+                    planningReloadError = planningSettingsError ?? "Saved settings could not be read. Your draft is still here."
+                    return
+                }
+                planningEditorRevision = UUID()
+            } catch {
+                guard generation == token else { return }
+                planningReloadError = "Could not reload settings. Your draft is still here. \(error.localizedDescription)"
+            }
+        }
+    }
+    @discardableResult
+    func savePlanningSettings(expected: KairosPlanningSettings, draft: KairosPlanningSettings, ownerStamp: String) async -> Bool {
+        guard ownerStamp == planningSettingsOwnerStamp, let uid = writableUserID, !isSavingPlanningSettings, !isReloadingPlanningSettings else { return false }
+        let token = generation, reference = db.collection("users").document(uid)
+        isSavingPlanningSettings = true
+        defer { if generation == token { isSavingPlanningSettings = false } }
+        do {
+            _ = try await db.runTransaction { transaction, pointer in
+                do {
+                    guard let user = Auth.auth().currentUser, user.uid == uid, user.isEmailVerified else { throw CancellationError() }
+                    let snapshot = try transaction.getDocument(reference), raw = snapshot.data() ?? [:]
+                    guard raw["settings"] == nil || raw["settings"] is [String: Any] else { throw KairosPlanningSettingsStore.Invalid("Saved settings cannot be read safely.") }
+                    var settings = raw["settings"] as? [String: Any] ?? [:]
+                    let patch = try KairosPlanningSettingsStore.patch(expected: expected, draft: draft, remote: settings)
+                    for (path, value) in patch {
+                        let parts = path.split(separator: ".").map(String.init)
+                        var group = settings[parts[1]] as? [String: Any] ?? [:]
+                        group[parts[2]] = value; settings[parts[1]] = group
+                    }
+                    if !patch.isEmpty {
+                        if snapshot.exists { transaction.updateData(patch, forDocument: reference) }
+                        else { transaction.setData(["settings": settings], forDocument: reference, merge: true) }
+                    }
+                    return settings
+                } catch { pointer?.pointee = error as NSError; return nil }
+            }
+            guard generation == token, planningSettingsOwnerStamp == ownerStamp else { return false }
+            // The authoritative listener owns restoration. An older transaction
+            // response must never rewind a newer same-account snapshot.
+            errorMessage = nil; return true
+        } catch {
+            guard generation == token else { return false }
+            errorMessage = "Could not save planning settings: \(error.localizedDescription)"; return false
+        }
     }
 
     private func restoreAIProposals(_ raw: [String: Any], ownerID: String) {

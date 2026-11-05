@@ -1,0 +1,13 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
+const p=path.join(__dirname,'../Kairos/Kairos/Core/Resources/planning-settings-engine.js'),ctx=vm.createContext({});
+if(fs.existsSync(p))vm.runInContext(fs.readFileSync(p,'utf8'),ctx);
+assert.equal(typeof ctx.kairosPlanningSettings,'function','Planning settings validation is not implemented');
+const run=x=>JSON.parse(ctx.kairosPlanningSettings(JSON.stringify(x)));
+assert.equal(run({}).dailyLimitMinutes,0);assert.equal(run({}).weeklyAvailability,null);
+for(const daily of [1,14,1441,-1,1.5,true])assert.throws(()=>run({dailyLimitMinutes:daily}));
+for(const gap of [1,20,-1,'5'])assert.throws(()=>run({gapMinutes:gap}));
+const week=Object.fromEntries(Array.from({length:7},(_,i)=>[i,[]]));week[1]=[{start:'17:00',end:'18:00'},{start:'09:00',end:'12:00'}];
+const r=run({dailyLimitMinutes:15,gapMinutes:10,weeklyAvailability:week});assert.equal(r.weeklyAvailability[1][0].start,'09:00');
+for(const windows of [[{start:'22:00',end:'07:00'}],[{start:'09:00',end:'12:00'},{start:'11:00',end:'13:00'}],Array(5).fill({start:'09:00',end:'10:00'})])assert.throws(()=>run({weeklyAvailability:{...week,1:windows}}));
+assert.throws(()=>run({weeklyAvailability:{}}));assert.throws(()=>run({weeklyAvailability:{...week,1:[{start:'09:00',end:'24:00'}]}}));
+console.log('Planning settings: default limits, strict ranges, seven days, sorting, four windows and overlap/overnight validation passed');

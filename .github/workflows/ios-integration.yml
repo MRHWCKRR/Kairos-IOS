@@ -22,6 +22,8 @@ jobs:
         run: node Tools/planner-search-smoke.cjs
       - name: Check web-compatible Today
         run: node Tools/today-smoke.cjs
+      - name: Check planning settings
+        run: node Tools/planning-settings-smoke.cjs
       - run: swift test
   app-build:
     runs-on: macos-latest
@@ -38,3 +40,4 @@ jobs:
           test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/schedule-touch-engine.js
           test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/planner-search-engine.js
           test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/today-engine.js
+          test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/planning-settings-engine.js

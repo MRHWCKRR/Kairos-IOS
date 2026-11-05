@@ -267,7 +267,7 @@ struct TasksWorkspaceView: View {
                         .strikethrough(completed, color: KairosColors.accent).multilineTextAlignment(.leading)
                     HStack(spacing: 8) {
                         if task.recurrence?.enabled == true { Label("Repeats · manage occurrences in Schedule", systemImage: "repeat") }
-                        if let date = task.date { Label(Self.displayDate(date, dueTime: task.dueTime), systemImage: "calendar") }
+                        if let date = task.date { Label(Self.displayDate(date, dueTime: task.dueTime, timeFormat: profileRepo.accessibilitySettings?.timeFormat ?? "12"), systemImage: "calendar") }
                         if task.parentTaskID != nil { Label("Subtask", systemImage: "arrow.turn.down.right") }
                         if (task.notes ?? task.taskDescription)?.isEmpty == false { Image(systemName: "text.alignleft") }
                     }
@@ -325,12 +325,12 @@ struct TasksWorkspaceView: View {
         }
     }
 
-    private static func displayDate(_ value: String, dueTime: String?) -> String {
+    private static func displayDate(_ value: String, dueTime: String?, timeFormat: String) -> String {
         let formatter = DateFormatter(); formatter.dateFormat = "yyyy-MM-dd"; formatter.locale = Locale(identifier: "en_US_POSIX")
         guard let date = formatter.date(from: value) else { return value }
         formatter.dateStyle = .medium
         let base = formatter.string(from: date)
-        if let dueTime { return "\(base) · \(dueTime)" }
+        if let dueTime { return "\(base) · \(KairosTimeDisplay.time(dueTime, format: timeFormat))" }
         return base
     }
 }

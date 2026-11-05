@@ -12,6 +12,10 @@ Audit: 5 November 2026. Compared web `a9c443ce43e5da3e62b869df7f80918b3e91d882` 
 | Board management | Current Boards menus reach edit board, rename section and reversible archive for boards/sections/tasks. Archive browser restores parents before individually archived children. Existing mutation transactions retain unknown web metadata. |
 | Data safety | Owner/revision/day/timezone-scoped background Today projection; cancelled work cannot replace current results. Actions recheck identities and use guarded existing writes. Board description/name edits preserve unchanged remote fields and reject conflicting changed fields. |
 
+## Planning settings follow-up (6 November 2026)
+
+Settings > Accessibility now edits timezone, 12/24-hour display, daily task work limit, session gaps, all seven days of weekly availability, and completed-task rescheduling (default off). Saves use the web fields with changed-leaf transaction guards and retained drafts. Native display labels/pickers follow the chosen clock format and profile timezone; stored schedule times and existing tasks are unchanged. See [planning-settings.md](planning-settings.md). Advanced native planning workflows remain in the backlog below.
+
 ## Verified native equivalents already present
 
 - Task/board/section creation; task notes, priority, estimates, checklists, scheduled times and deadlines; native subtasks.
@@ -25,7 +29,6 @@ Audit: 5 November 2026. Compared web `a9c443ce43e5da3e62b869df7f80918b3e91d882` 
 
 | Priority | Capability gap | Evidence / implementation scope |
 | --- | --- | --- |
-| 1 | Editable planning/profile settings | Web `app-settings-form.js`, `planning-preferences-editor.js`, `app.html`; native Settings/Profile are mostly read-only beyond appearance/notifications. Add timezone, time format, planning limits/gaps/weekly availability and completed-task rescheduling, preserving raw settings. |
 | 1 | Complete task properties and assignments | Web `task-detail-pane.js`, `assignment-progress.js`, `task-actions.js`; native lacks reminder/AI-lock/scheduling-preference controls, assignment/session progress and move/reorder/duplicate/multiselect/bulk. Native parentTaskID subtasks are not web assignmentId sessions. |
 | 1 | Recurring rule creation/editing | Web `schedule-recurrence-ui.js`, `schedule-inspector.js`; native supports occurrence edits but not authoring rules or this-and-future/entire-series scopes. Requires split/ledger preservation tests. |
 | 1 | Task-linked focus, recovery and reporting | Web `focus-model.js`, `focus-store.js`, `focus-history-model.js`, `manual-focus-model.js`, `focus-breakdown-model.js`, `docs/task-focus.md`; native timer logs overall totals only, with no task/occurrence attribution, durable pending logs, corrections/manual entries or lifetime breakdown. Must reuse atomic receipt/history semantics before exposing these writes. |
