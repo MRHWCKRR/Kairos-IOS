@@ -373,6 +373,7 @@ struct TaskDetailView: View {
             .navigationTitle("Task details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { PlannerSearchButton().disabled(submitting) }
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(submitting) }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }.disabled(submitting || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || originalTask == nil)
