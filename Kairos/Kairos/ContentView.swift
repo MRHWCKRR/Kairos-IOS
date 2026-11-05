@@ -25,6 +25,9 @@ struct ContentView: View {
 
 private struct KairosWorkspaceView: View {
     @Environment(SessionStore.self) private var session
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var reminderRefreshToken = UUID()
+    @State private var reminderScope = UUID()
     @State private var planRepo = StudyPlanRepository()
     @State private var profileRepo = UserProfileRepository()
     @State private var networkMonitor = KairosNetworkMonitor.shared
@@ -113,11 +116,18 @@ private struct KairosWorkspaceView: View {
             planRepo.stopListening()
             profileRepo.stopListening()
             ambientAudio.stop()
+            Task { await KairosTaskReminderScheduler.cancel(scopeID: reminderScope) }
         }
         .task(id: ambientAudioKey) {
             await ambientAudio.apply(appearance)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .kairosReminderPermissionChanged)) { _ in reminderRefreshToken = UUID() }
+        .task(id: taskReminderKey) {
+            guard scenePhase == .active, !planRepo.isLoading, !profileRepo.isLoading, let uid = session.userID else { return }
+            await KairosTaskReminderScheduler.refresh(planRepo: planRepo, ownerID: uid, timezone: profileRepo.profile?.timezone ?? TimeZone.current.identifier, enabled: profileRepo.notificationSettings?.enabled != false, scopeID: reminderScope)
+        }
     }
+    private var taskReminderKey: String { "\(session.userID ?? "")-\(planRepo.plannerRevision)-\(planRepo.isLoading)-\(profileRepo.isLoading)-\(profileRepo.notificationSettings?.enabled != false)-\(profileRepo.profile?.timezone ?? "")-\(scenePhase)-\(reminderRefreshToken)" }
 
     private var ambientAudioKey: String {
         guard let appearance else { return "none" }
