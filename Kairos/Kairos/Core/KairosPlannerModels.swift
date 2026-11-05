@@ -33,6 +33,7 @@ struct KairosTask: Codable, Identifiable, Equatable, Sendable {
     var endTime: String? = nil
     var dueDate: String? = nil
     var reminderMinutes: Int? = nil
+    var scheduleLocked: Bool? = nil
 }
 
 struct KairosScheduleEvent: Codable, Identifiable, Equatable {
@@ -101,6 +102,7 @@ extension KairosTask {
         endTime = try c.decodeIfPresent(String.self, forKey: .endTime)
         dueDate = try c.decodeIfPresent(String.self, forKey: .dueDate)
         reminderMinutes = try c.decodeIfPresent(Int.self, forKey: .reminderMinutes)
+        scheduleLocked = try c.decodeIfPresent(Bool.self, forKey: .scheduleLocked)
     }
 }
 

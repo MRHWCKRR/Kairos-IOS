@@ -34,7 +34,7 @@ enum KairosRecurrence {
         func pick(_ map: [String: Any], _ keys: [String]) -> [String: Any] {
             map.filter { keys.contains($0.key) }
         }
-        var result = pick(task, ["id","title","date","startTime","endTime","estimatedMinutes","notes","priority","checklist","reminderMinutes"])
+        var result = pick(task, ["id","title","date","startTime","endTime","estimatedMinutes","notes","priority","checklist","reminderMinutes","scheduleLocked"])
         if let raw = task["recurrence"] as? [String: Any] {
             var rule = pick(raw, ["enabled","preset","frequency","interval","weekdays","monthlyMode","monthDay","weekdayPosition","weekday","month","startDate","endType","endDate","count","mode"])
             if let value = raw["exceptions"], !(value is NSNull), !(value is [String: Any]) { throw Unavailable() }
