@@ -66,6 +66,9 @@ enum KairosAIWorkspace {
                 guard let messages = chat["messages"] as? [[String: Any]], messages.allSatisfy({
                     ["user", "assistant"].contains($0["role"] as? String ?? "") && $0["content"] is String
                 }) else { throw Invalid() }
+                let chatID = chat["id"] as! String
+                let messageIDs = messages.enumerated().map { index, message in message["id"] as? String ?? message["usageId"] as? String ?? "\(chatID)-\(index)" }
+                guard Set(messageIDs).count == messageIDs.count else { throw Invalid() }
             }
             return value
         }

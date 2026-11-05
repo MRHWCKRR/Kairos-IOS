@@ -34,6 +34,9 @@ final class EventMutationTests: XCTestCase {
     func testRecurringTaskMovePreservesLogicalIdentityAndMetadata() throws {
         let task: [String: Any] = ["id": "t", "title": "Work", "date": "2026-11-05", "startTime": "09:00", "endTime": "10:00", "recurrence": ["enabled": true, "frequency": "daily", "interval": 1, "startDate": "2026-11-05", "endType": "never", "exceptions": ["2026-11-05": ["focusLoggedSeconds": 600, "custom": "keep"]]]]
         let original = try XCTUnwrap(KairosRecurrence.occurrences(task: task, on: "2026-11-05").first)
+        let range = try KairosRecurrence.occurrences(task: task, onDays: ["2026-11-05", "2026-11-06"])
+        XCTAssertEqual(range["2026-11-05"]?.first?.id, original.id)
+        XCTAssertEqual(range["2026-11-06"]?.count, 1)
         let updated = try KairosRecurrence.settingSchedule(task: task, occurrence: original, schedule: .init(date: "2026-11-07", startTime: "11:00", endTime: "12:00"))
         XCTAssertTrue(try KairosRecurrence.occurrences(task: updated, on: "2026-11-05").isEmpty)
         let moved = try XCTUnwrap(KairosRecurrence.occurrences(task: updated, on: "2026-11-07").first(where: { $0.id == original.id }))

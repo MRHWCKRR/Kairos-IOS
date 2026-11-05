@@ -251,6 +251,10 @@ final class StudyPlanRepository {
     }
 
     func recurringOccurrences(on day: String) async throws -> [KairosRecurringOccurrence] {
+        try await recurringOccurrences(onDays: [day])[day] ?? []
+    }
+
+    func recurringOccurrences(onDays days: [String]) async throws -> [String: [KairosRecurringOccurrence]] {
         var payloads: [String] = []
         var ids = Set<String>()
         for board in rawPlan["boards"] as? [[String: Any]] ?? [] where board["archived"] as? Bool != true {
@@ -265,15 +269,16 @@ final class StudyPlanRepository {
         // Immutable JSON inputs cross the actor boundary, never Firestore objects.
         let inputs = payloads
         let work = Task.detached(priority: .userInitiated) {
-            var result: [KairosRecurringOccurrence] = []
+            var result: [String: [KairosRecurringOccurrence]] = [:]
             for json in inputs {
                 try Task.checkCancellation()
                 guard let data = json.data(using: .utf8),
                       let task = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw KairosRecurrence.Unavailable() }
-                result += try KairosRecurrence.occurrences(task: task, on: day)
+                let projected = try KairosRecurrence.occurrences(task: task, onDays: days)
+                for (day, items) in projected { result[day, default: []] += items }
             }
             try Task.checkCancellation()
-            return result.sorted { ($0.startTime ?? "99:99", $0.id) < ($1.startTime ?? "99:99", $1.id) }
+            return result.mapValues { $0.sorted { ($0.startTime ?? "99:99", $0.id) < ($1.startTime ?? "99:99", $1.id) } }
         }
         return try await withTaskCancellationHandler(operation: { try await work.value }, onCancel: { work.cancel() })
     }

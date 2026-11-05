@@ -35,6 +35,8 @@ final class ScheduleProjectionTests: XCTestCase {
         let changed = try KairosChatActions.apply(response.actions, to: boards)
         XCTAssertEqual(changed[0].sections[0].tasks[0].date, "2026-11-06")
         XCTAssertEqual(changed[0].sections[0].tasks[0].startTime, "10:00")
+        let moveOnly = try KairosChatResponse.parse(#"{"reply":"Review move","actions":[{"type":"update_task","args":{"taskId":"t","startTime":"14:00"}}]}"#)
+        XCTAssertEqual(try KairosChatActions.apply(moveOnly.actions, to: boards)[0].sections[0].tasks[0].endTime, "15:00")
         let bad = try KairosChatResponse.parse(#"{"reply":"Review","actions":[{"type":"complete_task","args":{"taskId":"t"}},{"type":"delete_task","args":{"taskId":"missing"}}]}"#)
         XCTAssertThrowsError(try KairosChatActions.apply(bad.actions, to: boards))
         XCTAssertFalse(boards[0].sections[0].tasks[0].completed)

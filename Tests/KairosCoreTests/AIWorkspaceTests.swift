@@ -33,6 +33,13 @@ final class AIWorkspaceTests: XCTestCase {
     func testDeletedChatCannotBeResurrectedByPendingResponse() throws {
         XCTAssertThrowsError(try KairosAIWorkspace.applying(.append(chatID: "gone", messages: [.init(id: "m", role: "assistant", content: "Late")]), to: ["version": 2, "chats": [], "projects": []], legacy: [], owner: "u"))
     }
+    func testDisabledMemoryAndPendingWebActionsAreRespected() throws {
+        let source: [String: Any] = ["version": 2, "projects": [], "chats": [["id": "c", "messages": [], "summary": "Manual", "autoSummary": "Disabled", "autoMemoryEnabled": false, "pendingActionBatch": ["ownerId": "u"]]]]
+        let snapshot = try KairosAIWorkspace.read(source, legacy: [], owner: "u")
+        XCTAssertEqual(snapshot.chats[0].summary, "Manual")
+        XCTAssertTrue(snapshot.chats[0].hasUnfinishedWebActions)
+        XCTAssertThrowsError(try KairosAIWorkspace.applying(.append(chatID: "c", messages: [.init(id: "m", role: "user", content: "Next")]), to: source, legacy: [], owner: "u"))
+    }
 
     func testProjectDeletionKeepsConversations() throws {
         let source: [String: Any] = ["version": 2, "projects": [["id": "p", "title": "School"]], "chats": [["id": "c", "projectId": "p", "messages": []]]]

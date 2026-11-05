@@ -252,10 +252,11 @@ struct CalendarView: View {
         let dates = dateRange, tasks = entries
         var result: [ScheduleDay] = []
         do {
+            let projected = try await planRepo.recurringOccurrences(onDays: dates.map(key))
             for date in dates {
                 try Task.checkCancellation()
                 let dateKey = key(date)
-                let occurrences = try await planRepo.recurringOccurrences(on: dateKey).filter { $0.status == "pending" || (showCompleted && $0.status == "completed") || (showSkipped && $0.status == "skipped") }
+                let occurrences = (projected[dateKey] ?? []).filter { $0.status == "pending" || (showCompleted && $0.status == "completed") || (showSkipped && $0.status == "skipped") }
                 result.append(.init(date: date, key: dateKey, tasks: tasks.filter { $0.task.date == dateKey && (showCompleted || !$0.task.completed) }, occurrences: occurrences, events: showEvents ? try planRepo.eventSegments(on: dateKey) : []))
             }
             try Task.checkCancellation(); days = result; loading = false
