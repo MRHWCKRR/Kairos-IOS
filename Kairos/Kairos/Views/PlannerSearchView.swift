@@ -143,7 +143,7 @@ private struct PlannerSearchContent: View {
             guard key == loadKey else { return }
             index = output.0; results = output.1; indexedScope = key; loading = false
         } catch is CancellationError { }
-        catch { guard !Task.isCancelled, key == loadKey else { return }; loading = false; error = error.localizedDescription }
+        catch { guard !Task.isCancelled, key == loadKey else { return }; loading = false; self.error = error.localizedDescription }
     }
     private func open(_ row: KairosSearchRow) {
         guard !opening, indexedScope == loadKey, planRepo.searchResultIsAvailable(row) else {
