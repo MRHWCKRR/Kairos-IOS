@@ -29,6 +29,18 @@ struct KairosTodaySnapshot: Decodable, Sendable {
     let unscheduled: [KairosTodayRow]
 }
 enum KairosToday {
+    nonisolated static func validateAction(_ row: KairosTodayRow, planning: Bool, in plan: [String: Any]) throws {
+        let boards = try KairosAIProposalEngine.maps(plan["boards"])
+        let matches = boards.filter { $0["id"] as? String == row.boardId }
+        guard row.kind == "task", row.occurrenceDate == nil, matches.count == 1, let board = matches.first, board["archived"] as? Bool != true else { throw KairosPlannerMerge.Conflict() }
+        let sections = try KairosAIProposalEngine.maps(board["sections"]).filter { $0["id"] as? String == row.sectionId }
+        guard sections.count == 1, let section = sections.first, section["archived"] as? Bool != true else { throw KairosPlannerMerge.Conflict() }
+        let all = try boards.flatMap { try KairosAIProposalEngine.maps($0["sections"]) }.flatMap { try KairosAIProposalEngine.maps($0["tasks"]) }.filter { $0["id"] as? String == row.taskId }
+        guard all.count == 1, let task = try KairosAIProposalEngine.maps(section["tasks"]).first(where: { $0["id"] as? String == row.taskId }),
+              task["archived"] as? Bool != true, task["completed"] as? Bool != true,
+              (task["recurrence"] as? [String: Any])?["enabled"] as? Bool != true,
+              !planning || task["scheduleLocked"] as? Bool != true else { throw KairosPlannerMerge.Conflict() }
+    }
     nonisolated static func build(planJSON: String, today: String) throws -> KairosTodaySnapshot {
         #if SWIFT_PACKAGE
         let bundle = Bundle.module

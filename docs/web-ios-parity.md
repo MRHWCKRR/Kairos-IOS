@@ -6,7 +6,7 @@ Audit: 5 November 2026. Compared web `a9c443ce43e5da3e62b869df7f80918b3e91d882` 
 
 | Area | Change |
 | --- | --- |
-| Home | Replaces the five-item Up next sample with the web Today groups: Needs attention, On today, To plan; counts and Show more; new task, details, manual Schedule, Plan today and ordinary completion. |
+| Home | Replaces the five-item Up next sample with the web Today groups: Needs attention, On today, To plan; five initial rows per group and Show more; new task, details, manual Schedule, Plan today and ordinary completion. |
 | Today semantics | Reuses web `today-model.js` grouping/order and existing recurrence/event engines. Missed scheduled dates or past deadlines need attention; dates use the profile timezone. Search uses its separate deadline-precedence rule; the two workflows intentionally follow their respective web models. |
 | Recurring/events | Today shows pending historical/moved recurring logical dates and today's fixed/imported/overnight event segments. Opens the existing occurrence/event editor with the correct identity. Series templates are never completed from Today or Boards. |
 | Board management | Current Boards menus reach edit board, rename section and reversible archive for boards/sections/tasks. Archive browser restores parents before individually archived children. Existing mutation transactions retain unknown web metadata. |
@@ -37,6 +37,7 @@ Audit: 5 November 2026. Compared web `a9c443ce43e5da3e62b869df7f80918b3e91d882` 
 | 2 | Advanced events / Schedule information | Web supports all-day/free/reminder and fortnightly/ranged rules/restoration, deadline markers and fixed-conflict labels. Native forms/basic event actions and timeline omit these. |
 | 2 | Bulk calendar export | Web `calendar-export-view.js`; Apple single-event export does not cover reviewed task/event date-range .ics snapshots. |
 | 2 | Notification inbox / completion wiring | Web `notification-center.js`; native has preferences/permissions but no saved inbox/read/delete UI. Board-completion delivery remains wired only in unused TasksView. |
+| 2 | Archive permanent removal | The new native Archive supports reversible restore. Web archive management also exposes permanent removal; that destructive workflow remains separate from this batch. |
 | 2 | Profile/security/accessibility | Editable profile/avatar/birthday, provider/last-sign-in and reauthenticated security controls; functional language/density options. Browser-specific shortcuts/device/session behavior should use native equivalents where appropriate. |
 | 3 | Organization / media polish | Section collapse/focus/completed preferences; chat ordering/status/project icons/colors, richer markdown; image upload and working native ambient media. Visual differences alone do not imply missing capabilities. |
 

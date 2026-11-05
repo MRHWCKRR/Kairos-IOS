@@ -52,7 +52,9 @@ final class StudyPlanRepository {
         guard !isSaving, let task = todayTask(row, revision: revision) else {
             errorMessage = "This task changed. Review Today before trying again."; return false
         }
-        return await performTask(.setCompleted(taskID: task.id, completed: true))
+        return await mutateBoards(validateRemote: { try KairosToday.validateAction(row, planning: false, in: $0) }) { boards in
+            boards = try KairosTaskMutation.apply(.setCompleted(taskID: task.id, completed: true), to: boards)
+        }
     }
     @discardableResult
     func planTodayTask(_ row: KairosTodayRow, revision: UUID, day: String) async -> Bool {
@@ -60,7 +62,9 @@ final class StudyPlanRepository {
             errorMessage = "This task changed or its schedule is locked. Open its details to review it."; return false
         }
         var patch = KairosTaskPatch(); patch.date = .set(day)
-        return await updateTask(taskID: task.id, patch: patch, expected: task)
+        return await mutateBoards(validateRemote: { try KairosToday.validateAction(row, planning: true, in: $0) }) { boards in
+            boards = try KairosTaskMutation.apply(.update(taskID: task.id, patch: patch, expected: task), to: boards)
+        }
     }
     func searchResultIsAvailable(_ row: KairosSearchRow) -> Bool {
         guard searchScope != nil, let boards = currentPlan?.boards else { return false }
@@ -176,7 +180,7 @@ final class StudyPlanRepository {
     }
 
     @discardableResult
-    private func mutateBoards(_ transform: (inout [KairosBoard]) throws -> Void) async -> Bool {
+    private func mutateBoards(validateRemote: (@Sendable ([String: Any]) throws -> Void)? = nil, _ transform: (inout [KairosBoard]) throws -> Void) async -> Bool {
         guard let userID = listeningUserID else {
             errorMessage = "Sign in before editing your planner."
             return false
@@ -185,14 +189,14 @@ final class StudyPlanRepository {
         var plan = before ?? KairosStudyPlan(id: nil, userID: userID, createdAt: nil, boards: [], dayInsights: nil, scheduleEvents: nil)
         do {
             try transform(&plan.boards)
-            return await persist(before: before, after: plan)
+            return await persist(before: before, after: plan, validateRemote: validateRemote)
         } catch {
             errorMessage = error.localizedDescription
             return false
         }
     }
 
-    private func persist(before: KairosStudyPlan?, after: KairosStudyPlan, includeEvents: Bool = false) async -> Bool {
+    private func persist(before: KairosStudyPlan?, after: KairosStudyPlan, includeEvents: Bool = false, validateRemote: (@Sendable ([String: Any]) throws -> Void)? = nil) async -> Bool {
         guard !isSaving else { errorMessage = "Wait for your current change to finish saving."; return false }
         guard hasLoadedSnapshot, !isLoading, let user = Auth.auth().currentUser,
               user.isEmailVerified, user.uid == listeningUserID, after.userID == user.uid else {
@@ -221,6 +225,7 @@ final class StudyPlanRepository {
                     if before != nil && !snapshot.exists { throw KairosPlannerMerge.Conflict() }
                     let raw = snapshot.data() ?? [:]
                     guard !snapshot.exists || raw["userID"] as? String == uid else { throw KairosPlannerMerge.Conflict() }
+                    try validateRemote?(raw)
                     let remote = try Self.normalizedPlanner(raw)
                     let merged = try KairosPlannerMerge.merge(base: baseline, local: desired, remote: remote)
                     try KairosChecklist.validateMergedPlanner(base: baseline, merged: merged)
@@ -598,8 +603,12 @@ final class StudyPlanRepository {
     }
 
     @discardableResult
-    func renameSection(sectionID: String, title: String) async -> Bool {
+    func renameSection(sectionID: String, title: String, expectedTitle: String? = nil) async -> Bool {
         return await mutateBoards { boards in
+            if let expectedTitle {
+                let current = boards.flatMap(\.sections).filter { $0.id == sectionID }
+                guard current.count == 1, current[0].title == expectedTitle || current[0].title == title else { throw KairosPlannerMerge.Conflict() }
+            }
             boards = try KairosBoardMutation.apply(.renameSection(sectionID: sectionID, title: title), to: boards)
         }
     }

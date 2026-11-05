@@ -24,4 +24,18 @@ final class TodayTests: XCTestCase {
     func testInvalidTodayIsRejected() throws {
         XCTAssertThrowsError(try KairosToday.build(planJSON: "{}", today: "2026-02-30"))
     }
+    func testActionsRejectNewRemoteLocksArchivesOrRelocation() throws {
+        let raw: [String: Any] = ["boards": [["id": "b", "title": "Study", "sections": [["id": "s", "title": "Work", "tasks": [["id": "t", "title": "Essay"]]]]]]]
+        let row = try XCTUnwrap(KairosToday.build(planJSON: KairosTouchSchedule.json(raw), today: "2026-11-05").unscheduled.first)
+        XCTAssertNoThrow(try KairosToday.validateAction(row, planning: true, in: raw))
+        func changed(_ field: String) -> [String: Any] {
+            ["boards": [["id": "b", "title": "Study", "sections": [["id": "s", "title": "Work", "tasks": [["id": "t", "title": "Essay", field: true]]]]]]]
+        }
+        XCTAssertThrowsError(try KairosToday.validateAction(row, planning: true, in: changed("scheduleLocked")))
+        XCTAssertNoThrow(try KairosToday.validateAction(row, planning: false, in: changed("scheduleLocked")))
+        XCTAssertThrowsError(try KairosToday.validateAction(row, planning: false, in: changed("archived")))
+        XCTAssertThrowsError(try KairosToday.validateAction(row, planning: false, in: changed("completed")))
+        let moved: [String: Any] = ["boards": [["id": "other", "sections": [["id": "s", "tasks": [["id": "t", "title": "Essay"]]]]]]]
+        XCTAssertThrowsError(try KairosToday.validateAction(row, planning: true, in: moved))
+    }
 }

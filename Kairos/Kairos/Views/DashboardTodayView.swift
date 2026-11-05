@@ -15,7 +15,7 @@ struct DashboardTodayView: View {
     @State private var message: String?
     @State private var busy = false
     @State private var retry = 0
-    @State private var visibleCounts = ["overdue": 20, "today": 20, "unscheduled": 20]
+    @State private var visibleCounts = ["overdue": 5, "today": 5, "unscheduled": 5]
     @State private var selectedTask: TaskDetailContext?
     @State private var selectedOccurrence: KairosRecurringOccurrence?
     @State private var selectedEvent: KairosEventSegment?
@@ -62,7 +62,7 @@ struct DashboardTodayView: View {
         }.padding(20).kairosCard(cornerRadius: 28)
             .task(id: "\(isActive)-\(loadKey)-\(retry)") { await refresh() }
             .onChange(of: scope) { _, _ in
-                snapshot = nil; error = nil; message = nil; selectedTask = nil; selectedOccurrence = nil; selectedEvent = nil; scheduler = nil; creating = false; visibleCounts = ["overdue": 20, "today": 20, "unscheduled": 20]
+                snapshot = nil; error = nil; message = nil; selectedTask = nil; selectedOccurrence = nil; selectedEvent = nil; scheduler = nil; creating = false; visibleCounts = ["overdue": 5, "today": 5, "unscheduled": 5]
             }
             .sheet(item: $selectedTask) { TaskDetailView(context: $0) }
             .sheet(item: $selectedOccurrence) { OccurrenceDetailsView(occurrence: $0, calendar: calendar) }
@@ -75,8 +75,8 @@ struct DashboardTodayView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack { Text(title).font(.headline); Spacer(); Text("\(rows.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary) }
             if rows.isEmpty { Text(empty).font(.subheadline).foregroundStyle(.secondary) }
-            ForEach(Array(rows.prefix(visibleCounts[id] ?? 20)), id: \.key) { row in taskRow(row) }
-            if rows.count > (visibleCounts[id] ?? 20) { Button("Show more") { visibleCounts[id, default: 20] += 20 }.font(.subheadline) }
+            ForEach(Array(rows.prefix(visibleCounts[id] ?? 5)), id: \.key) { row in taskRow(row) }
+            if rows.count > (visibleCounts[id] ?? 5) { Button("Show more") { visibleCounts[id, default: 5] += 10 }.font(.subheadline) }
         }.padding(.vertical, 8)
     }
     private func taskRow(_ row: KairosTodayRow) -> some View {

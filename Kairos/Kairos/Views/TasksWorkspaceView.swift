@@ -56,7 +56,7 @@ struct TasksWorkspaceView: View {
             }
             .sheet(item: $renamingSection) { section in
                 KairosNameEditor(heading: "Rename section", initialValue: section.title, failureMessage: { planRepo.errorMessage }) { title in
-                    await planRepo.renameSection(sectionID: section.id, title: title)
+                    await planRepo.renameSection(sectionID: section.id, title: title, expectedTitle: section.title)
                 }
             }
             .sheet(isPresented: $showingArchive) { PlannerArchiveView().environment(planRepo) }
@@ -188,7 +188,7 @@ struct TasksWorkspaceView: View {
                 Menu {
                     Button("Edit board", systemImage: "pencil") { editingBoard = board }
                     Button("Archive board", systemImage: "archivebox", role: .destructive) { archiveTarget = .board(board.id) }
-                } label: { Image(systemName: "ellipsis").padding(10) }
+                } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
                 .disabled(planRepo.isSaving)
                 .accessibilityLabel("Options for \(board.title)")
             }
@@ -222,7 +222,7 @@ struct TasksWorkspaceView: View {
                 Menu {
                     Button("Rename section", systemImage: "pencil") { renamingSection = section }
                     Button("Archive section", systemImage: "archivebox", role: .destructive) { archiveTarget = .section(section.id) }
-                } label: { Image(systemName: "ellipsis").padding(8) }
+                } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
                 .disabled(planRepo.isSaving)
                 .accessibilityLabel("Options for \(section.title)")
             }
@@ -278,7 +278,7 @@ struct TasksWorkspaceView: View {
             Menu {
                 Button("Task details", systemImage: "pencil") { selectedTask = TaskDetailContext(taskID: task.id, boardID: board.id, sectionID: section.id) }
                 Button("Archive task", systemImage: "archivebox", role: .destructive) { archiveTarget = .task(task.id) }
-            } label: { Image(systemName: "ellipsis").padding(8) }
+            } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
             .disabled(planRepo.isSaving || pendingTaskIDs.contains(task.id))
             .accessibilityLabel("Options for \(task.title)")
         }
