@@ -75,4 +75,38 @@ final class AIProposalTests: XCTestCase {
         XCTAssertThrowsError(try KairosAIProposalEngine.make(actions: actions, plan: altered(["completed": true]), ownerID: "u", chatID: "c", planID: "p", timezone: "UTC", request: "Move"))
         XCTAssertNoThrow(try KairosAIProposalEngine.make(actions: actions, plan: altered(["completed": true]), ownerID: "u", chatID: "c", planID: "p", timezone: "UTC", request: "Move", allowCompletedRescheduling: true))
     }
+    func testRecurringTaskActionPreservesLogicalIdentityAndSeriesReminderPolicy() throws {
+        let raw: [String: Any] = ["boards": [["id": "b", "title": "Board", "sections": [["id": "s", "title": "Work", "tasks": [["id": "t", "title": "Practice", "date": "2026-11-05", "startTime": "09:00", "endTime": "10:00", "reminderMinutes": 30, "recurrence": ["enabled": true, "frequency": "daily", "mode": "fixed", "startDate": "2026-11-05", "endType": "never", "exceptions": ["2026-11-05": ["custom": "keep"], "2026-11-06": ["override": ["reminderMinutes": 60]]]]]]]]]], "scheduleEvents": []]
+        let actions = try KairosChatResponse.parse(#"{"reply":"Review","actions":[{"type":"update_task_occurrence","args":{"taskId":"t","occurrenceDate":"2026-11-05","date":"2026-11-07","startTime":"11:00","endTime":"12:00","status":"completed"}},{"type":"set_task_reminder","args":{"taskId":"t","minutesBefore":15}}]}"#).actions
+        let p = try KairosAIProposalEngine.make(actions: actions, plan: raw, ownerID: "u", chatID: "c", planID: "p", timezone: "UTC", request: "Move practice")
+        let updated = try KairosAIProposalEngine.prepare(p, plan: raw).after
+        let boards = try XCTUnwrap(updated["boards"] as? [[String: Any]])
+        let sections = try XCTUnwrap(boards[0]["sections"] as? [[String: Any]])
+        let tasks = try XCTUnwrap(sections[0]["tasks"] as? [[String: Any]])
+        let rule = try XCTUnwrap(tasks[0]["recurrence"] as? [String: Any])
+        let exceptions = try XCTUnwrap(rule["exceptions"] as? [String: Any])
+        let moved = try XCTUnwrap(exceptions["2026-11-05"] as? [String: Any])
+        XCTAssertEqual(moved["status"] as? String, "completed")
+        XCTAssertEqual(moved["custom"] as? String, "keep")
+        XCTAssertEqual((moved["override"] as? [String: Any])?["date"] as? String, "2026-11-07")
+        XCTAssertNil(((exceptions["2026-11-06"] as? [String: Any])?["override"] as? [String: Any])?["reminderMinutes"])
+        XCTAssertEqual(tasks[0]["reminderMinutes"] as? Int, 15)
+    }
+    func testWeeklyEventChatMoveAndDeleteAffectOnlySelectedOccurrence() throws {
+        var raw = plan
+        raw["scheduleEvents"] = [["id": "e", "title": "Class", "day": 4, "start": "09:00", "end": "10:00", "category": "class", "color": "purple"]]
+        let actions = try KairosChatResponse.parse(#"{"reply":"Review","actions":[{"type":"update_schedule_event","args":{"eventId":"e","occurrenceDate":"2026-11-05","date":"2026-11-06","start":"11:00"}}]}"#).actions
+        let p = try KairosAIProposalEngine.make(actions: actions, plan: raw, ownerID: "u", chatID: "c", planID: "p", timezone: "UTC", request: "Move class")
+        XCTAssertTrue(p.rows[0].after.contains("11:00–12:00"))
+        let updated = try KairosAIProposalEngine.prepare(p, plan: raw).after
+        let events = try XCTUnwrap(updated["scheduleEvents"] as? [[String: Any]])
+        XCTAssertEqual(events[0]["color"] as? String, "purple")
+        XCTAssertTrue(try KairosScheduleProjection.events(events, on: "2026-11-05").isEmpty)
+        XCTAssertEqual(try KairosScheduleProjection.events(events, on: "2026-11-06").first?.startTime, "11:00")
+        XCTAssertEqual(try KairosScheduleProjection.events(events, on: "2026-11-12").count, 1)
+        let skip = try KairosChatResponse.parse(#"{"reply":"Review","actions":[{"type":"delete_schedule_event","args":{"eventId":"e","occurrenceDate":"2026-11-05"}}]}"#).actions
+        let pending = try KairosAIProposalEngine.make(actions: skip, plan: updated, ownerID: "u", chatID: "c", planID: "p", timezone: "UTC", request: "Skip class")
+        let skipped = try KairosAIProposalEngine.prepare(pending, plan: updated).after
+        XCTAssertTrue(try KairosScheduleProjection.events(skipped["scheduleEvents"] as! [[String: Any]], on: "2026-11-06").isEmpty)
+    }
 }

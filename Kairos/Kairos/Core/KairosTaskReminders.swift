@@ -27,7 +27,7 @@ enum KairosTaskReminders {
               KairosAIProposalEngine.dayKey(result, calendar: calendar) == day, calendar.component(.hour, from: result) == minute / 60, calendar.component(.minute, from: result) == minute % 60 else { return nil }
         return result
     }
-    nonisolated static func plan(_ candidates: [KairosReminderCandidate], ownerID: String, timezone: String, now: Date, limit: Int = 50) -> [KairosPlannedReminder] {
+    nonisolated static func plan(_ candidates: [KairosReminderCandidate], ownerID: String, timezone: String, now: Date, limit: Int = 50, excludingIDs: Set<String> = []) -> [KairosPlannedReminder] {
         var seen = Set<String>(), result: [KairosPlannedReminder] = []
         for candidate in candidates {
             guard (1...10080).contains(candidate.minutesBefore), let start = wallDate(day: candidate.date, time: candidate.startTime, timezone: timezone), start > now else { continue }
@@ -37,14 +37,12 @@ enum KairosTaskReminders {
             guard delivery < start else { continue }
             let identity = [ownerID, timezone, candidate.id, candidate.date, candidate.startTime, String(candidate.minutesBefore)]
             guard let hash = try? KairosAIProposalEngine.digest(identity), seen.insert(hash).inserted else { continue }
+            guard !excludingIDs.contains("kairos.task." + hash) else { continue }
             result.append(.init(id: "kairos.task." + hash, title: candidate.title, dueAt: delivery, startsAt: start))
         }
         return Array(result.sorted { ($0.dueAt, $0.id) < ($1.dueAt, $1.id) }.prefix(max(0, min(50, limit))))
     }
-    nonisolated static func excludingDelivered(_ reminders: [KairosPlannedReminder], scheduled: [String: Double], pendingIDs: Set<String>, now: Date) -> [KairosPlannedReminder] {
-        reminders.filter { reminder in
-            guard let due = scheduled[reminder.id] else { return true }
-            return due > now.timeIntervalSince1970 || pendingIDs.contains(reminder.id)
-        }
+    nonisolated static func deliveredIDs(scheduled: [String: Double], pendingIDs: Set<String>, now: Date) -> Set<String> {
+        Set(scheduled.filter { $0.value <= now.timeIntervalSince1970 && !pendingIDs.contains($0.key) }.keys)
     }
 }

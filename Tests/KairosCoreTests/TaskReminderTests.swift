@@ -19,8 +19,17 @@ final class TaskReminderTests: XCTestCase {
     }
     func testDeliveredReminderIsNotRequeuedButPendingReminderSurvivesRefresh() throws {
         let now = Date(timeIntervalSince1970: 1000)
-        let reminder = KairosPlannedReminder(id: "r", title: "Work", dueAt: now.addingTimeInterval(1), startsAt: now.addingTimeInterval(300))
-        XCTAssertTrue(KairosTaskReminders.excludingDelivered([reminder], scheduled: ["r": 900], pendingIDs: [], now: now).isEmpty)
-        XCTAssertEqual(KairosTaskReminders.excludingDelivered([reminder], scheduled: ["r": 900], pendingIDs: ["r"], now: now).count, 1)
+        XCTAssertEqual(KairosTaskReminders.deliveredIDs(scheduled: ["r": 900], pendingIDs: [], now: now), ["r"])
+        XCTAssertTrue(KairosTaskReminders.deliveredIDs(scheduled: ["r": 900], pendingIDs: ["r"], now: now).isEmpty)
+    }
+    func testDeliveredAlertsDoNotConsumeThePendingLimit() throws {
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-05T00:00:00Z"))
+        let candidates = (0..<60).map { KairosReminderCandidate(id: "t\($0)", title: "Work", date: "2026-11-06", startTime: "09:00", minutesBefore: 15) }
+        let initial = KairosTaskReminders.plan(candidates, ownerID: "u", timezone: "UTC", now: now)
+        XCTAssertEqual(initial.count, 50)
+        let delivered = Set(initial.map(\.id))
+        let next = KairosTaskReminders.plan(candidates, ownerID: "u", timezone: "UTC", now: now, excludingIDs: delivered)
+        XCTAssertEqual(next.count, 10)
+        XCTAssertTrue(delivered.isDisjoint(with: next.map(\.id)))
     }
 }
