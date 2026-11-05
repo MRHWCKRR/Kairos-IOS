@@ -44,7 +44,7 @@ struct MainTabView: View {
             .allowsHitTesting(selectedTab == 2)
             .accessibilityHidden(selectedTab != 2)
 
-        CalendarView()
+        CalendarView(isActive: selectedTab == 3)
             .opacity(selectedTab == 3 ? 1 : 0)
             .allowsHitTesting(selectedTab == 3)
             .accessibilityHidden(selectedTab != 3)

@@ -208,6 +208,85 @@ final class StudyPlanRepository {
     }
 
     // MARK: - Recurring occurrences
+    func beginTouchEdit(target: KairosTouchTarget, timezone: String, allowCompleted: Bool) throws -> KairosTouchDraft {
+        guard hasLoadedSnapshot, !isLoading, !isSaving, let user = Auth.auth().currentUser, user.isEmailVerified, user.uid == listeningUserID, let planID = currentPlan?.id else { throw KairosTouchSchedule.Failure("Wait for your verified account’s planner to load.") }
+        return try KairosTouchSchedule.begin(plan: rawPlan, target: target, ownerID: user.uid, planID: planID, timezone: timezone, allowCompleted: allowCompleted)
+    }
+
+    func saveTouchEdit(_ draft: KairosTouchDraft, placement: KairosSchedulePlacement) async -> KairosTouchUndo? {
+        guard hasLoadedSnapshot, !isLoading, !isSaving, let user = Auth.auth().currentUser, user.isEmailVerified, user.uid == listeningUserID, user.uid == draft.ownerID, currentPlan?.id == draft.planID else { errorMessage = "Your account or planner changed. Reopen Schedule before retrying."; return nil }
+        let uid = user.uid, token = generation
+        let reference = db.collection("study_plans").document(draft.planID), userRef = db.collection("users").document(uid)
+        isSaving = true
+        defer { if generation == token { isSaving = false } }
+        do {
+            let fingerprint = try KairosAIProposalEngine.digest(["id": draft.id, "target": KairosTouchSchedule.encode(draft.target), "expected": draft.expectedJSON, "date": placement.date, "start": placement.start, "end": placement.end, "timezone": draft.timezone])
+            let result = try await db.runTransaction { transaction, pointer in
+                do {
+                    guard let current = Auth.auth().currentUser, current.uid == uid, current.isEmailVerified else { throw CancellationError() }
+                    let snapshot = try transaction.getDocument(reference)
+                    let profile = try transaction.getDocument(userRef).data() ?? [:]
+                    guard let raw = snapshot.data(), raw["userID"] as? String == uid else { throw KairosPlannerMerge.Conflict() }
+                    var receipts = try KairosAIProposalEngine.maps(raw["scheduleTouchReceipts"])
+                    if let receipt = receipts.first(where: { $0["id"] as? String == draft.id }) {
+                        guard receipt["fingerprint"] as? String == fingerprint, receipt["undone"] as? Bool != true, let undo = receipt["undoJSON"] as? String else { throw KairosTouchSchedule.Failure("This schedule change was already undone or its identity changed.") }
+                        return undo
+                    }
+                    guard draft.createdAt > (raw["scheduleTouchReceiptFloor"] as? Double ?? 0) else { throw KairosTouchSchedule.Failure("This retry is too old to confirm safely. Check Schedule before making a new change.") }
+                    let settings = profile["settings"] as? [String: Any], account = settings?["profile"] as? [String: Any]
+                    guard account?["timezone"] as? String == nil || account?["timezone"] as? String == draft.timezone else { throw KairosTouchSchedule.Failure("Your timezone changed. Start the gesture again.") }
+                    let allowCompleted = (settings?["planning"] as? [String: Any])?["rescheduleCompleted"] as? Bool == true
+                    let applied = try KairosTouchSchedule.apply(plan: raw, draft: draft, placement: placement, allowCompleted: allowCompleted)
+                    let undo = try KairosTouchSchedule.encode(applied.undo)
+                    receipts.append(["id": draft.id, "createdAt": draft.createdAt, "fingerprint": fingerprint, "undoJSON": undo, "undone": false])
+                    var floor = raw["scheduleTouchReceiptFloor"] as? Double ?? 0
+                    while true {
+                        let bytes = try JSONSerialization.data(withJSONObject: receipts).count
+                        if receipts.count <= 100 && bytes <= 64_000 { break }
+                        guard receipts.count > 1 else { throw KairosTouchSchedule.Failure("This schedule receipt is too large.") }
+                        floor = max(floor, receipts.removeFirst()["createdAt"] as? Double ?? 0)
+                    }
+                    transaction.updateData(["boards": applied.plan["boards"] ?? [], "scheduleTouchReceipts": receipts, "scheduleTouchReceiptFloor": floor], forDocument: reference)
+                    return undo
+                } catch { pointer?.pointee = error as NSError; return nil }
+            }
+            guard token == generation, Auth.auth().currentUser?.uid == uid, let json = result as? String else { return nil }
+            let undo = try JSONDecoder().decode(KairosTouchUndo.self, from: Data(json.utf8))
+            errorMessage = nil; return undo
+        } catch { guard token == generation else { return nil }; errorMessage = error.localizedDescription; return nil }
+    }
+
+    @discardableResult
+    func undoTouchEdit(_ undo: KairosTouchUndo) async -> Bool {
+        guard hasLoadedSnapshot, !isLoading, !isSaving, let user = Auth.auth().currentUser, user.isEmailVerified, user.uid == listeningUserID, user.uid == undo.ownerID, currentPlan?.id == undo.planID else { errorMessage = "Your account or planner changed. Reopen Schedule before retrying."; return false }
+        let uid = user.uid, token = generation, reference = db.collection("study_plans").document(undo.planID), userRef = db.collection("users").document(user.uid)
+        isSaving = true
+        defer { if generation == token { isSaving = false } }
+        do {
+            let expected = try KairosTouchSchedule.encode(undo)
+            _ = try await db.runTransaction { transaction, pointer in
+                do {
+                    guard let current = Auth.auth().currentUser, current.uid == uid, current.isEmailVerified else { throw CancellationError() }
+                    let snapshot = try transaction.getDocument(reference)
+                    let profile = try transaction.getDocument(userRef).data() ?? [:]
+                    guard let raw = snapshot.data(), raw["userID"] as? String == uid else { throw KairosPlannerMerge.Conflict() }
+                    var receipts = try KairosAIProposalEngine.maps(raw["scheduleTouchReceipts"])
+                    guard let index = receipts.firstIndex(where: { $0["id"] as? String == undo.id }), receipts[index]["undoJSON"] as? String == expected else { throw KairosTouchSchedule.Failure("This saved Undo is no longer available.") }
+                    if receipts[index]["undone"] as? Bool == true { return true }
+                    let settings = profile["settings"] as? [String: Any], account = settings?["profile"] as? [String: Any]
+                    guard account?["timezone"] as? String == nil || account?["timezone"] as? String == undo.timezone else { throw KairosTouchSchedule.Failure("Your timezone changed. Review Schedule before using Undo.") }
+                    let allowCompleted = (settings?["planning"] as? [String: Any])?["rescheduleCompleted"] as? Bool == true
+                    let restored = try KairosTouchSchedule.undo(plan: raw, record: undo, allowCompleted: allowCompleted)
+                    receipts[index]["undone"] = true
+                    transaction.updateData(["boards": restored["boards"] ?? [], "scheduleTouchReceipts": receipts], forDocument: reference)
+                    return true
+                } catch { pointer?.pointee = error as NSError; return nil }
+            }
+            guard token == generation, Auth.auth().currentUser?.uid == uid else { return false }
+            errorMessage = nil; return true
+        } catch { guard token == generation else { return false }; errorMessage = error.localizedDescription; return false }
+    }
+
     func taskReminderCandidates(timezone: String) async throws -> [KairosReminderCandidate] {
         guard hasLoadedSnapshot, !isLoading else { return [] }
         let calendar = KairosAIProposalEngine.calendar(timezone)

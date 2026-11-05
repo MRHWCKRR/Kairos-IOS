@@ -1,0 +1,9 @@
+# Touch schedule interactions
+
+Use the existing web schedule-change/Undo rules with native SwiftUI gestures. Long-press a timed task to move it, then drag vertically for time and horizontally across visible day columns. Resize with a dedicated touch handle. Snap in five-minute steps and show the proposed date/time range before release. Quick swipes remain scrolling; tapping still opens details. Cancel gestures when data, account, timezone, view, or app phase changes. Offer accessible move/resize commands alongside touch gestures.
+
+Reuse the web schedule-change-model.js with the existing recurrence engine. Preserve duration on moves; resize updates the selected duration. Respect locks, archive status, completed-task scheduling preference and original recurring occurrence identity. Fixed/imported events retain detail-sheet editing, matching the web timeline.
+
+At gesture start pin account, plan, timezone and the web target guard. Save only after release, in an authenticated Firestore transaction that rechecks the current task and planning preferences. Keep unrelated task/occurrence metadata. Record the operation and its web scheduleUndo record atomically. A stable operation identity makes interrupted-save retries safe. Undo verifies the post-change guard, changes only scheduling fields and cannot overwrite a newer schedule or repeat an already-used undo. Retain errors and an explicit retry if saving fails.
+
+Use native long-press/drag gestures and GestureState cancellation, clear highlights/time previews and a large resize target. Day uses the full width; 3 days/Week allow horizontal movement to another visible day and keep scrolling available before holding. Provide an Undo bar after successful moves/resizes, replacing it only after a later successful change. Avoid claiming device gesture validation from compilation: verify pure geometry/mutation/Undo tests plus app build, and report manual iPhone gesture testing separately.

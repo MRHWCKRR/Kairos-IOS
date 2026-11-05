@@ -31,10 +31,23 @@ private struct ScheduleBlock: Identifiable {
     var column = 0
     var columns = 1
 }
+private struct ScheduleTouchInteraction {
+    let draft: KairosTouchDraft
+    let blockID: String
+    let sourceDate: String
+    let mode: ScheduleTouchMode
+    var placement: KairosSchedulePlacement?
+}
+private struct PendingScheduleTouch {
+    let draft: KairosTouchDraft
+    let placement: KairosSchedulePlacement
+}
 
 struct CalendarView: View {
+    var isActive = true
     @Environment(StudyPlanRepository.self) private var planRepo
     @Environment(UserProfileRepository.self) private var profileRepo
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedDate = Date()
     @State private var mode: MobileScheduleView = .day
     @State private var days: [ScheduleDay] = []
@@ -50,6 +63,15 @@ struct CalendarView: View {
     @State private var showCompleted = true
     @State private var showEvents = true
     @State private var showSkipped = false
+    @State private var interaction: ScheduleTouchInteraction?
+    @State private var columnFrames: [String: CGRect] = [:]
+    @State private var viewportFrame: CGRect = .zero
+    @State private var savingTouch = false
+    @State private var undoingTouch = false
+    @State private var touchUndo: KairosTouchUndo?
+    @State private var pendingTouch: PendingScheduleTouch?
+    @State private var touchMessage: String?
+    @State private var suppressTapUntil = Date.distantPast
 
     private var calendar: Calendar {
         var value = Calendar(identifier: .gregorian)
@@ -95,6 +117,14 @@ struct CalendarView: View {
                 }
             }
             .kairosBackground().navigationTitle("Schedule").navigationBarTitleDisplayMode(.inline)
+            .safeAreaInset(edge: .bottom, spacing: 0) { touchBar }
+            .onPreferenceChange(ScheduleColumnFrames.self) { columnFrames = $0 }
+            .onPreferenceChange(ScheduleViewportFrame.self) { viewportFrame = $0 }
+            .onChange(of: loadID) { _, _ in interaction = nil }
+            .onChange(of: showingDayDetails) { _, _ in interaction = nil }
+            .onChange(of: isActive) { _, active in if !active { interaction = nil } }
+            .onChange(of: scenePhase) { _, phase in if phase != .active { interaction = nil } }
+            .onDisappear { interaction = nil }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Backlog", systemImage: "tray") { showingBacklog = true } }
                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -141,10 +171,18 @@ struct CalendarView: View {
                                 Text(KairosScheduleProjection.clock(hour * 60)).font(.caption2.monospacedDigit()).foregroundStyle(.secondary).frame(width: 46, height: 56, alignment: .topTrailing).padding(.trailing, 6).id("hour-\(hour)")
                             }
                         }
-                        ForEach(days) { day in dayColumn(day, width: mode == .day ? max(220, geometry.size.width - 54) : 200) }
+                        ForEach(days) { day in
+                            // Keep a readable move target beside each 44pt resize
+                            // handle, even when several sessions overlap.
+                            let lanes = blocks(day).map(\.columns).max() ?? 1
+                            dayColumn(day, width: max(mode == .day ? max(220, geometry.size.width - 54) : 200, CGFloat(lanes) * 110))
+                        }
                     }
-                }.task { proxy.scrollTo("hour-8", anchor: .top) }
+                }
+                .scrollDisabled(interaction != nil)
+                .task { proxy.scrollTo("hour-8", anchor: .top) }
             }
+            .preference(key: ScheduleViewportFrame.self, value: geometry.frame(in: .global))
         }
     }
     private func dayColumn(_ day: ScheduleDay, width: CGFloat) -> some View {
@@ -165,24 +203,24 @@ struct CalendarView: View {
                 ZStack(alignment: .topLeading) {
                     VStack(spacing: 0) { ForEach(0..<24, id: \.self) { _ in Rectangle().fill(Color.secondary.opacity(0.13)).frame(height: 0.5).frame(height: 56, alignment: .top) } }
                     ForEach(blocks(day)) { block in
-                        Button { open(block, day: day) } label: {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(block.title).font(.caption.weight(.semibold)).lineLimit(3).strikethrough(block.completed)
-                                Text("\(KairosScheduleProjection.clock(block.start))–\(KairosScheduleProjection.clock(block.end))").font(.system(size: 10)).monospacedDigit().lineLimit(1)
-                            }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(6)
-                                .background((block.kind == 2 ? Color.secondary : KairosColors.accent).opacity(block.completed ? 0.08 : 0.16), in: RoundedRectangle(cornerRadius: 7))
-                        }.buttonStyle(.plain)
-                            .frame(width: max(32, geo.size.width / CGFloat(block.columns) - 6), height: max(28, CGFloat(block.end - block.start) * 56 / 60))
+                        timelineBlock(block, day: day)
+                            .frame(width: max(44, geo.size.width / CGFloat(block.columns) - 6), height: max(44, CGFloat(block.end - block.start) * 56 / 60))
                             .offset(x: CGFloat(block.column) * geo.size.width / CGFloat(block.columns) + 3, y: CGFloat(block.start) * 56 / 60)
-                            .contextMenu {
-                                if let entry = day.tasks.first(where: { $0.id == block.id }) {
-                                    Button("Move or resize") { scheduleTarget = entry }
-                                    Button(entry.task.completed ? "Mark pending" : "Complete") { complete(entry) }
-                                }
-                            }
                             .accessibilityLabel("\(block.title), \(KairosScheduleProjection.clock(block.start)) to \(KairosScheduleProjection.clock(block.end))")
                     }
+                    if let active = interaction, let placement = active.placement, placement.date == day.key || (mode == .day && active.sourceDate == day.key) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(active.draft.title).font(.caption.weight(.semibold)).lineLimit(2)
+                            Text("\(placement.date) · \(KairosScheduleProjection.clock(placement.start))–\(KairosScheduleProjection.clock(placement.end))").font(.caption2).monospacedDigit()
+                        }
+                        .padding(8).frame(width: max(44, geo.size.width - 8), height: max(44, CGFloat(placement.duration) * 56 / 60), alignment: .topLeading)
+                        .background(KairosColors.accent.opacity(0.18), in: RoundedRectangle(cornerRadius: 8))
+                        .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(KairosColors.accent, lineWidth: 2) }
+                        .offset(x: 4, y: CGFloat(placement.start) * 56 / 60)
+                        .allowsHitTesting(false).accessibilityHidden(true)
+                    }
                 }
+                .preference(key: ScheduleColumnFrames.self, value: [day.key: geo.frame(in: .global)])
             }.frame(height: 24 * 56)
         }.frame(width: width).overlay(alignment: .leading) { Rectangle().fill(Color.secondary.opacity(0.1)).frame(width: 0.5) }
     }
@@ -278,13 +316,15 @@ struct CalendarView: View {
         for index in blocks.indices {
             if blocks[index].start >= groupEnd { for j in groupStart..<index { blocks[j].columns = max(1, ends.count) }; ends = []; groupStart = index }
             let lane = ends.firstIndex(where: { $0 <= blocks[index].start }) ?? ends.count
-            if lane == ends.count { ends.append(blocks[index].end) } else { ends[lane] = blocks[index].end }
+            let visualEnd = max(blocks[index].end, blocks[index].start + 48)
+            if lane == ends.count { ends.append(visualEnd) } else { ends[lane] = visualEnd }
             blocks[index].column = lane; groupEnd = ends.max() ?? 0
         }
         for j in groupStart..<blocks.count { blocks[j].columns = max(1, ends.count) }
         return blocks
     }
     private func open(_ block: ScheduleBlock, day: ScheduleDay) {
+        guard Date() > suppressTapUntil, !savingTouch, !undoingTouch else { return }
         if block.kind == 0 { selectedTask = day.tasks.first { $0.id == block.id }?.context }
         else if block.kind == 1 { selectedOccurrence = day.occurrences.first { $0.id == block.id } }
         else { selectedEvent = day.events.first { $0.id == block.id } }
@@ -292,5 +332,117 @@ struct CalendarView: View {
     private func complete(_ entry: ScheduleTaskEntry) {
         guard !planRepo.isSaving else { return }
         Task { let saved = await planRepo.toggleTask(boardID: entry.boardID, sectionID: entry.sectionID, taskID: entry.id); if saved && !entry.task.completed { await profileRepo.recordTaskCompletion(taskID: entry.id) }; if !saved { loadError = planRepo.errorMessage } }
+    }
+
+    @ViewBuilder private func timelineBlock(_ block: ScheduleBlock, day: ScheduleDay) -> some View {
+        if block.kind == 2 {
+            Button { open(block, day: day) } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(block.title).font(.caption.weight(.semibold)).lineLimit(3)
+                    Text("\(KairosScheduleProjection.clock(block.start))–\(KairosScheduleProjection.clock(block.end))").font(.system(size: 10)).monospacedDigit().lineLimit(1)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(6)
+                    .background(Color.secondary.opacity(0.16), in: RoundedRectangle(cornerRadius: 7))
+            }.buttonStyle(.plain)
+        } else {
+            ScheduleInteractiveBlock(title: block.title, start: block.start, end: block.end, recurring: block.kind == 1, completed: block.completed,
+                                     editable: canEdit(block, day: day), active: interaction?.blockID == block.id && interaction?.sourceDate == day.key,
+                                     busy: savingTouch || undoingTouch || planRepo.isSaving,
+                                     open: { open(block, day: day) }, editDetails: { openScheduleDetails(block, day: day) },
+                                     begin: { beginTouch(block, day: day, mode: $0) },
+                                     change: { updateTouch(mode: $0, translation: $1, point: $2) }, finish: finishTouch,
+                                     cancel: { interaction = nil }, adjust: { adjustTouch(block, day: day, mode: $0, minutes: $1) })
+        }
+    }
+    private func canEdit(_ block: ScheduleBlock, day: ScheduleDay) -> Bool {
+        if let entry = day.tasks.first(where: { $0.id == block.id }) { return entry.task.scheduleLocked != true && (!entry.task.completed || profileRepo.allowsCompletedRescheduling) }
+        if let occurrence = day.occurrences.first(where: { $0.id == block.id }) { return occurrence.task.scheduleLocked != true && (occurrence.status == "pending" || (occurrence.status == "completed" && profileRepo.allowsCompletedRescheduling)) }
+        return false
+    }
+    private func openScheduleDetails(_ block: ScheduleBlock, day: ScheduleDay) {
+        guard !savingTouch, !undoingTouch else { return }
+        if let entry = day.tasks.first(where: { $0.id == block.id }) { scheduleTarget = entry }
+        else { selectedOccurrence = day.occurrences.first { $0.id == block.id } }
+    }
+    private func beginTouch(_ block: ScheduleBlock, day: ScheduleDay, mode: ScheduleTouchMode) -> Bool {
+        guard interaction == nil, !savingTouch, !undoingTouch, pendingTouch == nil, canEdit(block, day: day) else { return false }
+        let target: KairosTouchTarget
+        if let entry = day.tasks.first(where: { $0.id == block.id }) { target = .init(taskId: entry.id) }
+        else if let occurrence = day.occurrences.first(where: { $0.id == block.id }) { target = .init(taskId: occurrence.seriesId, occurrenceDate: occurrence.occurrenceDate) }
+        else { return false }
+        do {
+            let draft = try planRepo.beginTouchEdit(target: target, timezone: calendar.timeZone.identifier, allowCompleted: profileRepo.allowsCompletedRescheduling)
+            interaction = .init(draft: draft, blockID: block.id, sourceDate: day.key, mode: mode, placement: draft.original)
+            touchMessage = nil; suppressTapUntil = Date().addingTimeInterval(1)
+            return true
+        } catch { touchMessage = error.localizedDescription; return false }
+    }
+    private func updateTouch(mode: ScheduleTouchMode, translation: CGSize, point: CGPoint) {
+        guard var active = interaction, active.mode == mode else { return }
+        guard viewportFrame.contains(point) else { active.placement = nil; interaction = active; return }
+        do {
+            if mode == .resize {
+                active.placement = try KairosTouchSchedule.resize(date: active.draft.original.date, start: active.draft.original.start, targetEnd: Double(active.draft.original.end) + Double(translation.height) * 60 / 56)
+            } else {
+                var date = columnFrames.first(where: { point.x >= $0.value.minX && point.x < $0.value.maxX })?.key
+                if self.mode == .day, let original = KairosScheduleDates.parse(active.draft.original.date, calendar: calendar) {
+                    if point.x < viewportFrame.minX + 32 { date = calendar.date(byAdding: .day, value: -1, to: original).map(key) }
+                    if point.x > viewportFrame.maxX - 32 { date = calendar.date(byAdding: .day, value: 1, to: original).map(key) }
+                }
+                if let date { active.placement = try KairosTouchSchedule.move(date: date, targetStart: Double(active.draft.original.start) + Double(translation.height) * 60 / 56, duration: active.draft.original.duration) }
+                else { active.placement = nil }
+            }
+            interaction = active
+        } catch { active.placement = nil; interaction = active }
+    }
+    private func finishTouch() {
+        guard let active = interaction else { return }
+        interaction = nil; suppressTapUntil = Date().addingTimeInterval(0.4)
+        guard let placement = active.placement, placement != active.draft.original else { return }
+        saveTouch(.init(draft: active.draft, placement: placement))
+    }
+    private func saveTouch(_ pending: PendingScheduleTouch) {
+        guard !savingTouch, !undoingTouch else { return }
+        pendingTouch = pending; savingTouch = true; touchMessage = nil
+        Task {
+            let saved = await planRepo.saveTouchEdit(pending.draft, placement: pending.placement)
+            savingTouch = false
+            if let saved {
+                touchUndo = saved; pendingTouch = nil; touchMessage = "Updated \(saved.title)"
+                if mode == .day, let date = KairosScheduleDates.parse(pending.placement.date, calendar: calendar) { selectedDate = date }
+            } else { touchMessage = planRepo.errorMessage ?? "Could not save. Retry this change when connected." }
+        }
+    }
+    private func adjustTouch(_ block: ScheduleBlock, day: ScheduleDay, mode: ScheduleTouchMode, minutes: Int) {
+        guard beginTouch(block, day: day, mode: mode), var active = interaction else { return }
+        do {
+            if mode == .move { active.placement = try KairosTouchSchedule.move(date: active.draft.original.date, targetStart: Double(active.draft.original.start + minutes), duration: active.draft.original.duration) }
+            else { active.placement = try KairosTouchSchedule.resize(date: active.draft.original.date, start: active.draft.original.start, targetEnd: Double(active.draft.original.end + minutes)) }
+            interaction = active; finishTouch()
+        } catch { interaction = nil; touchMessage = error.localizedDescription }
+    }
+    @ViewBuilder private var touchBar: some View {
+        if let active = interaction {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(active.draft.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                if let placement = active.placement { Text("\(placement.date) · \(KairosScheduleProjection.clock(placement.start))–\(KairosScheduleProjection.clock(placement.end))").font(.subheadline).monospacedDigit() }
+                else { Text("Release here to cancel").font(.subheadline) }
+                Text(active.mode == .resize ? "Release to resize · 5-minute snapping" : (mode == .day ? "Release to move · Drag to a screen edge to change day" : "Release to move · Drag across visible day columns"))
+                    .font(.caption).foregroundStyle(.secondary)
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(12).background(.bar)
+        } else if savingTouch || undoingTouch {
+            ProgressView(undoingTouch ? "Restoring schedule…" : "Saving schedule…").frame(maxWidth: .infinity).padding(12).background(.bar)
+        } else if touchMessage != nil || touchUndo != nil || pendingTouch != nil {
+            HStack(spacing: 10) {
+                Text(touchMessage ?? "Schedule updated").font(.caption).lineLimit(3).frame(maxWidth: .infinity, alignment: .leading)
+                if let pending = pendingTouch { Button("Retry") { saveTouch(pending) } }
+                else if let undo = touchUndo {
+                    Button("Undo") {
+                        undoingTouch = true
+                        Task { let saved = await planRepo.undoTouchEdit(undo); undoingTouch = false; if saved { touchUndo = nil; touchMessage = "Schedule restored" } else { touchMessage = planRepo.errorMessage ?? "Could not restore this schedule." } }
+                    }.keyboardShortcut("z", modifiers: .command)
+                }
+                Button("Dismiss", systemImage: "xmark") { pendingTouch = nil; touchUndo = nil; touchMessage = nil }.labelStyle(.iconOnly).frame(minWidth: 34, minHeight: 44)
+            }.padding(.horizontal, 14).padding(.vertical, 4).background(.bar)
+        }
     }
 }

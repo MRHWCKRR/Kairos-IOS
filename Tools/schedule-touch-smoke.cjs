@@ -1,0 +1,23 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
+const context={};vm.createContext(context);
+for(const name of ['recurrence-engine.js','schedule-touch-engine.js']){const file=path.join(__dirname,'../Kairos/Kairos/Core/Resources',name);if(fs.existsSync(file))vm.runInContext(fs.readFileSync(file,'utf8'),context);}
+assert.equal(typeof context.kairosTouchScheduleRequest,'function','Native touch editing bridge is not implemented');
+const task={id:'t',title:'Essay',date:'2026-11-05',startTime:'09:00',endTime:'10:00',completed:false,archived:false,notes:'Keep'};
+const state=t=>({boards:[{id:'b',title:'Study',sections:[{id:'s',title:'Work',tasks:[t]}]}],scheduleEvents:[]});
+const call=x=>JSON.parse(context.kairosTouchScheduleRequest(JSON.stringify(x)));
+const target={taskId:'t'},options={allowCompleted:false};
+const begun=call({mode:'begin',state:state(task),target,options});assert.equal(begun.start,540);assert.equal(begun.duration,60);
+const applied=call({mode:'apply',state:state(task),target,expected:begun.expected,changes:{date:'2026-11-06',startTime:'10:00',endTime:'11:00',lastScheduledMinutes:60},options});
+assert.equal(applied.next.boards[0].sections[0].tasks[0].date,'2026-11-06');
+applied.next.boards[0].sections[0].tasks[0].notes='Concurrent note';
+const undone=call({mode:'undo',state:applied.next,record:applied.result.scheduleUndo,options});assert.equal(undone.next.boards[0].sections[0].tasks[0].startTime,'09:00');assert.equal(undone.next.boards[0].sections[0].tasks[0].notes,'Concurrent note');
+assert.throws(()=>call({mode:'begin',state:state({...task,scheduleLocked:true}),target,options}));
+assert.throws(()=>call({mode:'begin',state:state({...task,completed:true}),target,options}));
+const series={...task,recurrence:{enabled:true,mode:'fixed',frequency:'daily',interval:1,startDate:'2026-11-05',endType:'never',exceptions:{}}};
+const recurring={taskId:'t',occurrenceDate:'2026-11-05'};
+const rb=call({mode:'begin',state:state(series),target:recurring,options});
+const moved=call({mode:'apply',state:state(series),target:recurring,expected:rb.expected,changes:{date:'2026-11-07',startTime:'12:00',endTime:'13:00',durationMinutes:60},options});
+const changed=moved.next.boards[0].sections[0].tasks[0];assert.equal(changed.date,'2026-11-05');assert.equal(changed.recurrence.exceptions['2026-11-05'].override.date,'2026-11-07');
+changed.recurrence.exceptions['2026-11-06']={status:'skipped',focusLoggedSeconds:90};
+const restored=call({mode:'undo',state:moved.next,record:moved.result.scheduleUndo,options}).next.boards[0].sections[0].tasks[0];assert.equal(restored.recurrence.exceptions['2026-11-05'],undefined);assert.equal(restored.recurrence.exceptions['2026-11-06'].focusLoggedSeconds,90);
+console.log('Touch schedule: move, single occurrence, metadata-preserving Undo and guards passed');
