@@ -6,6 +6,7 @@ final class AIHelperViewModel {
     enum TargetBoardMode { case new, existing }
     var activeChatID: String?
     var activeProjectID: String?
+    var showingAllChats = false
     var drafts: [String: String] = [:]
     var pendingChats = Set<String>()
     var chatErrors: [String: String] = [:]
@@ -63,6 +64,7 @@ final class AIHelperViewModel {
         if await edit(.createChat(id: "chat-" + UUID().uuidString, projectID: projectID)) {
             activeChatID = profileRepo.aiWorkspace?.activeChatID
             activeProjectID = nil
+            showingAllChats = false
             if drafts[activeChatID ?? "new"] == nil { drafts[activeChatID ?? "new"] = draft }
         }
     }
@@ -70,21 +72,26 @@ final class AIHelperViewModel {
         let text = userInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isLoading, !isEditingWorkspace, !startingMessage, profileRepo.aiWorkspaceOwnerID != nil else { return }
         guard proposals[activeChatID ?? ""] == nil else { errorMessage = "Review or discard the proposed changes before sending another message."; return }
+        guard failedResponses[activeChatID ?? ""] == nil else { errorMessage = "Retry saving the previous reply before sending another message."; return }
+        guard currentChat?.hasUnfinishedWebActions != true else { errorMessage = "This chat has an unfinished change on the web. Retry or cancel it there before continuing here."; return }
         startingMessage = true
         let uid = profileRepo.aiWorkspaceOwnerID!
+        let requestedChatID = activeChatID
         Task {
-            defer { startingMessage = false }
-            if activeChatID == nil { await newChat() }
-            guard let id = activeChatID, profileRepo.aiWorkspaceOwnerID == uid, !pendingChats.contains(id) else { return }
-            pendingChats.insert(id); chatErrors[id] = nil
-            let message = KairosAIWorkspace.Message(id: "message-" + UUID().uuidString, role: "user", content: text)
-            let saved = await profileRepo.editAIWorkspace(.append(chatID: id, messages: [message]), ownerID: uid)
-            guard profileRepo.aiWorkspaceOwnerID == uid else { return }
-            guard saved else { pendingChats.remove(id); errorMessage = profileRepo.errorMessage ?? "Could not save your message. Your draft is still here; tap Send to retry."; return }
-            if drafts[id]?.trimmingCharacters(in: .whitespacesAndNewlines) == text { drafts[id] = "" }
-            startingMessage = false
-            await requestReply(chatID: id, owner: uid)
+            if let id = await saveUserMessage(text, chatID: requestedChatID, owner: uid) { await requestReply(chatID: id, owner: uid) }
         }
+    }
+    private func saveUserMessage(_ text: String, chatID: String?, owner: String) async -> String? {
+        defer { startingMessage = false }
+        if chatID == nil { await newChat() }
+        guard let id = chatID ?? activeChatID, profileRepo.aiWorkspaceOwnerID == owner, !pendingChats.contains(id) else { return nil }
+        pendingChats.insert(id); chatErrors[id] = nil; errorMessage = nil
+        let message = KairosAIWorkspace.Message(id: "message-" + UUID().uuidString, role: "user", content: text)
+        let saved = await profileRepo.editAIWorkspace(.append(chatID: id, messages: [message]), ownerID: owner)
+        guard profileRepo.aiWorkspaceOwnerID == owner else { return nil }
+        guard saved else { pendingChats.remove(id); errorMessage = profileRepo.errorMessage ?? "Could not save your message. Your draft is still here; tap Send to retry."; return nil }
+        if drafts[id]?.trimmingCharacters(in: .whitespacesAndNewlines) == text { drafts[id] = "" }
+        return id
     }
     func retryReply() {
         guard let id = activeChatID, let uid = ownerID, !pendingChats.contains(id) else { return }
@@ -147,12 +154,16 @@ final class AIHelperViewModel {
     }
     func applyProposals() async -> Bool {
         guard let chatID = activeChatID, let uid = ownerID, let actions = proposals[chatID], let revision = proposalRevisions[chatID], !isApplyingPlan else { return false }
+        guard currentChat?.hasUnfinishedWebActions != true else { errorMessage = "Finish the pending change on the web before applying another proposal."; return false }
+        let previousTasks = planRepo.currentPlan?.boards.flatMap { $0.sections.flatMap(\.tasks) } ?? []
+        let completedIDs = actions.filter { $0.type == "complete_task" || $0.args.completed == true }.compactMap { $0.args.taskId }.filter { id in previousTasks.contains { $0.id == id && !$0.completed } }
         isApplyingPlan = true
         defer { isApplyingPlan = false }
         let saved = await planRepo.applyChatActions(actions, revision: revision)
         guard profileRepo.aiWorkspaceOwnerID == uid else { return false }
         if saved {
             proposals[chatID] = nil; proposalRevisions[chatID] = nil
+            for id in completedIDs { await profileRepo.recordTaskCompletion(taskID: id) }
             _ = await profileRepo.editAIWorkspace(.append(chatID: chatID, messages: [.init(id: "message-" + UUID().uuidString, role: "assistant", content: "Applied the reviewed changes to your planner.")]), ownerID: uid)
         } else { errorMessage = planRepo.errorMessage }
         return saved

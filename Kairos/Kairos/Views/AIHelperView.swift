@@ -14,6 +14,7 @@ struct AIHelperView: View {
                 if let vm = viewModel {
                     if profileRepo.isLoading { ProgressView("Loading workspace…") }
                     else if let error = profileRepo.aiWorkspaceError { ContentUnavailableView("Workspace unavailable", systemImage: "exclamationmark.triangle", description: Text(error)) }
+                    else if vm.showingAllChats { allChats(vm) }
                     else if let project = vm.projects.first(where: { $0.id == vm.activeProjectID }) { projectHome(project, vm: vm) }
                     else { conversation(vm) }
                 } else { ProgressView() }
@@ -46,6 +47,7 @@ struct AIHelperView: View {
 
     private func conversation(_ vm: AIHelperViewModel) -> some View {
         VStack(spacing: 0) {
+            if vm.currentChat?.hasUnfinishedWebActions == true { Text("Finish or cancel this chat’s pending change on the web before continuing here.").font(.caption).foregroundStyle(.secondary).padding(.horizontal) }
             if let chat = vm.currentChat, !chat.messages.isEmpty {
                 Text(chat.title).font(.caption).foregroundStyle(.secondary).lineLimit(1).padding(.horizontal).padding(.top, 4)
             }
@@ -98,7 +100,7 @@ struct AIHelperView: View {
                 Image(systemName: "arrow.up").font(.headline).foregroundStyle(.white).frame(width: 38, height: 38).background(KairosColors.accent, in: Circle())
             }
             .accessibilityLabel("Send message")
-            .disabled(vm.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vm.isLoading || vm.isEditingWorkspace || vm.startingMessage || profileRepo.aiWorkspaceOwnerID == nil)
+            .disabled(vm.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vm.isLoading || vm.isEditingWorkspace || vm.startingMessage || vm.failedResponses[vm.activeChatID ?? ""] != nil || profileRepo.aiWorkspaceOwnerID == nil)
             .opacity(vm.isLoading || vm.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.4 : 1)
         }
         .padding(8).background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24))
@@ -115,7 +117,18 @@ struct AIHelperView: View {
             Section("Chats") {
                 Button("New chat in project", systemImage: "square.and.pencil") { Task { await vm.newChat(projectID: project.id) } }
                 ForEach(vm.chats.filter { $0.projectID == project.id }) { chat in
-                    Button { vm.activeChatID = chat.id; vm.activeProjectID = nil } label: { Text(chat.title).foregroundStyle(.primary) }
+                    Button { vm.activeChatID = chat.id; vm.activeProjectID = nil; vm.showingAllChats = false } label: { Text(chat.title).foregroundStyle(.primary) }
+                }
+            }
+        }.scrollContentBackground(.hidden)
+    }
+    private func allChats(_ vm: AIHelperViewModel) -> some View {
+        List {
+            Section("All chats") {
+                ForEach(vm.chats) { chat in
+                    Button { vm.activeChatID = chat.id; vm.activeProjectID = nil; vm.showingAllChats = false } label: {
+                        VStack(alignment: .leading, spacing: 6) { Text(chat.title).font(.headline); Text(chat.messages.last?.content ?? "New conversation").font(.subheadline).foregroundStyle(.secondary).lineLimit(2) }.padding(.vertical, 6).foregroundStyle(.primary)
+                    }
                 }
             }
         }.scrollContentBackground(.hidden)
@@ -168,19 +181,18 @@ private struct AIWorkspaceHistory: View {
         NavigationStack {
             List {
                 Section {
-                    Button("New chat", systemImage: "square.and.pencil") { Task { await viewModel.newChat(); if viewModel.errorMessage == nil { dismiss() } } }
-                    Button("All chats", systemImage: "bubble.left.and.bubble.right") { viewModel.activeProjectID = nil }
+                    Button("All chats", systemImage: "bubble.left.and.bubble.right") { viewModel.activeProjectID = nil; viewModel.showingAllChats = true; dismiss() }
                 }
                 Section {
                     ForEach(viewModel.projects) { project in
-                        Button { viewModel.activeProjectID = project.id; dismiss() } label: { Label(project.title, systemImage: "folder").foregroundStyle(.primary) }
+                        Button { viewModel.activeProjectID = project.id; viewModel.showingAllChats = false; dismiss() } label: { Label(project.title, systemImage: "folder").foregroundStyle(.primary) }
                             .contextMenu { Button("Edit project") { editProject = project } }
                     }
                     Button("New project", systemImage: "folder.badge.plus") { creatingProject = true }
                 } header: { Text("Projects") }
                 Section("Chats") {
                     ForEach(viewModel.chats) { chat in
-                        Button { viewModel.activeChatID = chat.id; viewModel.activeProjectID = nil; dismiss() } label: {
+                        Button { viewModel.activeChatID = chat.id; viewModel.activeProjectID = nil; viewModel.showingAllChats = false; dismiss() } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(chat.title).lineLimit(1)
@@ -204,6 +216,11 @@ private struct AIWorkspaceHistory: View {
                 if let error = viewModel.errorMessage { Text(error).font(.footnote).foregroundStyle(.red) }
             }
             .disabled(viewModel.isEditingWorkspace)
+            .safeAreaInset(edge: .top) {
+                Button { Task { await viewModel.newChat(); if viewModel.errorMessage == nil { dismiss() } } } label: {
+                    Label("New chat", systemImage: "square.and.pencil").frame(maxWidth: .infinity, alignment: .leading).padding()
+                }.background(.bar).disabled(viewModel.isEditingWorkspace)
+            }
             .safeAreaInset(edge: .bottom) {
                 HStack { Text("AI workspace").font(.caption).foregroundStyle(.secondary); Spacer(); Link("View plans", destination: URL(string: "https://kairos-web.kirosapp.workers.dev/plans.html")!) }.padding().background(.bar)
             }

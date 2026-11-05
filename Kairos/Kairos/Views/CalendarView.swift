@@ -76,7 +76,7 @@ struct CalendarView: View {
         }
         return (0..<count).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
     }
-    private var loadID: String { "\(key(selectedDate))-\(mode.rawValue)-\(planRepo.plannerRevision)-\(showCompleted)-\(showEvents)-\(showSkipped)-\(calendar.timeZone.identifier)" }
+    private var loadID: String { "\(dateRange.first.map(key) ?? "")-\(mode.rawValue)-\(planRepo.plannerRevision)-\(showCompleted)-\(showEvents)-\(showSkipped)-\(calendar.timeZone.identifier)" }
 
     var body: some View {
         NavigationStack {
@@ -248,7 +248,7 @@ struct CalendarView: View {
         selectedDate = calendar.date(byAdding: mode == .month ? .month : .day, value: direction * (mode == .threeDays ? 3 : mode == .week ? 7 : 1), to: selectedDate) ?? selectedDate
     }
     private func loadDays() async {
-        loading = true; loadError = nil
+        loading = true; loadError = nil; days = []
         let dates = dateRange, tasks = entries
         var result: [ScheduleDay] = []
         do {

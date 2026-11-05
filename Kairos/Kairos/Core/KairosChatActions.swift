@@ -50,7 +50,10 @@ enum KairosChatActions {
                 boards = try KairosTaskMutation.apply(.create(sectionID: section, taskID: id, title: title, parentTaskID: nil), to: boards)
                 var patch = KairosTaskPatch()
                 if let date = a.date { patch.date = .set(date) }
-                if let start = a.startTime { patch.startTime = .set(start) }
+                if let start = a.startTime {
+                    patch.startTime = .set(start)
+                    if a.endTime == nil, let minutes = KairosScheduleProjection.minutes(start) { patch.endTime = .set(KairosScheduleProjection.clock((minutes + 60) % 1440)) }
+                }
                 if let end = a.endTime { patch.endTime = .set(end) }
                 boards = try KairosTaskMutation.apply(.update(taskID: id, patch: patch, expected: nil), to: boards)
             case "update_task", "complete_task", "delete_task":
@@ -62,7 +65,10 @@ enum KairosChatActions {
                     var patch = KairosTaskPatch()
                     if let title = a.newTitle { patch.title = .set(title) }
                     if let date = a.date { patch.date = .set(date) }
-                    if let start = a.startTime { patch.startTime = .set(start) }
+                    if let start = a.startTime {
+                        patch.startTime = .set(start)
+                        if a.endTime == nil, let minutes = KairosScheduleProjection.minutes(start) { patch.endTime = .set(KairosScheduleProjection.clock((minutes + KairosScheduleProjection.duration(task)) % 1440)) }
+                    }
                     if let end = a.endTime { patch.endTime = .set(end) }
                     boards = try KairosTaskMutation.apply(.update(taskID: id, patch: patch, expected: task), to: boards)
                     if let completed = action.type == "complete_task" ? true : a.completed { boards = try KairosTaskMutation.apply(.setCompleted(taskID: id, completed: completed), to: boards) }

@@ -21,9 +21,10 @@ enum KairosAIWorkspace {
         let projectID: String
         let messages: [Message]
         let summary: String
+        let hasUnfinishedWebActions: Bool
         let order: Double
-        nonisolated init(id: String, title: String, projectID: String, messages: [Message], summary: String, order: Double) {
-            self.id = id; self.title = title; self.projectID = projectID; self.messages = messages; self.summary = summary; self.order = order
+        nonisolated init(id: String, title: String, projectID: String, messages: [Message], summary: String, hasUnfinishedWebActions: Bool, order: Double) {
+            self.id = id; self.title = title; self.projectID = projectID; self.messages = messages; self.summary = summary; self.hasUnfinishedWebActions = hasUnfinishedWebActions; self.order = order
         }
     }
     struct Project: Identifiable, Sendable {
@@ -83,7 +84,7 @@ enum KairosAIWorkspace {
             let title = (item["title"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             return Chat(id: id, title: title.isEmpty ? String((messages.first(where: { $0.role == "user" })?.content ?? "New chat").prefix(42)) : title,
                         projectID: item["projectId"] as? String ?? "", messages: messages,
-                        summary: [item["summary"] as? String, item["autoSummary"] as? String].compactMap { $0 }.joined(separator: "\n"), order: item["order"] as? Double ?? Double(index))
+                        summary: [item["summary"] as? String, item["autoMemoryEnabled"] as? Bool == false ? nil : item["autoSummary"] as? String].compactMap { $0 }.joined(separator: "\n"), hasUnfinishedWebActions: item["pendingActionBatch"] is [String: Any], order: item["order"] as? Double ?? Double(index))
         }.sorted { $0.order < $1.order }
         let projects = (value["projects"] as? [[String: Any]] ?? []).enumerated().map { index, item in
             Project(id: item["id"] as! String, title: item["title"] as? String ?? "New project", description: item["description"] as? String ?? "", sharedContext: item["sharedContext"] as? String ?? "", order: item["order"] as? Double ?? Double(index))
@@ -129,6 +130,7 @@ enum KairosAIWorkspace {
             let index = try chatIndex(id)
             var history = chats[index]["messages"] as? [[String: Any]] ?? []
             for message in messages {
+                if message.role == "user", chats[index]["pendingActionBatch"] is [String: Any] { throw Invalid("Finish or cancel this chat’s pending change on the web before continuing here.") }
                 guard ["user", "assistant"].contains(message.role), !message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw Invalid("The message is empty or invalid.") }
                 if !history.contains(where: { $0["id"] as? String == message.id || $0["usageId"] as? String == message.id }) {
                     history.append(["id": message.id, "role": message.role, "content": message.content, "timestamp": now])
