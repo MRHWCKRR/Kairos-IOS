@@ -213,6 +213,34 @@ final class StudyPlanRepository {
     }
 
     @discardableResult
+    func editScheduleEvent(_ edit: KairosEventEdit, revision: UUID) async -> Bool {
+        guard !isSaving, revision == plannerRevision, hasLoadedSnapshot, !isLoading,
+              let user = Auth.auth().currentUser, user.isEmailVerified, user.uid == listeningUserID else { errorMessage = "Your planner changed or is unavailable. Reopen the event and retry."; return false }
+        let uid = user.uid, token = generation
+        let reference = db.collection("study_plans").document(currentPlan?.id ?? uid)
+        let expected = (rawPlan["scheduleEvents"] as? [[String: Any]] ?? []).first { $0["id"] as? String == edit.eventID }
+        isSaving = true
+        defer { if generation == token { isSaving = false } }
+        do {
+            _ = try await db.runTransaction { transaction, pointer in
+                do {
+                    guard Auth.auth().currentUser?.uid == uid else { throw CancellationError() }
+                    let snapshot = try transaction.getDocument(reference)
+                    let data = snapshot.data() ?? [:]
+                    guard !snapshot.exists || data["userID"] as? String == uid,
+                          data["scheduleEvents"] == nil || data["scheduleEvents"] is [[String: Any]] else { throw KairosPlannerMerge.Conflict() }
+                    let events = try KairosEventMutation.apply(edit, to: data["scheduleEvents"] as? [[String: Any]] ?? [], expected: expected)
+                    if snapshot.exists { transaction.updateData(["scheduleEvents": events], forDocument: reference) }
+                    else { transaction.setData(["userID": uid, "createdAt": FieldValue.serverTimestamp(), "boards": [], "scheduleEvents": events], forDocument: reference) }
+                    return true
+                } catch { pointer?.pointee = error as NSError; return nil }
+            }
+            guard generation == token, Auth.auth().currentUser?.uid == uid else { return false }
+            errorMessage = nil; return true
+        } catch { guard generation == token else { return false }; errorMessage = error.localizedDescription; return false }
+    }
+
+    @discardableResult
     func addScheduledTask(sectionID: String, title: String, day: String, start: String?, end: String?) async -> Bool {
         let id = "task-\(UUID().uuidString)"
         return await mutateBoards { boards in
@@ -266,14 +294,18 @@ final class StudyPlanRepository {
     }
 
     @discardableResult
-    func saveOccurrenceDetails(_ occurrence: KairosRecurringOccurrence, items: [KairosChecklistItem], status: String) async -> Bool {
+    func saveOccurrenceDetails(_ occurrence: KairosRecurringOccurrence, items: [KairosChecklistItem], status: String, schedule: KairosOccurrenceSchedule? = nil) async -> Bool {
         let timestamp = ISO8601DateFormatter().string(from: Date())
         return await mutateOccurrence(occurrence) { task in
+            if status != occurrence.status || schedule != nil { guard try KairosRecurrence.revision(task) == occurrence.revision else { throw KairosPlannerMerge.Conflict() } }
             var updated = task
             if items != (occurrence.task.checklist ?? []) { updated = try KairosRecurrence.settingChecklist(task: task, occurrence: occurrence, items: items) }
+            if let schedule {
+                guard let refreshed = try KairosRecurrence.occurrences(task: updated, on: occurrence.displayDate).first(where: { $0.id == occurrence.id }) else { throw KairosPlannerMerge.Conflict() }
+                updated = try KairosRecurrence.settingSchedule(task: updated, occurrence: refreshed, schedule: schedule)
+            }
             if status != occurrence.status {
-                guard try KairosRecurrence.revision(task) == occurrence.revision,
-                      let refreshed = try KairosRecurrence.occurrences(task: updated, on: occurrence.displayDate).first(where: { $0.id == occurrence.id }) else { throw KairosPlannerMerge.Conflict() }
+                guard let refreshed = try KairosRecurrence.occurrences(task: updated, on: schedule?.date ?? occurrence.displayDate).first(where: { $0.id == occurrence.id }) else { throw KairosPlannerMerge.Conflict() }
                 updated = try KairosRecurrence.settingStatus(task: updated, occurrence: refreshed, status: status, timestamp: timestamp)
             }
             return updated

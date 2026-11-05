@@ -97,33 +97,6 @@ struct MobileScheduleCreator: View {
     }
 }
 
-struct MobileEventDetails: View {
-    let event: KairosEventSegment
-    let calendar: Calendar
-    @Environment(\.dismiss) private var dismiss
-    @State private var calendarManager = KairosCalendarManager()
-    @State private var message: String?
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section { Text(event.title).font(.headline); LabeledContent("Date", value: event.date); LabeledContent("Time", value: "\(KairosScheduleProjection.clock(event.startMin))–\(KairosScheduleProjection.clock(event.endMin))"); LabeledContent("Category", value: event.category) }
-                if event.readOnly { Text("This event is managed by its connected calendar.").font(.footnote).foregroundStyle(.secondary) }
-                Button("Export to Apple Calendar", systemImage: "calendar.badge.plus") {
-                    Task {
-                        guard await calendarManager.requestAccess() else { message = "Allow Calendar access in iOS Settings to export."; return }
-                        guard let day = KairosScheduleDates.parse(event.date, calendar: calendar),
-                              let start = calendar.date(bySettingHour: event.startMin / 60, minute: event.startMin % 60, second: 0, of: day),
-                              let end = event.endMin == 1440 ? calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: day)) : calendar.date(bySettingHour: event.endMin / 60, minute: event.endMin % 60, second: 0, of: day) else { return }
-                        do { let added = try calendarManager.addEventIfNeeded(title: event.title, start: start, end: end, notes: "Exported from Kairos"); message = added ? "Saved to Apple Calendar." : "Already in Apple Calendar." } catch { message = error.localizedDescription }
-                    }
-                }
-                if let message { Text(message).font(.footnote) }
-            }.navigationTitle("Event details").navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-        }
-    }
-}
-
 enum KairosScheduleDates {
     static func parse(_ key: String, calendar: Calendar) -> Date? {
         let formatter = DateFormatter(); formatter.calendar = calendar; formatter.timeZone = calendar.timeZone; formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "yyyy-MM-dd"; formatter.isLenient = false

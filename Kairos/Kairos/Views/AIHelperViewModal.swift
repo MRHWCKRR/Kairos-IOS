@@ -198,8 +198,8 @@ final class AIHelperViewModel {
             return
         }
 
+        isApplyingPlan = true
         Task {
-            isApplyingPlan = true
             let saved = await planRepo.applyAiPlan(
                 sections: sections,
                 recurringEvents: events,

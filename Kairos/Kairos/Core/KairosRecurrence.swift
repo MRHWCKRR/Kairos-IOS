@@ -17,6 +17,12 @@ struct KairosRecurringOccurrence: Decodable, Identifiable, Sendable {
     }
 }
 
+struct KairosOccurrenceSchedule: Equatable, Sendable {
+    let date: String
+    let startTime: String?
+    let endTime: String?
+}
+
 enum KairosRecurrence {
     struct Unavailable: LocalizedError {
         var errorDescription: String? { "This recurring task cannot be read safely. Review it on the web before retrying." }
@@ -53,7 +59,7 @@ enum KairosRecurrence {
         return text
     }
 
-    nonisolated private static func run(task: [String: Any], day: String, status: String? = nil, timestamp: String = "", checklist: [KairosChecklistItem]? = nil) throws -> Data {
+    nonisolated private static func run(task: [String: Any], day: String, status: String? = nil, timestamp: String = "", checklist: [KairosChecklistItem]? = nil, schedule: KairosOccurrenceSchedule? = nil) throws -> Data {
         #if SWIFT_PACKAGE
         let bundle = Bundle.module
         #else
@@ -66,6 +72,9 @@ enum KairosRecurrence {
         var args: [String: Any] = ["task": try input(task), "day": day, "status": status.map { $0 as Any } ?? NSNull(), "timestamp": timestamp]
         if let checklist {
             args["checklist"] = checklist.map { ["id": $0.id, "title": $0.title, "completed": $0.completed] as [String: Any] }
+        }
+        if let schedule {
+            args["schedule"] = ["date": schedule.date, "startTime": schedule.startTime as Any? ?? NSNull(), "endTime": schedule.endTime as Any? ?? NSNull()]
         }
         let json = try JSONSerialization.data(withJSONObject: args)
         guard let argument = String(data: json, encoding: .utf8),
@@ -104,6 +113,23 @@ enum KairosRecurrence {
         var result = task
         result["recurrence"] = rule
         return result
+    }
+
+    nonisolated static func settingSchedule(task: [String: Any], occurrence: KairosRecurringOccurrence, schedule: KairosOccurrenceSchedule) throws -> [String: Any] {
+        guard try revision(task) == occurrence.revision, KairosScheduleProjection.validDay(schedule.date),
+              (schedule.startTime == nil && schedule.endTime == nil) || (KairosScheduleProjection.minutes(schedule.startTime) != nil && KairosScheduleProjection.minutes(schedule.endTime) != nil) else { throw KairosPlannerMerge.Conflict() }
+        let data = try run(task: task, day: occurrence.occurrenceDate, schedule: schedule)
+        guard let update = try JSONSerialization.jsonObject(with: data) as? [String: Any], var rule = task["recurrence"] as? [String: Any] else { throw Unavailable() }
+        var exceptions = rule["exceptions"] as? [String: Any] ?? [:]
+        var selected = exceptions[occurrence.occurrenceDate] as? [String: Any] ?? [:]
+        var override = selected["override"] as? [String: Any] ?? [:]
+        let projected = update["override"] as? [String: Any] ?? [:]
+        for key in ["date", "startTime", "endTime"] { override[key] = projected[key] }
+        // A prior explicit duration must follow the new start/end pair.
+        override.removeValue(forKey: "durationMinutes")
+        selected["override"] = override.isEmpty ? nil : override
+        exceptions[occurrence.occurrenceDate] = selected; rule["exceptions"] = exceptions
+        var result = task; result["recurrence"] = rule; return result
     }
 
     nonisolated private static func checklistContext(_ task: [String: Any], date: String) throws -> Data {

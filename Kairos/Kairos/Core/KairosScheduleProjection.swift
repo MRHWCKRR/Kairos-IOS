@@ -7,6 +7,9 @@ struct KairosEventSegment: Decodable, Identifiable, Sendable {
     let title: String
     let category: String
     let date: String
+    let effectiveDate: String
+    let startTime: String
+    let endTime: String
     let occurrenceDate: String?
     let startMin: Int
     let endMin: Int
@@ -28,6 +31,14 @@ enum KairosScheduleProjection {
         return h * 60 + m
     }
     nonisolated static func clock(_ minutes: Int) -> String { String(format: "%02d:%02d", (minutes / 60) % 24, minutes % 60) }
+    nonisolated static func eventDates(day: String, start: String, end: String, calendar: Calendar) -> (start: Date, end: Date)? {
+        guard validDay(day), let a = minutes(start), let b = minutes(end) else { return nil }
+        let formatter = DateFormatter(); formatter.calendar = calendar; formatter.timeZone = calendar.timeZone; formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "yyyy-MM-dd"
+        guard let base = formatter.date(from: day), let startDate = calendar.date(bySettingHour: a / 60, minute: a % 60, second: 0, of: base) else { return nil }
+        let endDay = b <= a ? calendar.date(byAdding: .day, value: 1, to: base) : base
+        guard let endDay, let endDate = calendar.date(bySettingHour: b / 60, minute: b % 60, second: 0, of: endDay), endDate > startDate else { return nil }
+        return (startDate, endDate)
+    }
     nonisolated static func duration(_ task: KairosTask) -> Int {
         if let start = minutes(task.startTime), let end = minutes(task.endTime) { return (end - start + 1440) % 1440 == 0 ? 1440 : (end - start + 1440) % 1440 }
         return max(1, min(1440, task.estimatedMinutes ?? 60))

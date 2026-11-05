@@ -205,6 +205,11 @@ function kairosOccurrenceRequest(json) {
         if(!occurrence)throw Error('Occurrence no longer exists');
         return JSON.stringify(setOccurrenceStatus(task,day,request.status,request.timestamp).recurrence.exceptions[day]);
     }
+    if(request.schedule!==undefined){
+        const occurrence=generateTaskOccurrences(task,day,day).find(item=>item.occurrenceDate===day&&item.status!=='deleted');
+        if(!occurrence||!validDateKey(request.schedule.date))throw Error('Occurrence no longer exists');
+        return JSON.stringify(applyOccurrenceOverride(task,day,request.schedule).recurrence.exceptions[day]);
+    }
     if(request.checklist!==undefined){
         const occurrence=generateTaskOccurrences(task,day,day).find(item=>item.occurrenceDate===day&&item.status!=='deleted');
         if(!occurrence||!Array.isArray(request.checklist))throw Error('Occurrence no longer exists');

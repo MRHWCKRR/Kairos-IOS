@@ -46,6 +46,7 @@ struct CalendarView: View {
     @State private var selectedEvent: KairosEventSegment?
     @State private var showingBacklog = false
     @State private var creatingTask = false
+    @State private var creatingEvent = false
     @State private var showCompleted = true
     @State private var showEvents = true
     @State private var showSkipped = false
@@ -99,13 +100,17 @@ struct CalendarView: View {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button(showingDayDetails ? "Timeline" : "Agenda", systemImage: showingDayDetails ? "clock" : "list.bullet") { showingDayDetails.toggle() }.labelStyle(.iconOnly)
                     Menu { Toggle("Completed tasks", isOn: $showCompleted); Toggle("Skipped occurrences", isOn: $showSkipped); Toggle("Fixed events", isOn: $showEvents) } label: { Image(systemName: "line.3.horizontal.decrease") }.accessibilityLabel("Schedule filters")
-                    Button("Add task", systemImage: "plus") { creatingTask = true }.disabled(planRepo.isLoading || planRepo.plannerIsUnavailable)
+                    Menu {
+                        Button("Task", systemImage: "checkmark.circle") { creatingTask = true }
+                        Button("Fixed event", systemImage: "calendar.badge.plus") { creatingEvent = true }
+                    } label: { Image(systemName: "plus") }.accessibilityLabel("Add to schedule").disabled(planRepo.isLoading || planRepo.plannerIsUnavailable)
                 }
             }
             .sheet(item: $selectedTask) { TaskDetailView(context: $0).environment(planRepo) }
-            .sheet(item: $selectedOccurrence) { OccurrenceDetailsView(occurrence: $0).environment(planRepo).presentationDetents([.medium, .large]) }
+            .sheet(item: $selectedOccurrence) { OccurrenceDetailsView(occurrence: $0, calendar: calendar).environment(planRepo).presentationDetents([.medium, .large]) }
             .sheet(item: $scheduleTarget) { entry in MobileTaskScheduler(entry: entry, selectedDate: selectedDate, calendar: calendar).environment(planRepo) }
-            .sheet(item: $selectedEvent) { event in MobileEventDetails(event: event, calendar: calendar).environment(planRepo) }
+            .sheet(item: $selectedEvent) { event in MobileEventDetails(event: event, selectedDate: selectedDate, calendar: calendar, revision: planRepo.plannerRevision).environment(planRepo) }
+            .sheet(isPresented: $creatingEvent) { MobileEventDetails(event: nil, selectedDate: selectedDate, calendar: calendar, revision: planRepo.plannerRevision).environment(planRepo) }
             .sheet(isPresented: $creatingTask) { MobileScheduleCreator(selectedDate: selectedDate, calendar: calendar).environment(planRepo) }
             .sheet(isPresented: $showingBacklog, onDismiss: { if let backlogSelection { scheduleTarget = backlogSelection; self.backlogSelection = nil } }) { backlogSheet }
             .task(id: loadID) { await loadDays() }

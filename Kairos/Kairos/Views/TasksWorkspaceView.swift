@@ -479,16 +479,16 @@ struct TaskDetailView: View {
             saveError = "Enter an estimate from 1 to 1440 minutes."
             return
         }
-        let dateKey = hasDueDate ? dateKey(from: dueDate) : nil
-        let timeKey = hasDueTime ? timeKey(from: dueTime) : nil
+        let selectedDateKey = hasDueDate ? dateKey(from: dueDate) : nil
+        let selectedDueTimeKey = hasDueTime ? timeKey(from: dueTime) : nil
         if name != originalTask.title { patch.title = .set(name) }
         if taskNotes != (originalTask.notes ?? originalTask.taskDescription ?? "") { patch.notes = .set(taskNotes) }
         let selectedPriority: String? = priority.isEmpty ? nil : priority
         if selectedPriority != originalTask.priority { patch.priority = .set(selectedPriority) }
         if estimate != originalTask.estimatedMinutes { patch.estimatedMinutes = .set(estimate) }
         if checklist != (originalTask.checklist ?? []) { patch.checklist = .set(checklist) }
-        if dateKey != originalTask.date { patch.date = .set(dateKey) }
-        if timeKey != originalTask.dueTime { patch.dueTime = .set(timeKey) }
+        if selectedDateKey != originalTask.date { patch.date = .set(selectedDateKey) }
+        if selectedDueTimeKey != originalTask.dueTime { patch.dueTime = .set(selectedDueTimeKey) }
         let start = hasScheduledTime ? timeKey(from: scheduledStart) : nil
         let end = hasScheduledTime ? timeKey(from: scheduledEnd) : nil
         if start != originalTask.startTime { patch.startTime = .set(start) }
