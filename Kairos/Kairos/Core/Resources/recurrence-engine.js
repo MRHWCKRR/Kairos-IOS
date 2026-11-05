@@ -191,6 +191,10 @@ function splitRecurringSeries(task,occurrenceDate,edits={},newTaskId,{preserveMo
 
 function kairosOccurrenceRequest(json) {
     const request=JSON.parse(json), task=request.task, day=request.day;
+    if(request.days!==undefined){
+        if(!Array.isArray(request.days)||request.days.length>42||request.days.some(d=>!validDateKey(d)))throw Error('Invalid date range');
+        return JSON.stringify(Object.fromEntries(request.days.map(date=>[date,JSON.parse(kairosOccurrenceRequest(JSON.stringify({...request,days:undefined,day:date})))])));
+    }
     if (!validDateKey(day)) throw Error('Invalid date');
     assertRecurrenceInput(task.recurrence);
     const rule=normalizeRecurrence(task,task.date||day);
@@ -204,6 +208,11 @@ function kairosOccurrenceRequest(json) {
         const occurrence=generateTaskOccurrences(task,day,day).find(item=>item.occurrenceDate===day&&item.status!=='deleted');
         if(!occurrence)throw Error('Occurrence no longer exists');
         return JSON.stringify(setOccurrenceStatus(task,day,request.status,request.timestamp).recurrence.exceptions[day]);
+    }
+    if(request.schedule!==undefined){
+        const occurrence=generateTaskOccurrences(task,day,day).find(item=>item.occurrenceDate===day&&item.status!=='deleted');
+        if(!occurrence||!validDateKey(request.schedule.date))throw Error('Occurrence no longer exists');
+        return JSON.stringify(applyOccurrenceOverride(task,day,request.schedule).recurrence.exceptions[day]);
     }
     if(request.checklist!==undefined){
         const occurrence=generateTaskOccurrences(task,day,day).find(item=>item.occurrenceDate===day&&item.status!=='deleted');

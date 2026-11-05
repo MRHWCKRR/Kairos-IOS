@@ -21,6 +21,9 @@ struct KairosTaskPatch {
     var date: KairosFieldEdit<String?> = .unchanged
     var dueTime: KairosFieldEdit<String?> = .unchanged
     var parentTaskID: KairosFieldEdit<String?> = .unchanged
+    var startTime: KairosFieldEdit<String?> = .unchanged
+    var endTime: KairosFieldEdit<String?> = .unchanged
+    var dueDate: KairosFieldEdit<String?> = .unchanged
 }
 
 enum KairosTaskCommand {
@@ -76,6 +79,11 @@ enum KairosTaskMutation {
                 if case .set(let notes) = patch.notes, let notes, notes.utf16.count > 3000 { throw Invalid() }
                 if case .set(let priority) = patch.priority, let priority, !["low", "medium", "high"].contains(priority) { throw Invalid() }
                 if case .set(let minutes) = patch.estimatedMinutes, let minutes, !(1...1440).contains(minutes) { throw Invalid() }
+                if case .set(let date) = patch.date, let date, !KairosScheduleProjection.validDay(date) { throw Invalid() }
+                if case .set(let date) = patch.dueDate, let date, !KairosScheduleProjection.validDay(date) { throw Invalid() }
+                for edit in [patch.startTime, patch.endTime] {
+                    if case .set(let value) = edit, let value, KairosScheduleProjection.minutes(value) == nil { throw Invalid() }
+                }
                 try patch.notes.apply(to: &tasks[ti].notes, expected: expected.map { $0.notes })
                 try patch.priority.apply(to: &tasks[ti].priority, expected: expected.map { $0.priority })
                 try patch.estimatedMinutes.apply(to: &tasks[ti].estimatedMinutes, expected: expected.map { $0.estimatedMinutes })
@@ -88,6 +96,9 @@ enum KairosTaskMutation {
                 try patch.description.apply(to: &tasks[ti].taskDescription, expected: expected.map { $0.taskDescription })
                 try patch.date.apply(to: &tasks[ti].date, expected: expected.map { $0.date })
                 try patch.dueTime.apply(to: &tasks[ti].dueTime, expected: expected.map { $0.dueTime })
+                try patch.startTime.apply(to: &tasks[ti].startTime, expected: expected.map { $0.startTime })
+                try patch.endTime.apply(to: &tasks[ti].endTime, expected: expected.map { $0.endTime })
+                try patch.dueDate.apply(to: &tasks[ti].dueDate, expected: expected.map { $0.dueDate })
                 try patch.parentTaskID.apply(to: &tasks[ti].parentTaskID, expected: expected.map { $0.parentTaskID })
                 guard !tasks[ti].title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw Invalid() }
                 // Existing links may point at an archived parent. Only a new

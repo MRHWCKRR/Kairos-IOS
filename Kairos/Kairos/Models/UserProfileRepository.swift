@@ -13,6 +13,12 @@ final class UserProfileRepository {
     var notificationSettings: KairosNotificationSettings?
     var appearanceSettings: KairosAppearanceSettings?
     var aiChatHistory: [ChatMessage] = []
+    private(set) var aiWorkspace: KairosAIWorkspace.Snapshot?
+    private(set) var aiWorkspaceError: String?
+    private var rawAIWorkspace: [String: Any]?
+    private var rawLegacyHistory: [[String: Any]] = []
+    private var profileHasLoaded = false
+    var aiWorkspaceOwnerID: String? { profileHasLoaded ? writableUserID : nil }
     var isLoading = false
     var errorMessage: String?
 
@@ -48,6 +54,7 @@ final class UserProfileRepository {
             // from being restored after a cold launch.
             self.clearValues()
             let raw = snapshot.data() ?? [:]
+            self.profileHasLoaded = true
             let decoder = Firestore.Decoder()
 
             if let settings = raw["settings"] as? [String: Any] {
@@ -78,10 +85,18 @@ final class UserProfileRepository {
                 self.achievementsData = value
             }
             if let history = raw["aiChatHistory"] as? [[String: Any]] {
+                self.rawLegacyHistory = history
                 self.aiChatHistory = history.compactMap {
                     try? decoder.decode(ChatMessage.self, from: $0)
                 }
             }
+
+            do {
+                guard raw["aiWorkspace"] == nil || raw["aiWorkspace"] is [String: Any] else { throw KairosAIWorkspace.Invalid() }
+                self.rawAIWorkspace = raw["aiWorkspace"] as? [String: Any]
+                self.aiWorkspace = try KairosAIWorkspace.read(self.rawAIWorkspace, legacy: self.rawLegacyHistory, owner: userID)
+                self.aiWorkspaceError = nil
+            } catch { self.aiWorkspaceError = error.localizedDescription }
 
             self.errorMessage = nil
             await self.checkAchievements()
@@ -107,6 +122,42 @@ final class UserProfileRepository {
         notificationSettings = nil
         appearanceSettings = nil
         aiChatHistory = []
+        aiWorkspace = nil
+        aiWorkspaceError = nil
+        rawAIWorkspace = nil
+        rawLegacyHistory = []
+        profileHasLoaded = false
+    }
+
+    @discardableResult
+    func editAIWorkspace(_ command: KairosAIWorkspace.Command, ownerID: String) async -> Bool {
+        guard profileHasLoaded, writableUserID == ownerID, aiWorkspaceError == nil else {
+            aiWorkspaceError = "Wait for your verified account's AI workspace to load."
+            return false
+        }
+        let token = generation
+        let reference = db.collection("users").document(ownerID)
+        do {
+            let result = try await db.runTransaction { transaction, pointer in
+                do {
+                    guard let user = Auth.auth().currentUser, user.uid == ownerID, user.isEmailVerified else { throw CancellationError() }
+                    let snapshot = try transaction.getDocument(reference)
+                    let data = snapshot.data() ?? [:]
+                    guard data["aiWorkspace"] == nil || data["aiWorkspace"] is [String: Any] else { throw KairosAIWorkspace.Invalid() }
+                    let updated = try KairosAIWorkspace.applying(command, to: data["aiWorkspace"] as? [String: Any], legacy: data["aiChatHistory"] as? [[String: Any]] ?? [], owner: ownerID)
+                    transaction.setData(["aiWorkspace": updated], forDocument: reference, merge: true)
+                    return updated
+                } catch { pointer?.pointee = error as NSError; return nil }
+            }
+            guard generation == token, writableUserID == ownerID, let updated = result as? [String: Any] else { return false }
+            rawAIWorkspace = updated
+            aiWorkspace = try KairosAIWorkspace.read(updated, legacy: [], owner: ownerID)
+            return true
+        } catch {
+            guard generation == token else { return false }
+            errorMessage = "Could not save the AI workspace: \(error.localizedDescription)"
+            return false
+        }
     }
 
     // MARK: - Settings
