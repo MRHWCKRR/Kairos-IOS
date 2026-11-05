@@ -6,6 +6,11 @@ struct MainTabView: View {
     @State private var selectedTab = 0
 
     private var appearance: KairosAppearanceSettings? { profileRepo.appearanceSettings }
+    private var plannerCalendar: Calendar {
+        var value = Calendar(identifier: .gregorian)
+        value.timeZone = profileRepo.profile.flatMap { TimeZone(identifier: $0.timezone) } ?? .current
+        return value
+    }
     private var accent: Color { KairosColors.accent(for: appearance?.theme) }
     private var preferredScheme: ColorScheme? {
         switch appearance?.mode { case "light": return .light; case "dark": return .dark; default: return nil }
@@ -27,6 +32,8 @@ struct MainTabView: View {
             .tint(accent)
             .preferredColorScheme(preferredScheme)
             .environment(\.locale, KairosTimeDisplay.locale(format: profileRepo.accessibilitySettings?.timeFormat ?? "12"))
+            .environment(\.calendar, plannerCalendar)
+            .environment(\.timeZone, plannerCalendar.timeZone)
             .onOpenURL { url in
                 guard url.scheme == KairosDeepLink.scheme, url.host == KairosDeepLink.focusTimerPath else { return }
                 select(0)

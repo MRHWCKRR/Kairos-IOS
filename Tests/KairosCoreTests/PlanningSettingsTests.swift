@@ -42,4 +42,14 @@ final class PlanningSettingsTests: XCTestCase {
         XCTAssertEqual(KairosTimeDisplay.clock(780, format: "24"), "13:00")
         XCTAssertEqual(KairosTimeDisplay.time("09:05", format: "12"), "9:05 AM")
     }
+    func testPickerLocaleUsesChosenHourCycle() {
+        let formatter = DateFormatter()
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.locale = KairosTimeDisplay.locale(format: "24")
+        formatter.setLocalizedDateFormatFromTemplate("jm")
+        XCTAssertFalse(formatter.dateFormat.contains("a"))
+        formatter.locale = KairosTimeDisplay.locale(format: "12")
+        formatter.setLocalizedDateFormatFromTemplate("jm")
+        XCTAssertTrue(formatter.dateFormat.contains("a"))
+    }
 }
