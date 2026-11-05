@@ -557,7 +557,16 @@ final class StudyPlanRepository {
                     let userSnapshot = try transaction.getDocument(userRef)
                     let remote = planSnapshot.data() ?? [:], profile = userSnapshot.data() ?? [:]
                     guard !planSnapshot.exists || remote["userID"] as? String == uid else { throw KairosPlannerMerge.Conflict() }
-                    if try KairosAIProposalEngine.wasApplied(proposal, plan: remote) { return true }
+                    if try KairosAIProposalEngine.wasApplied(proposal, plan: remote) {
+                        if var proposals = profile["aiNativeProposals"] as? [String: Any], let current = proposals[proposal.chatID] as? [String: Any], current["id"] as? String == proposal.id {
+                            let restored = try JSONDecoder().decode(KairosAIProposal.self, from: JSONSerialization.data(withJSONObject: current))
+                            guard try KairosAIProposalEngine.payloadFingerprint(restored) == KairosAIProposalEngine.payloadFingerprint(proposal) else { throw KairosPlannerMerge.Conflict() }
+                            proposals.removeValue(forKey: proposal.chatID)
+                            var patch = try KairosAIProposalHistory.retire(proposal, state: "applied", user: profile); patch["aiNativeProposals"] = proposals
+                            transaction.updateData(patch, forDocument: userRef)
+                        }
+                        return true
+                    }
                     guard let saved = (profile["aiNativeProposals"] as? [String: Any])?[proposal.chatID] as? [String: Any] else { throw KairosAIProposalEngine.Invalid("This preview was discarded or changed on another device.") }
                     let stored = try JSONDecoder().decode(KairosAIProposal.self, from: JSONSerialization.data(withJSONObject: saved))
                     guard try KairosAIProposalEngine.payloadFingerprint(stored) == KairosAIProposalEngine.payloadFingerprint(proposal),
@@ -585,6 +594,7 @@ final class StudyPlanRepository {
                     if planSnapshot.exists { transaction.updateData(fields, forDocument: planRef) }
                     else { fields["userID"] = uid; fields["createdAt"] = FieldValue.serverTimestamp(); transaction.setData(fields, forDocument: planRef) }
                     var profilePatch: [String: Any] = ["aiWorkspace": workspace, "aiNativeProposals": proposals]
+                    profilePatch.merge(try KairosAIProposalHistory.retire(proposal, state: "applied", user: profile)) { _, new in new }
                     var progress = profile
                     for id in prepared.completedTaskIDs {
                         let patch = try KairosProgress.taskCompletion(data: progress, taskID: id, dayKey: KairosDate.dayKey(for: Date(), timeZone: TimeZone(identifier: proposal.timezone) ?? .current))

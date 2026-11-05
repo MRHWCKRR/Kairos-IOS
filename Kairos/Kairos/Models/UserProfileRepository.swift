@@ -166,6 +166,7 @@ final class UserProfileRepository {
                     guard raw["aiWorkspace"] == nil || raw["aiWorkspace"] is [String: Any], raw["aiNativeProposals"] == nil || raw["aiNativeProposals"] is [String: Any] else { throw KairosAIWorkspace.Invalid() }
                     var proposals = raw["aiNativeProposals"] as? [String: Any] ?? [:]
                     if let proposal, let proposalMap {
+                        if try KairosAIProposalHistory.isRetired(proposal, user: raw) { return ["aiWorkspace": raw["aiWorkspace"] ?? [:], "aiNativeProposals": proposals] }
                         guard proposal.ownerID == ownerID, proposal.chatID == chatID, proposals[chatID] == nil || (proposals[chatID] as? [String: Any])?["id"] as? String == proposal.id else { throw KairosAIProposalEngine.Invalid("This chat already has a saved preview. Review or discard it first.") }
                         if let existing = proposals[chatID] as? [String: Any] { guard try KairosAIProposalEngine.digest(existing) == KairosAIProposalEngine.digest(proposalMap) else { throw KairosAIProposalEngine.Invalid("This saved preview changed on another device.") } }
                         proposals[chatID] = proposalMap
@@ -196,7 +197,9 @@ final class UserProfileRepository {
                     let raw = snapshot.data() ?? [:]
                     guard var proposals = raw["aiNativeProposals"] as? [String: Any], (proposals[proposal.chatID] as? [String: Any])?["id"] as? String == proposal.id else { throw KairosAIProposalEngine.Invalid("The saved preview changed. Reopen this chat.") }
                     proposals.removeValue(forKey: proposal.chatID)
-                    transaction.updateData(["aiNativeProposals": proposals], forDocument: reference)
+                    var patch = try KairosAIProposalHistory.retire(proposal, state: "discarded", user: raw)
+                    patch["aiNativeProposals"] = proposals
+                    transaction.updateData(patch, forDocument: reference)
                     return true
                 } catch { pointer?.pointee = error as NSError; return nil }
             }

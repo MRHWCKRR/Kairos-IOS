@@ -17,4 +17,10 @@ final class TaskReminderTests: XCTestCase {
         XCTAssertEqual(a.first?.startsAt.timeIntervalSince(a.first!.dueAt), 900)
         XCTAssertTrue(KairosTaskReminders.plan([], ownerID: "a", timezone: "Australia/Brisbane", now: now).isEmpty)
     }
+    func testDeliveredReminderIsNotRequeuedButPendingReminderSurvivesRefresh() throws {
+        let now = Date(timeIntervalSince1970: 1000)
+        let reminder = KairosPlannedReminder(id: "r", title: "Work", dueAt: now.addingTimeInterval(1), startsAt: now.addingTimeInterval(300))
+        XCTAssertTrue(KairosTaskReminders.excludingDelivered([reminder], scheduled: ["r": 900], pendingIDs: [], now: now).isEmpty)
+        XCTAssertEqual(KairosTaskReminders.excludingDelivered([reminder], scheduled: ["r": 900], pendingIDs: ["r"], now: now).count, 1)
+    }
 }

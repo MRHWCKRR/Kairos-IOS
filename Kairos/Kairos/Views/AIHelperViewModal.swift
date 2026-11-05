@@ -75,6 +75,7 @@ final class AIHelperViewModel {
         guard proposals[activeChatID ?? ""] == nil else { errorMessage = "Review or discard the proposed changes before sending another message."; return }
         guard failedResponses[activeChatID ?? ""] == nil else { errorMessage = "Retry saving the previous reply before sending another message."; return }
         guard currentChat?.hasUnfinishedWebActions != true else { errorMessage = "This chat has an unfinished change on the web. Retry or cancel it there before continuing here."; return }
+        guard profileRepo.aiProposalError == nil else { errorMessage = profileRepo.aiProposalError; return }
         startingMessage = true
         let uid = profileRepo.aiWorkspaceOwnerID!
         let requestedChatID = activeChatID
@@ -137,7 +138,23 @@ final class AIHelperViewModel {
                     }
                 }
             }
-            let context = String(contextParts.joined(separator: "\n").prefix(22000))
+            let calendar = KairosAIProposalEngine.calendar(timezone)
+            let dates = (0..<14).compactMap { calendar.date(byAdding: .day, value: $0, to: Date()) }.map { KairosDate.dayKey(for: $0, timeZone: calendar.timeZone) }
+            if fingerprint != nil {
+                let occurrences = try await planRepo.recurringOccurrences(onDays: dates)
+                contextParts.append("Recurring task occurrences (original date identifies the occurrence):")
+                for occurrence in occurrences.values.flatMap({ $0 }).sorted(by: { $0.id < $1.id }).prefix(80) {
+                    contextParts.append("Task \(occurrence.seriesId) \(occurrence.task.title) | occurrenceDate=\(occurrence.occurrenceDate) | displayDate=\(occurrence.displayDate) | \(occurrence.startTime ?? "flexible")–\(occurrence.endTime ?? "") | \(occurrence.status)")
+                }
+                var seen = Set<String>()
+                contextParts.append("Fixed events (read-only sources cannot be edited):")
+                for date in dates {
+                    for event in try planRepo.eventSegments(on: date) where seen.count < 80 && seen.insert(event.id).inserted {
+                        contextParts.append("Event \(event.eventID) \(event.title) | date=\(event.effectiveDate) | occurrenceDate=\(event.occurrenceDate ?? "none") | \(event.startTime)–\(event.endTime) | readOnly=\(event.readOnly)")
+                    }
+                }
+            }
+            let context = String(contextParts.joined(separator: "\n").prefix(30000))
             let history = chat.messages.suffix(18).filter { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.map { ChatMessage(role: $0.role, content: $0.content) }
             let reply = try await aiRepository.sendChatRequest(messages: [ChatMessage(role: "system", content: context + "\n\n" + KairosChatActions.instructions)] + history)
             guard profileRepo.aiWorkspaceOwnerID == owner else { return }

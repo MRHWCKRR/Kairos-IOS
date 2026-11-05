@@ -32,14 +32,24 @@ struct KairosChatResponse: Decodable {
     nonisolated static func parse(_ text: String) throws -> KairosChatResponse {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let json = cleaned.hasPrefix("```") ? cleaned.components(separatedBy: "\n").dropFirst().dropLast().joined(separator: "\n") : cleaned
-        guard let data = json.data(using: .utf8), let response = try? JSONDecoder().decode(Self.self, from: data), response.actions.count <= 10 else { throw KairosTaskMutation.Invalid() }
+        guard let data = json.data(using: .utf8), let root = try JSONSerialization.jsonObject(with: data) as? [String: Any], let actions = root["actions"] as? [[String: Any]], actions.count <= 10 else { throw KairosTaskMutation.Invalid() }
+        for action in actions {
+            guard let type = action["type"] as? String, let allowed = KairosChatActions.allowedFields[type], let args = action["args"] as? [String: Any], Set(args.keys).isSubset(of: allowed), args.values.allSatisfy({ !($0 is NSNull) }) else { throw KairosTaskMutation.Invalid() }
+        }
+        guard let response = try? JSONDecoder().decode(Self.self, from: data) else { throw KairosTaskMutation.Invalid() }
         return response
     }
 }
 
 enum KairosChatActions {
+    nonisolated static let allowedFields: [String: Set<String>] = [
+        "create_task": ["sectionId","title","date","startTime","endTime"], "update_task": ["taskId","newTitle","date","startTime","endTime","completed"], "complete_task": ["taskId"], "delete_task": ["taskId"],
+        "create_board": ["title"], "update_board": ["boardId","newTitle"], "delete_board": ["boardId"], "create_section": ["boardId","title"], "update_section": ["sectionId","newTitle"], "delete_section": ["boardId","sectionId"],
+        "set_task_reminder": ["taskId","minutesBefore"], "remove_task_reminder": ["taskId"], "update_task_occurrence": ["taskId","occurrenceDate","date","startTime","endTime","status"],
+        "create_schedule_event": ["title","date","day","start","end","category"], "update_schedule_event": ["eventId","occurrenceDate","newTitle","date","start","end","category"], "delete_schedule_event": ["eventId","occurrenceDate"]
+    ]
     static let instructions = """
-    Return ONLY JSON {"reply":"Markdown response","actions":[]}.
+    Return ONLY JSON {"reply":"Markdown response","actions":[]}. Omit unspecified argument fields; do not use null.
     You may propose these actions only, with args exactly as listed:
     create_schedule_event {title,date?,day?,start,end,category?}; update_schedule_event {eventId,occurrenceDate?,newTitle?,date?,start?,end?,category?}; delete_schedule_event {eventId,occurrenceDate?}; set_task_reminder {taskId,minutesBefore}; remove_task_reminder {taskId}; update_task_occurrence {taskId,occurrenceDate,date?,startTime?,endTime?,status?}.
     create_task {sectionId,title,date?,startTime?,endTime?}; update_task {taskId,newTitle?,date?,startTime?,endTime?,completed?}; complete_task {taskId}; delete_task {taskId};

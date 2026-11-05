@@ -110,19 +110,22 @@ enum KairosAIProposalEngine {
             default:
                 let known = try reviewState(next)
                 let boards = try JSONDecoder().decode([KairosBoard].self, from: JSONSerialization.data(withJSONObject: known["boards"] ?? []))
+                let baseEncoded = try JSONSerialization.jsonObject(with: JSONEncoder().encode(boards))
                 let changed = try KairosChatActions.apply([action], to: boards, idPrefix: proposal.id + "-\(index)")
                 let encoded = try JSONSerialization.jsonObject(with: JSONEncoder().encode(changed))
-                next = try KairosPlannerMerge.applyingKnownEdits(base: ["boards": known["boards"] ?? []], local: ["boards": encoded], to: next)
+                next = try KairosPlannerMerge.applyingKnownEdits(base: ["boards": baseEncoded], local: ["boards": encoded], to: next)
                 if (action.type == "complete_task" || action.args.completed == true), let id = action.args.taskId, let old = try? task(id, plan: before), old["completed"] as? Bool != true { completedIDs.append(id) }
             }
             let title = targetTitle(action, before: before)
             rows.append(.init(id: proposal.id + "-\(index)", title: title, action: action.type.replacingOccurrences(of: "_", with: " ").capitalized,
-                              before: describe(action, plan: before), after: describe(action, plan: next), destructive: action.type.hasPrefix("delete_")))
+                              before: action.type.hasPrefix("create_") ? "Not created" : describe(action, plan: before), after: action.type.hasPrefix("create_") ? describeCreated(action, before: before, after: next) : describe(action, plan: next), destructive: action.type.hasPrefix("delete_")))
         }
         return Prepared(before: plan, after: next, rows: rows, completedTaskIDs: completedIDs)
     }
     private static func task(_ id: String, plan: [String: Any]) throws -> [String: Any] {
         var found: [[String: Any]] = []
+        let allMatches = try maps(plan["boards"]).flatMap { try maps($0["sections"]) }.flatMap { try maps($0["tasks"]) }.filter { $0["id"] as? String == id }
+        guard allMatches.count == 1 else { throw Invalid("The target task has a missing or duplicate identity.") }
         for board in try maps(plan["boards"]) where board["archived"] as? Bool != true {
             for section in try maps(board["sections"]) where section["archived"] as? Bool != true {
                 found += try maps(section["tasks"]).filter { $0["id"] as? String == id && $0["archived"] as? Bool != true }
@@ -214,18 +217,38 @@ enum KairosAIProposalEngine {
     private static func targetTitle(_ action: KairosChatAction, before: [String: Any]) -> String {
         if let id = action.args.taskId, let item = try? task(id, plan: before) { return item["title"] as? String ?? id }
         if let id = action.args.eventId, let events = try? maps(before["scheduleEvents"]) { return events.first(where: { $0["id"] as? String == id })?["title"] as? String ?? id }
+        if let boards = try? maps(before["boards"]) {
+            if let id = action.args.sectionId {
+                for board in boards { if let section = (try? maps(board["sections"]))?.first(where: { $0["id"] as? String == id }) { return section["title"] as? String ?? id } }
+            }
+            if let id = action.args.boardId { return boards.first(where: { $0["id"] as? String == id })?["title"] as? String ?? id }
+        }
         return action.args.newTitle ?? action.args.title ?? action.args.boardId ?? action.args.sectionId ?? "Planner change"
     }
     private static func describe(_ action: KairosChatAction, plan: [String: Any]) -> String {
         var item: [String: Any]?
         if let id = action.args.taskId { item = try? task(id, plan: plan) }
         else if let id = action.args.eventId { item = (try? maps(plan["scheduleEvents"]))?.first(where: { $0["id"] as? String == id }) }
+        else if let id = action.args.sectionId, let boards = try? maps(plan["boards"]) { item = boards.flatMap { (try? maps($0["sections"])) ?? [] }.first { $0["id"] as? String == id } }
+        else if let id = action.args.boardId { item = (try? maps(plan["boards"]))?.first { $0["id"] as? String == id } }
+        if var event = item, action.args.eventId != nil, let original = action.args.occurrenceDate {
+            let exception = (event["exceptions"] as? [String: Any])?[original] as? [String: Any] ?? [:]
+            if exception["skipped"] as? Bool == true { return "Skipped occurrence " + original }
+            event.merge(exception["override"] as? [String: Any] ?? [:]) { _, new in new }
+            event["date"] = event["date"] as? String ?? original; event.removeValue(forKey: "day"); item = event
+        }
         if let item {
             var parts = [item["title"] as? String ?? ""]
             if let date = item["date"] as? String { parts.append(date) }
             if let day = item["day"] as? Int { parts.append("Weekly weekday \(day)") }
             parts.append([item["startTime"] as? String ?? item["start"] as? String, item["endTime"] as? String ?? item["end"] as? String].compactMap { $0 }.joined(separator: "–"))
             if action.type.contains("reminder") { parts.append((item["reminderMinutes"] as? Int).map { "Reminder: \($0) min before" } ?? "No task reminder") }
+            if action.type == "complete_task" || action.args.completed != nil { parts.append(item["completed"] as? Bool == true ? "Completed" : "Pending") }
+            if action.type.contains("board") || action.type.contains("section") {
+                let sections = (try? maps(item["sections"])) ?? [item]
+                let count = sections.reduce(0) { $0 + (((try? maps($1["tasks"])) ?? []).count) }
+                parts.append("\(count) tasks")
+            }
             if action.type == "update_task_occurrence", let date = action.args.occurrenceDate {
                 let r = item["recurrence"] as? [String: Any] ?? [:]
                 let exception = (r["exceptions"] as? [String: Any])?[date] as? [String: Any] ?? [:]
@@ -236,5 +259,39 @@ enum KairosAIProposalEngine {
         }
         if action.type.hasPrefix("delete_") { return "Removed" }
         return action.args.newTitle ?? action.args.title ?? "New item"
+    }
+    private static func describeCreated(_ action: KairosChatAction, before: [String: Any], after: [String: Any]) -> String {
+        func entities(_ plan: [String: Any]) -> [[String: Any]] {
+            if action.type == "create_schedule_event" { return (try? maps(plan["scheduleEvents"])) ?? [] }
+            let boards = (try? maps(plan["boards"])) ?? []
+            if action.type == "create_board" { return boards }
+            let sections = boards.flatMap { (try? maps($0["sections"])) ?? [] }
+            return action.type == "create_section" ? sections : sections.flatMap { (try? maps($0["tasks"])) ?? [] }
+        }
+        let oldIDs = Set(entities(before).compactMap { $0["id"] as? String })
+        guard let item = entities(after).first(where: { !oldIDs.contains($0["id"] as? String ?? "") }) else { return "No new item" }
+        var parts = [item["title"] as? String ?? "New item"]
+        if let date = item["date"] as? String { parts.append(date) }
+        if let day = item["day"] as? Int { parts.append("Weekly weekday \(day)") }
+        parts.append([item["startTime"] as? String ?? item["start"] as? String, item["endTime"] as? String ?? item["end"] as? String].compactMap { $0 }.joined(separator: "–"))
+        return parts.filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+}
+
+enum KairosAIProposalHistory {
+    nonisolated static func isRetired(_ proposal: KairosAIProposal, user: [String: Any]) throws -> Bool {
+        try KairosAIProposalEngine.wasApplied(proposal, plan: ["aiNativeActionReceipts": user["aiNativeProposalHistory"] ?? [], "aiNativeActionReceiptFloor": user["aiNativeProposalHistoryFloor"] ?? 0])
+    }
+    nonisolated static func retire(_ proposal: KairosAIProposal, state: String, user: [String: Any]) throws -> [String: Any] {
+        var history = try KairosAIProposalEngine.maps(user["aiNativeProposalHistory"])
+        if try isRetired(proposal, user: user) { return ["aiNativeProposalHistory": history, "aiNativeProposalHistoryFloor": user["aiNativeProposalHistoryFloor"] ?? 0] }
+        var entry = try KairosAIProposalEngine.receipt(proposal); entry["state"] = state; history.append(entry)
+        var floor = user["aiNativeProposalHistoryFloor"] as? Double ?? 0
+        while true {
+            let size = try JSONSerialization.data(withJSONObject: history).count
+            if history.count <= 100 && size <= 64_000 { break }
+            floor = max(floor, history.removeFirst()["createdAt"] as? Double ?? 0)
+        }
+        return ["aiNativeProposalHistory": history, "aiNativeProposalHistoryFloor": floor]
     }
 }
