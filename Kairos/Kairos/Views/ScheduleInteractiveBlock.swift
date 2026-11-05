@@ -71,19 +71,19 @@ struct ScheduleInteractiveBlock: View {
                     if operation == .move, let drag { change(.move, drag.translation, drag.location) }
                 }
             }
-            .onEnded { _ in end() }
+            .onEnded { _ in endGesture() }
     }
     private var resizeGesture: some Gesture {
         DragGesture(minimumDistance: 2, coordinateSpace: .global)
             .updating($resizing) { _, active, _ in active = true }
             .onChanged { value in beginGesture(.resize); if operation == .resize { change(.resize, value.translation, value.location) } }
-            .onEnded { _ in end() }
+            .onEnded { _ in endGesture() }
     }
     private func beginGesture(_ mode: ScheduleTouchMode) {
         guard operation == nil, !blocked else { return }
         if begin(mode) { operation = mode } else { blocked = true }
     }
-    private func end() {
+    private func endGesture() {
         let hadOperation = operation != nil
         operation = nil; blocked = false
         if hadOperation { finish() }
