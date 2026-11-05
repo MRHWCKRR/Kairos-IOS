@@ -44,6 +44,7 @@ private struct PendingScheduleTouch {
 }
 
 struct CalendarView: View {
+    var isActive = true
     @Environment(StudyPlanRepository.self) private var planRepo
     @Environment(UserProfileRepository.self) private var profileRepo
     @Environment(\.scenePhase) private var scenePhase
@@ -121,6 +122,7 @@ struct CalendarView: View {
             .onPreferenceChange(ScheduleViewportFrame.self) { viewportFrame = $0 }
             .onChange(of: loadID) { _, _ in interaction = nil }
             .onChange(of: showingDayDetails) { _, _ in interaction = nil }
+            .onChange(of: isActive) { _, active in if !active { interaction = nil } }
             .onChange(of: scenePhase) { _, phase in if phase != .active { interaction = nil } }
             .onDisappear { interaction = nil }
             .toolbar {
@@ -169,7 +171,12 @@ struct CalendarView: View {
                                 Text(KairosScheduleProjection.clock(hour * 60)).font(.caption2.monospacedDigit()).foregroundStyle(.secondary).frame(width: 46, height: 56, alignment: .topTrailing).padding(.trailing, 6).id("hour-\(hour)")
                             }
                         }
-                        ForEach(days) { day in dayColumn(day, width: mode == .day ? max(220, geometry.size.width - 54) : 200) }
+                        ForEach(days) { day in
+                            // Keep a readable move target beside each 44pt resize
+                            // handle, even when several sessions overlap.
+                            let lanes = blocks(day).map(\.columns).max() ?? 1
+                            dayColumn(day, width: max(mode == .day ? max(220, geometry.size.width - 54) : 200, CGFloat(lanes) * 110))
+                        }
                     }
                 }
                 .scrollDisabled(interaction != nil)
