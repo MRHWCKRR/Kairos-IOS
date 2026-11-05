@@ -46,6 +46,14 @@ enum KairosPlannerSearch {
         var boards = try KairosAIProposalEngine.maps(plan["boards"])
         var boardCounts: [String: Int] = [:]
         for board in boards { if let id = board["id"] as? String { boardCounts[id, default: 0] += 1 } }
+        var taskCounts: [String: Int] = [:]
+        for board in boards {
+            for section in try KairosAIProposalEngine.maps(board["sections"]) {
+                for task in try KairosAIProposalEngine.maps(section["tasks"]) {
+                    if let id = task["id"] as? String { taskCounts[id, default: 0] += 1 }
+                }
+            }
+        }
         for bi in boards.indices {
             let boardID = boards[bi]["id"] as? String ?? ""
             let boardSearchable = boards[bi]["archived"] as? Bool != true && !boardID.isEmpty && boardID.count <= 160 && boardCounts[boardID] == 1
@@ -60,8 +68,11 @@ enum KairosPlannerSearch {
                     if value["notes"] == nil { value["notes"] = task["taskDescription"] }
                     // Keep excluded identities for duplicate checks, but do not
                     // interpret legacy repeat data that can never be a result.
-                    if !boardSearchable || !sectionSearchable { value["archived"] = true }
-                    if value["archived"] as? Bool != true, task["recurrence"] != nil { value["recurrence"] = try KairosRecurrence.input(task)["recurrence"] }
+                    let taskID = task["id"] as? String ?? ""
+                    if !boardSearchable || !sectionSearchable || taskID.isEmpty || taskID.count > 160 || taskCounts[taskID] != 1 { value["archived"] = true }
+                    if value["archived"] as? Bool != true, (task["recurrence"] as? [String: Any])?["enabled"] as? Bool == true {
+                        value["recurrence"] = try KairosRecurrence.input(task)["recurrence"]
+                    }
                     return value
                 }
                 sections[si] = sections[si].filter { ["id", "title", "archived", "tasks"].contains($0.key) }

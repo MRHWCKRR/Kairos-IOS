@@ -32,7 +32,9 @@ final class PlannerSearchTests: XCTestCase {
         XCTAssertThrowsError(try KairosPlannerSearch.build(planJSON: "{\"boards\":[]}", today: "2026-02-30"))
     }
     func testArchivedMalformedRecurrenceDoesNotHideReadableTasks() throws {
-        let index = try makeIndex([["id": "a", "title": "Readable"], ["id": "old", "title": "Legacy", "archived": true, "recurrence": ["enabled": true, "exceptions": "legacy"]]])
+        let index = try makeIndex([["id": "a", "title": "Readable"], ["id": "old", "title": "Legacy", "archived": true, "recurrence": ["enabled": true, "exceptions": "legacy"]], ["id": "dup", "title": "Duplicate", "recurrence": ["enabled": true, "exceptions": "legacy"]], ["id": "dup", "title": "Other duplicate"], ["id": "off", "title": "Disabled recurrence", "recurrence": ["enabled": false, "exceptions": "legacy"]]])
         XCTAssertEqual(try KairosPlannerSearch.search(index, query: "Readable", status: .all).total, 1)
+        XCTAssertEqual(try KairosPlannerSearch.search(index, query: "Duplicate", status: .all).total, 0)
+        XCTAssertEqual(try KairosPlannerSearch.search(index, query: "Disabled recurrence", status: .all).total, 1)
     }
 }
