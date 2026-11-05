@@ -44,13 +44,24 @@ enum KairosPlannerSearch {
     }
     nonisolated static func inputJSON(_ plan: [String: Any]) throws -> String {
         var boards = try KairosAIProposalEngine.maps(plan["boards"])
+        var boardCounts: [String: Int] = [:]
+        for board in boards { if let id = board["id"] as? String { boardCounts[id, default: 0] += 1 } }
         for bi in boards.indices {
+            let boardID = boards[bi]["id"] as? String ?? ""
+            let boardSearchable = boards[bi]["archived"] as? Bool != true && !boardID.isEmpty && boardID.count <= 160 && boardCounts[boardID] == 1
             var sections = try KairosAIProposalEngine.maps(boards[bi]["sections"])
+            var sectionCounts: [String: Int] = [:]
+            for section in sections { if let id = section["id"] as? String { sectionCounts[id, default: 0] += 1 } }
             for si in sections.indices {
+                let sectionID = sections[si]["id"] as? String ?? ""
+                let sectionSearchable = sections[si]["archived"] as? Bool != true && !sectionID.isEmpty && sectionID.count <= 160 && sectionCounts[sectionID] == 1
                 sections[si]["tasks"] = try KairosAIProposalEngine.maps(sections[si]["tasks"]).map { task in
                     var value = task.filter { ["id", "title", "archived", "completed", "date", "dueDate", "notes", "assignmentId", "startTime", "endTime", "estimatedMinutes"].contains($0.key) }
                     if value["notes"] == nil { value["notes"] = task["taskDescription"] }
-                    if task["recurrence"] != nil { value["recurrence"] = try KairosRecurrence.input(task)["recurrence"] }
+                    // Keep excluded identities for duplicate checks, but do not
+                    // interpret legacy repeat data that can never be a result.
+                    if !boardSearchable || !sectionSearchable { value["archived"] = true }
+                    if value["archived"] as? Bool != true, task["recurrence"] != nil { value["recurrence"] = try KairosRecurrence.input(task)["recurrence"] }
                     return value
                 }
                 sections[si] = sections[si].filter { ["id", "title", "archived", "tasks"].contains($0.key) }

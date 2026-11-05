@@ -48,6 +48,7 @@ private struct PlannerSearchContent: View {
     @State private var selection: PlannerSearchSelection?
     @State private var opening = false
     @State private var retry = 0
+    @FocusState private var queryFocused: Bool
 
     private var loadKey: String { "\(planRepo.searchScope ?? "unavailable")-\(planRepo.plannerRevision)-\(today)-\(calendar.timeZone.identifier)" }
     private var requestKey: String { "\(loadKey)-\(status.rawValue)-\(query)-\(retry)" }
@@ -81,6 +82,7 @@ private struct PlannerSearchContent: View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
             TextField("Tasks, boards, assignments", text: $query)
+                .focused($queryFocused)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
                 .submitLabel(.search).accessibilityLabel("Search planner")
                 .onChange(of: query) { _, value in if value.count > 500 { query = String(value.prefix(500)) } }
@@ -88,6 +90,7 @@ private struct PlannerSearchContent: View {
         }.padding(.horizontal, 12).frame(minHeight: 48)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
             .padding(16)
+            .onAppear { queryFocused = true }
     }
     @ViewBuilder private var content: some View {
         if planRepo.searchScope == nil {
