@@ -48,6 +48,7 @@ final class AIProposalTests: XCTestCase {
             XCTAssertEqual((try KairosAIProposalHistory.retire(p, state: state, user: retired)["aiNativeProposalHistory"] as? [[String: Any]])?.count, 1)
         }
         XCTAssertThrowsError(try KairosAIProposalHistory.isRetired(p, user: ["aiNativeProposalHistoryFloor": p.createdAt]))
+        XCTAssertNoThrow(try KairosAIProposalHistory.retire(p, state: "discarded", user: ["aiNativeProposalHistoryFloor": p.createdAt]))
     }
     func testMixedBatchPreservesMetadataAndPinnedCreationIdentity() throws {
         let actions = try KairosChatResponse.parse(#"{"reply":"Review","actions":[{"type":"create_schedule_event","args":{"title":"Training","date":"2026-11-06","start":"17:00","end":"18:00"}},{"type":"set_task_reminder","args":{"taskId":"t","minutesBefore":15}}]}"#).actions
@@ -62,5 +63,16 @@ final class AIProposalTests: XCTestCase {
     }
     func testUnsupportedFieldsAreRejectedInsteadOfSilentlyIgnored() throws {
         XCTAssertThrowsError(try KairosChatResponse.parse(#"{"reply":"Review","actions":[{"type":"complete_task","args":{"taskId":"t","date":"2026-11-08"}}]}"#))
+    }
+    func testScheduleLocksAndCompletedPreferenceAreHonoured() throws {
+        let actions = try KairosChatResponse.parse(#"{"reply":"Review","actions":[{"type":"update_task","args":{"taskId":"t","date":"2026-11-08"}}]}"#).actions
+        func altered(_ fields: [String: Any]) -> [String: Any] {
+            var task: [String: Any] = ["id": "t", "title": "Essay", "date": "2026-11-06", "startTime": "09:00", "endTime": "10:00"]
+            task.merge(fields) { _, new in new }
+            return ["boards": [["id": "b", "title": "Board", "sections": [["id": "s", "title": "Work", "tasks": [task]]]]], "scheduleEvents": []]
+        }
+        XCTAssertThrowsError(try KairosAIProposalEngine.make(actions: actions, plan: altered(["scheduleLocked": true]), ownerID: "u", chatID: "c", planID: "p", timezone: "UTC", request: "Move"))
+        XCTAssertThrowsError(try KairosAIProposalEngine.make(actions: actions, plan: altered(["completed": true]), ownerID: "u", chatID: "c", planID: "p", timezone: "UTC", request: "Move"))
+        XCTAssertNoThrow(try KairosAIProposalEngine.make(actions: actions, plan: altered(["completed": true]), ownerID: "u", chatID: "c", planID: "p", timezone: "UTC", request: "Move", allowCompletedRescheduling: true))
     }
 }

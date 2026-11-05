@@ -162,7 +162,7 @@ final class AIHelperViewModel {
             var proposal: KairosAIProposal?
             if !parsed.actions.isEmpty {
                 guard let fingerprint else { throw KairosAIProposalEngine.Invalid("Wait for your planner to load before requesting a change.") }
-                proposal = try planRepo.makeAIProposal(actions: parsed.actions, ownerID: owner, chatID: chatID, timezone: timezone, request: chat.messages.last(where: { $0.role == "user" })?.content ?? "", expectedFingerprint: fingerprint)
+                proposal = try planRepo.makeAIProposal(actions: parsed.actions, ownerID: owner, chatID: chatID, timezone: timezone, request: chat.messages.last(where: { $0.role == "user" })?.content ?? "", expectedFingerprint: fingerprint, allowCompletedRescheduling: profileRepo.allowsCompletedRescheduling)
             }
             let response = KairosAIWorkspace.Message(id: "message-" + UUID().uuidString, role: "assistant", content: parsed.reply.isEmpty ? "Review the proposed changes below." : parsed.reply)
             let saved = await profileRepo.saveAIReply(response, proposal: proposal, chatID: chatID, ownerID: owner)

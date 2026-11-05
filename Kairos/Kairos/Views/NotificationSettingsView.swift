@@ -188,6 +188,8 @@ struct NotificationSettingsView: View {
             Text("Kairos preferences")
                 .font(.headline)
                 .padding(.bottom, 4)
+            Text("Task reminders use scheduled task times. Kairos refreshes the nearest 50 alerts when you open the app.")
+                .font(.caption).foregroundStyle(.secondary).padding(.bottom, 8)
 
             settingRow(title: "Notifications", subtitle: "Allow Kairos to surface local updates.", keyPath: \.enabled)
             settingRow(title: "Board completion", subtitle: "Celebrate when every task on a board is complete.", keyPath: \.boardCompletion)

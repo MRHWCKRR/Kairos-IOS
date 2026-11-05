@@ -219,7 +219,8 @@ final class StudyPlanRepository {
         for task in tasks {
             if let date = task.date, let start = task.startTime, let minutes = task.reminderMinutes { candidates.append(.init(id: task.id, title: task.title, date: date, startTime: start, minutesBefore: minutes)) }
         }
-        for occurrence in occurrences.values.flatMap({ $0 }) where occurrence.status == "pending" {
+        let reminderSeries = Set((currentPlan?.boards.filter { !$0.archived }.flatMap { $0.sections.filter { !$0.archived } }.flatMap { $0.tasks.filter { !$0.archived && !$0.completed } } ?? []).map(\.id))
+        for occurrence in occurrences.values.flatMap({ $0 }) where occurrence.status == "pending" && reminderSeries.contains(occurrence.seriesId) {
             if let start = occurrence.startTime, let minutes = occurrence.task.reminderMinutes { candidates.append(.init(id: occurrence.id, title: occurrence.task.title, date: occurrence.displayDate, startTime: start, minutesBefore: minutes)) }
         }
         return candidates
@@ -532,9 +533,9 @@ final class StudyPlanRepository {
         return try KairosAIProposalEngine.fingerprint(rawPlan)
     }
 
-    func makeAIProposal(actions: [KairosChatAction], ownerID: String, chatID: String, timezone: String, request: String, expectedFingerprint: String) throws -> KairosAIProposal {
+    func makeAIProposal(actions: [KairosChatAction], ownerID: String, chatID: String, timezone: String, request: String, expectedFingerprint: String, allowCompletedRescheduling: Bool = false) throws -> KairosAIProposal {
         guard Auth.auth().currentUser?.uid == ownerID, listeningUserID == ownerID, try aiReviewFingerprint() == expectedFingerprint else { throw KairosAIProposalEngine.Invalid("Your planner changed while Kairos was replying. Ask again to review the latest plan.") }
-        return try KairosAIProposalEngine.make(actions: actions, plan: rawPlan, ownerID: ownerID, chatID: chatID, planID: currentPlan?.id ?? ownerID, timezone: timezone, request: request)
+        return try KairosAIProposalEngine.make(actions: actions, plan: rawPlan, ownerID: ownerID, chatID: chatID, planID: currentPlan?.id ?? ownerID, timezone: timezone, request: request, allowCompletedRescheduling: allowCompletedRescheduling)
     }
 
     @discardableResult
@@ -572,6 +573,7 @@ final class StudyPlanRepository {
                     guard try KairosAIProposalEngine.payloadFingerprint(stored) == KairosAIProposalEngine.payloadFingerprint(proposal),
                           try KairosAIProposalEngine.fingerprint(remote) == proposal.beforeFingerprint, let prepared else { throw KairosAIProposalEngine.Invalid("Your planner or preview changed. Discard it and request a fresh preview.") }
                     let settings = profile["settings"] as? [String: Any]
+                    guard ((settings?["planning"] as? [String: Any])?["rescheduleCompleted"] as? Bool == true) == proposal.allowCompletedRescheduling else { throw KairosAIProposalEngine.Invalid("Your planning preferences changed. Request a fresh preview.") }
                     let userProfile = settings?["profile"] as? [String: Any]
                     guard userProfile?["timezone"] as? String == nil || userProfile?["timezone"] as? String == proposal.timezone else { throw KairosAIProposalEngine.Invalid("Your timezone changed. Request a fresh preview.") }
                     guard let workspaceRaw = profile["aiWorkspace"] as? [String: Any],

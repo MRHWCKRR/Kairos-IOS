@@ -21,6 +21,7 @@ struct KairosAIProposal: Codable, Identifiable, Sendable {
     let request: String
     let actions: [KairosChatAction]
     let rows: [Row]
+    let allowCompletedRescheduling: Bool
 }
 
 enum KairosAIProposalEngine {
@@ -67,11 +68,11 @@ enum KairosAIProposalEngine {
               (1...10).contains(proposal.actions.count), proposal.rows.count == proposal.actions.count,
               proposal.beforeFingerprint.count == 64 else { throw Invalid("This saved preview cannot be read safely. Update Kairos or discard it.") }
     }
-    static func make(actions: [KairosChatAction], plan: [String: Any], ownerID: String, chatID: String, planID: String, timezone: String, request: String) throws -> KairosAIProposal {
+    static func make(actions: [KairosChatAction], plan: [String: Any], ownerID: String, chatID: String, planID: String, timezone: String, request: String, allowCompletedRescheduling: Bool = false) throws -> KairosAIProposal {
         let id = "proposal-" + UUID().uuidString
-        let initial = KairosAIProposal(version: 1, id: id, ownerID: ownerID, chatID: chatID, planID: planID, timezone: timezone, createdAt: Date().timeIntervalSince1970 * 1000, beforeFingerprint: try fingerprint(plan), request: String(request.prefix(4000)), actions: actions, rows: [])
+        let initial = KairosAIProposal(version: 1, id: id, ownerID: ownerID, chatID: chatID, planID: planID, timezone: timezone, createdAt: Date().timeIntervalSince1970 * 1000, beforeFingerprint: try fingerprint(plan), request: String(request.prefix(4000)), actions: actions, rows: [], allowCompletedRescheduling: allowCompletedRescheduling)
         let prepared = try transform(initial, plan: plan)
-        let proposal = KairosAIProposal(version: 1, id: id, ownerID: ownerID, chatID: chatID, planID: planID, timezone: timezone, createdAt: initial.createdAt, beforeFingerprint: initial.beforeFingerprint, request: initial.request, actions: actions, rows: prepared.rows)
+        let proposal = KairosAIProposal(version: 1, id: id, ownerID: ownerID, chatID: chatID, planID: planID, timezone: timezone, createdAt: initial.createdAt, beforeFingerprint: initial.beforeFingerprint, request: initial.request, actions: actions, rows: prepared.rows, allowCompletedRescheduling: allowCompletedRescheduling)
         try validate(proposal)
         return proposal
     }
@@ -104,10 +105,15 @@ enum KairosAIProposalEngine {
             let before = next
             switch action.type {
             case "set_task_reminder", "remove_task_reminder", "update_task_occurrence":
-                try editTask(action, plan: &next)
+                try editTask(action, plan: &next, allowCompleted: proposal.allowCompletedRescheduling)
             case "create_schedule_event", "update_schedule_event", "delete_schedule_event":
                 try editEvent(action, plan: &next, timezone: proposal.timezone, createdAt: proposal.createdAt, identity: proposal.id + "-\(index)")
             default:
+                if action.type == "update_task", action.args.date != nil || action.args.startTime != nil || action.args.endTime != nil, let id = action.args.taskId {
+                    let current = try task(id, plan: next)
+                    guard current["scheduleLocked"] as? Bool != true else { throw Invalid("This task’s schedule is locked.") }
+                    guard current["completed"] as? Bool != true || proposal.allowCompletedRescheduling else { throw Invalid("Completed-task rescheduling is disabled in your planning settings.") }
+                }
                 let known = try reviewState(next)
                 let boards = try JSONDecoder().decode([KairosBoard].self, from: JSONSerialization.data(withJSONObject: known["boards"] ?? []))
                 let baseEncoded = try JSONSerialization.jsonObject(with: JSONEncoder().encode(boards))
@@ -134,7 +140,7 @@ enum KairosAIProposalEngine {
         guard found.count == 1 else { throw Invalid("The target task is missing, archived, or ambiguous.") }
         return found[0]
     }
-    private static func editTask(_ action: KairosChatAction, plan: inout [String: Any]) throws {
+    private static func editTask(_ action: KairosChatAction, plan: inout [String: Any], allowCompleted: Bool) throws {
         guard let id = action.args.taskId else { throw Invalid("Choose an exact task.") }
         var updated = try task(id, plan: plan)
         if action.type == "update_task_occurrence" {
@@ -144,6 +150,7 @@ enum KairosAIProposalEngine {
             let display = (exception["override"] as? [String: Any])?["date"] as? String ?? original
             guard let occurrence = try KairosRecurrence.occurrences(task: updated, on: display).first(where: { $0.occurrenceDate == original }) else { throw Invalid("This recurring occurrence no longer exists.") }
             if action.args.date != nil || action.args.startTime != nil || action.args.endTime != nil {
+                guard occurrence.status != "completed" || allowCompleted else { throw Invalid("Completed-task rescheduling is disabled in your planning settings.") }
                 let date = action.args.date ?? occurrence.displayDate
                 let start = action.args.startTime ?? occurrence.startTime
                 var end = action.args.endTime ?? occurrence.endTime
@@ -284,7 +291,11 @@ enum KairosAIProposalHistory {
     }
     nonisolated static func retire(_ proposal: KairosAIProposal, state: String, user: [String: Any]) throws -> [String: Any] {
         var history = try KairosAIProposalEngine.maps(user["aiNativeProposalHistory"])
-        if try isRetired(proposal, user: user) { return ["aiNativeProposalHistory": history, "aiNativeProposalHistoryFloor": user["aiNativeProposalHistoryFloor"] ?? 0] }
+        if let entry = history.first(where: { $0["id"] as? String == proposal.id }) {
+            guard entry["fingerprint"] as? String == (try KairosAIProposalEngine.payloadFingerprint(proposal)) else { throw KairosAIProposalEngine.Invalid("This operation identity belongs to another preview.") }
+            return ["aiNativeProposalHistory": history, "aiNativeProposalHistoryFloor": user["aiNativeProposalHistoryFloor"] ?? 0]
+        }
+        if proposal.createdAt <= (user["aiNativeProposalHistoryFloor"] as? Double ?? 0) { return ["aiNativeProposalHistory": history, "aiNativeProposalHistoryFloor": user["aiNativeProposalHistoryFloor"] ?? 0] }
         var entry = try KairosAIProposalEngine.receipt(proposal); entry["state"] = state; history.append(entry)
         var floor = user["aiNativeProposalHistoryFloor"] as? Double ?? 0
         while true {

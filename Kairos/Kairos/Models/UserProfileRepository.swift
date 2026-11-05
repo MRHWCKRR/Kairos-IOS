@@ -20,6 +20,7 @@ final class UserProfileRepository {
     private var profileHasLoaded = false
     private(set) var aiProposals: [String: KairosAIProposal] = [:]
     private(set) var aiProposalError: String?
+    private(set) var allowsCompletedRescheduling = false
     var aiWorkspaceOwnerID: String? { profileHasLoaded ? writableUserID : nil }
     var isLoading = false
     var errorMessage: String?
@@ -61,6 +62,7 @@ final class UserProfileRepository {
             let decoder = Firestore.Decoder()
 
             if let settings = raw["settings"] as? [String: Any] {
+                self.allowsCompletedRescheduling = (settings["planning"] as? [String: Any])?["rescheduleCompleted"] as? Bool == true
                 if let map = settings["profile"] as? [String: Any],
                    let value = try? decoder.decode(KairosUserProfile.self, from: map) {
                     self.profile = value
@@ -132,6 +134,7 @@ final class UserProfileRepository {
         profileHasLoaded = false
         aiProposals = [:]
         aiProposalError = nil
+        allowsCompletedRescheduling = false
     }
 
     private func restoreAIProposals(_ raw: [String: Any], ownerID: String) {
@@ -166,6 +169,7 @@ final class UserProfileRepository {
                     guard raw["aiWorkspace"] == nil || raw["aiWorkspace"] is [String: Any], raw["aiNativeProposals"] == nil || raw["aiNativeProposals"] is [String: Any] else { throw KairosAIWorkspace.Invalid() }
                     var proposals = raw["aiNativeProposals"] as? [String: Any] ?? [:]
                     if let proposal, let proposalMap {
+                        if proposal.createdAt <= (raw["aiNativeProposalHistoryFloor"] as? Double ?? 0) { return ["aiWorkspace": raw["aiWorkspace"] ?? [:], "aiNativeProposals": proposals] }
                         if try KairosAIProposalHistory.isRetired(proposal, user: raw) { return ["aiWorkspace": raw["aiWorkspace"] ?? [:], "aiNativeProposals": proposals] }
                         guard proposal.ownerID == ownerID, proposal.chatID == chatID, proposals[chatID] == nil || (proposals[chatID] as? [String: Any])?["id"] as? String == proposal.id else { throw KairosAIProposalEngine.Invalid("This chat already has a saved preview. Review or discard it first.") }
                         if let existing = proposals[chatID] as? [String: Any] { guard try KairosAIProposalEngine.digest(existing) == KairosAIProposalEngine.digest(proposalMap) else { throw KairosAIProposalEngine.Invalid("This saved preview changed on another device.") } }
