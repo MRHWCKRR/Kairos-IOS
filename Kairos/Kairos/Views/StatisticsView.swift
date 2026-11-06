@@ -59,7 +59,7 @@ struct StatisticsView: View {
                     Text(subtitle).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Image(systemName: isFocusTime ? "timer" : "checkmark.circle.fill")
+                KairosIcon(isFocusTime ? "timer" : "checkmark.circle.fill")
                     .foregroundStyle(KairosColors.accent)
             }
 
@@ -93,7 +93,7 @@ struct StatisticsView: View {
 
     private func summaryRow(label: String, value: String, icon: String) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: icon)
+            KairosIcon(icon)
                 .foregroundStyle(KairosColors.accent)
                 .frame(width: 30)
             Text(label)
@@ -112,3 +112,4 @@ struct StatisticsView: View {
     StatisticsView()
         .environment(UserProfileRepository())
 }
+

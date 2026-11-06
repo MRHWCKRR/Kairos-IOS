@@ -13,7 +13,7 @@ struct AIHelperView: View {
             Group {
                 if let vm = viewModel {
                     if profileRepo.isLoading { ProgressView("Loading workspace…") }
-                    else if let error = profileRepo.aiWorkspaceError { ContentUnavailableView("Workspace unavailable", systemImage: "exclamationmark.triangle", description: Text(error)) }
+                    else if let error = profileRepo.aiWorkspaceError { ContentUnavailableView { Label("Workspace unavailable", sharedIcon: "exclamationmark.triangle") } description: { Text(error) } }
                     else if vm.showingAllChats { allChats(vm) }
                     else if let project = vm.projects.first(where: { $0.id == vm.activeProjectID }) { projectHome(project, vm: vm) }
                     else { conversation(vm) }
@@ -24,14 +24,14 @@ struct AIHelperView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Chats and projects", systemImage: "sidebar.left") { inputFocused = false; showingHistory = true }
+                    Button("Chats and projects", sharedIcon: "sidebar.left") { inputFocused = false; showingHistory = true }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     if let vm = viewModel {
-                        Button("New chat", systemImage: "square.and.pencil") { Task { await vm.newChat() } }.disabled(vm.isEditingWorkspace || profileRepo.aiWorkspace == nil)
+                        Button("New chat", sharedIcon: "square.and.pencil") { Task { await vm.newChat() } }.disabled(vm.isEditingWorkspace || profileRepo.aiWorkspace == nil)
                         Menu {
-                            Button("Create plan from chat", systemImage: "list.bullet.clipboard") { vm.createPlanFromChat() }.disabled(vm.chatMessages.isEmpty || vm.isLoading)
-                        } label: { Image(systemName: "ellipsis") }
+                            Button("Create plan from chat", sharedIcon: "list.bullet.clipboard") { vm.createPlanFromChat() }.disabled(vm.chatMessages.isEmpty || vm.isLoading)
+                        } label: { KairosIcon("ellipsis") }
                     }
                 }
                 ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { inputFocused = false } }
@@ -80,7 +80,7 @@ struct AIHelperView: View {
             if let error = profileRepo.aiProposalError { Text(error).font(.caption).foregroundStyle(.red).padding(.horizontal) }
             if let notice = vm.notificationDeliveryNotice { Text(notice).font(.caption).foregroundStyle(.secondary).padding(.horizontal) }
             if let actions = vm.proposals[vm.activeChatID ?? ""], !actions.isEmpty {
-                Button("Review \(actions.count) proposed change\(actions.count == 1 ? "" : "s")", systemImage: "list.bullet.clipboard") { reviewingChanges = true }
+                Button("Review \(actions.count) proposed change\(actions.count == 1 ? "" : "s")", sharedIcon: "list.bullet.clipboard") { reviewingChanges = true }
                     .buttonStyle(.bordered).padding(.horizontal)
             }
             composer(vm)
@@ -99,7 +99,7 @@ struct AIHelperView: View {
             TextField("Message Kairos", text: Binding(get: { vm.userInput }, set: { vm.userInput = $0 }), axis: .vertical)
                 .lineLimit(1...6).focused($inputFocused).padding(.leading, 8).padding(.vertical, 10)
             Button { vm.handleSend() } label: {
-                Image(systemName: "arrow.up").font(.headline).foregroundStyle(.white).frame(width: 38, height: 38).background(KairosColors.accent, in: Circle())
+                KairosIcon("arrow.up", size: 17).foregroundStyle(.white).frame(width: 38, height: 38).background(KairosColors.accent, in: Circle())
             }
             .accessibilityLabel("Send message")
             .disabled(vm.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vm.isLoading || vm.isEditingWorkspace || vm.startingMessage || vm.failedResponses[vm.activeChatID ?? ""] != nil || profileRepo.aiWorkspaceOwnerID == nil)
@@ -117,7 +117,7 @@ struct AIHelperView: View {
             }
             Section("Shared context") { Text(project.sharedContext.isEmpty ? "Add project context from Chats and projects." : project.sharedContext).font(.subheadline) }
             Section("Chats") {
-                Button("New chat in project", systemImage: "square.and.pencil") { Task { await vm.newChat(projectID: project.id) } }
+                Button("New chat in project", sharedIcon: "square.and.pencil") { Task { await vm.newChat(projectID: project.id) } }
                 ForEach(vm.chats.filter { $0.projectID == project.id }) { chat in
                     Button { vm.activeChatID = chat.id; vm.activeProjectID = nil; vm.showingAllChats = false } label: { Text(chat.title).foregroundStyle(.primary) }
                 }
@@ -183,14 +183,14 @@ private struct AIWorkspaceHistory: View {
         NavigationStack {
             List {
                 Section {
-                    Button("All chats", systemImage: "bubble.left.and.bubble.right") { viewModel.activeProjectID = nil; viewModel.showingAllChats = true; dismiss() }
+                    Button("All chats", sharedIcon: "bubble.left.and.bubble.right") { viewModel.activeProjectID = nil; viewModel.showingAllChats = true; dismiss() }
                 }
                 Section {
                     ForEach(viewModel.projects) { project in
-                        Button { viewModel.activeProjectID = project.id; viewModel.showingAllChats = false; dismiss() } label: { Label(project.title, systemImage: "folder").foregroundStyle(.primary) }
+                        Button { viewModel.activeProjectID = project.id; viewModel.showingAllChats = false; dismiss() } label: { Label(project.title, sharedIcon: "folder").foregroundStyle(.primary) }
                             .contextMenu { Button("Edit project") { editProject = project } }
                     }
-                    Button("New project", systemImage: "folder.badge.plus") { creatingProject = true }
+                    Button("New project", sharedIcon: "folder.badge.plus") { creatingProject = true }
                 } header: { Text("Projects") }
                 Section("Chats") {
                     ForEach(viewModel.chats) { chat in
@@ -202,16 +202,16 @@ private struct AIWorkspaceHistory: View {
                                 }
                                 Spacer()
                                 if viewModel.pendingChats.contains(chat.id) { ProgressView().controlSize(.small) }
-                                else if viewModel.activeChatID == chat.id { Image(systemName: "checkmark").foregroundStyle(KairosColors.accent) }
+                                else if viewModel.activeChatID == chat.id { KairosIcon("checkmark").foregroundStyle(KairosColors.accent) }
                             }.foregroundStyle(.primary)
                         }
                         .contextMenu {
-                            Button("Rename", systemImage: "pencil") { renameChat = chat }
+                            Button("Rename", sharedIcon: "pencil") { renameChat = chat }
                             Menu("Move to project") {
                                 Button("No project") { Task { await viewModel.edit(.moveChat(id: chat.id, projectID: "")) } }
                                 ForEach(viewModel.projects) { project in Button(project.title) { Task { await viewModel.edit(.moveChat(id: chat.id, projectID: project.id)) } } }
                             }
-                            Button("Delete", systemImage: "trash", role: .destructive) { deleteChat = chat }
+                            Button("Delete", sharedIcon: "trash", role: .destructive) { deleteChat = chat }
                         }
                     }
                 }
@@ -232,7 +232,7 @@ private struct AIWorkspaceHistory: View {
             .disabled(viewModel.isEditingWorkspace)
             .safeAreaInset(edge: .top) {
                 Button { Task { await viewModel.newChat(); if viewModel.errorMessage == nil { dismiss() } } } label: {
-                    Label("New chat", systemImage: "square.and.pencil").frame(maxWidth: .infinity, alignment: .leading).padding()
+                    Label("New chat", sharedIcon: "square.and.pencil").frame(maxWidth: .infinity, alignment: .leading).padding()
                 }.background(.bar).disabled(viewModel.isEditingWorkspace)
             }
             .safeAreaInset(edge: .bottom) {
@@ -345,7 +345,7 @@ private struct PlanConfirmationSheet: View {
                         ForEach(plan.sections) { section in
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(section.title).font(.subheadline.weight(.semibold))
-                                ForEach(section.tasks) { task in Label(task.title, systemImage: "circle").font(.caption).foregroundStyle(.secondary) }
+                                ForEach(section.tasks) { task in Label(task.title, sharedIcon: "circle").font(.caption).foregroundStyle(.secondary) }
                             }.padding(.vertical, 3)
                         }
                     }
@@ -364,3 +364,4 @@ private struct PlanConfirmationSheet: View {
 }
 
 #Preview { AIHelperView().environment(UserProfileRepository()).environment(StudyPlanRepository()) }
+

@@ -59,8 +59,7 @@ struct LoginView: View {
 
                     if let message = localErrorMessage ?? session.lastErrorMessage {
                         HStack(spacing: 8) {
-                            Image(systemName: "exclamationmark.circle.fill")
-                                .font(.footnote)
+                            KairosIcon("exclamationmark.circle.fill", size: 13)
                             Text(message)
                                 .font(.footnote)
                         }
@@ -168,8 +167,7 @@ struct LoginView: View {
             rememberMe.toggle()
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: rememberMe ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 18))
+                KairosIcon(rememberMe ? "checkmark.circle.fill" : "circle", size: 18)
                     .foregroundStyle(rememberMe ? accent : Color.secondary.opacity(0.5))
 
                 Text("Remember me")
@@ -323,4 +321,5 @@ private extension UIViewController {
         .environment(SessionStore())
         .preferredColorScheme(.dark)
 }
+
 

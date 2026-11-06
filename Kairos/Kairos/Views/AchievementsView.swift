@@ -101,7 +101,7 @@ struct AchievementsView: View {
                         .font(.caption2.weight(.bold))
                         .lineLimit(1)
                 } else {
-                    Image(systemName: "plus")
+                    KairosIcon("plus")
                         .foregroundStyle(.secondary)
                     Text("Select")
                         .font(.caption2)
@@ -146,7 +146,7 @@ struct AchievementsView: View {
                 .lineLimit(2)
 
             if unlocked {
-                Label("Unlocked", systemImage: "checkmark.seal.fill")
+                Label("Unlocked", sharedIcon: "checkmark.seal.fill")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(KairosColors.accent)
             } else if def.type != "event" {
@@ -244,3 +244,4 @@ private struct AchievementDetailSheet: View {
     AchievementsView()
         .environment(UserProfileRepository())
 }
+

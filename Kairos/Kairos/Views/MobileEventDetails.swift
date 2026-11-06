@@ -43,7 +43,7 @@ struct MobileEventDetails: View {
                 }.disabled(event?.readOnly == true)
                 if event?.occurrenceDate != nil { Text("Changes apply to this occurrence only.").font(.footnote).foregroundStyle(.secondary) }
                 if event?.readOnly == true { Text("This event is managed by its connected calendar.").font(.footnote).foregroundStyle(.secondary) }
-                if event != nil { Button("Export to Apple Calendar", systemImage: "calendar.badge.plus") { export() } }
+                if event != nil { Button("Export to Apple Calendar", sharedIcon: "calendar.badge.plus") { export() } }
                 if event != nil && event?.readOnly != true { Button(event?.occurrenceDate == nil ? "Delete event" : "Skip this occurrence", role: .destructive) { confirmingDelete = true } }
                 if let message { Text(message).font(.footnote) }
             }.disabled(saving).interactiveDismissDisabled()
@@ -78,3 +78,4 @@ struct MobileEventDetails: View {
         }
     }
 }
+

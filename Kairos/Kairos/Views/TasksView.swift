@@ -187,8 +187,7 @@ struct TasksView: View {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 showAddBoard = true
             } label: {
-                Image(systemName: "plus")
-                    .font(.title2.weight(.semibold))
+                KairosIcon("plus", size: 22)
                     .rotationEffect(.degrees(isAddBoardButtonExpanded ? 45 : 0))
                     .frame(width: 58, height: 58)
             }
@@ -210,8 +209,7 @@ struct TasksView: View {
 
         VStack(alignment: .leading, spacing: 15) {
             HStack(spacing: 12) {
-                Image(systemName: "checklist")
-                    .font(.headline.weight(.semibold))
+                KairosIcon("checklist", size: 17)
                     .foregroundStyle(KairosColors.accent)
                     .frame(width: 38, height: 38)
                     .background(KairosColors.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -240,7 +238,7 @@ struct TasksView: View {
                 newSectionName = ""
                 boardForNewSection = board
             } label: {
-                Label("Add section", systemImage: "plus")
+                Label("Add section", sharedIcon: "plus")
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -266,8 +264,7 @@ struct TasksView: View {
                 Task { await planRepo.setBoardArchived(boardID: board.id, archived: true) }
             }
         } label: {
-            Image(systemName: "ellipsis.circle")
-                .font(.title3)
+            KairosIcon("ellipsis.circle", size: 20)
                 .foregroundStyle(.secondary)
                 .kairosGlass(cornerRadius: 16)
         }
@@ -290,7 +287,7 @@ struct TasksView: View {
                 }
                 Spacer()
                 if sectionComplete {
-                    Image(systemName: "checkmark.seal.fill")
+                    KairosIcon("checkmark.seal.fill")
                         .foregroundStyle(KairosColors.accent)
                         .transition(.scale.combined(with: .opacity))
                 }
@@ -325,7 +322,7 @@ struct TasksView: View {
                 newTaskName = ""
                 sectionForNewTask = (board, section)
             } label: {
-                Label("Add task", systemImage: "plus")
+                Label("Add task", sharedIcon: "plus")
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -350,7 +347,7 @@ struct TasksView: View {
                 Task { await planRepo.setSectionArchived(sectionID: section.id, archived: true) }
             }
         } label: {
-            Image(systemName: "ellipsis")
+            KairosIcon("ellipsis")
                 .foregroundStyle(.tertiary)
                 .frame(width: 30, height: 30)
         }
@@ -370,8 +367,7 @@ struct TasksView: View {
                         .frame(width: 24, height: 24)
                     if isCompleted {
                         Circle().fill(KairosColors.accent).frame(width: 24, height: 24)
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 12, weight: .bold))
+                        KairosIcon("checkmark", size: 12)
                             .foregroundStyle(.white)
                             .transition(.scale.combined(with: .opacity))
                     }
@@ -386,8 +382,7 @@ struct TasksView: View {
                 Spacer(minLength: 8)
 
                 if task.date != nil && !isCompleted {
-                    Image(systemName: "calendar")
-                        .font(.caption.weight(.semibold))
+                    KairosIcon("calendar", size: 12)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -400,14 +395,14 @@ struct TasksView: View {
         .accessibilityValue(isCompleted ? "Completed" : "Not completed")
         .accessibilityHint(isCompleted ? "Double tap to mark incomplete" : "Double tap to complete")
         .contextMenu {
-            Button { addTaskToReminders(task) } label: { Label("Add to Reminders", systemImage: "checklist") }
+            Button { addTaskToReminders(task) } label: { Label("Add to Reminders", sharedIcon: "checklist") }
             Button {
                 renameTaskText = task.title
                 taskToRename = (section, task)
-            } label: { Label("Rename", systemImage: "pencil") }
+            } label: { Label("Rename", sharedIcon: "pencil") }
             Button(role: .destructive) {
                 Task { await planRepo.setTaskArchived(taskID: task.id, archived: true) }
-            } label: { Label("Archive", systemImage: "archivebox") }
+            } label: { Label("Archive", sharedIcon: "archivebox") }
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button("Rename") {
@@ -529,8 +524,7 @@ struct TasksView: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: "checklist")
-                .font(.system(size: 34, weight: .medium))
+            KairosIcon("checklist", size: 34)
                 .foregroundStyle(KairosColors.accent)
             Text("Your checklist is empty").font(.headline)
             Text("Create a board, add a section, and start with your first task.")
@@ -619,4 +613,5 @@ private extension View {
         .environment(StudyPlanRepository())
         .environment(UserProfileRepository())
 }
+
 

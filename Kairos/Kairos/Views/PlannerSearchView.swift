@@ -5,7 +5,7 @@ struct PlannerSearchButton: View {
     @State private var presented = false
     var body: some View {
         Button { presented = true } label: {
-            Image(systemName: "magnifyingglass").frame(minWidth: 44, minHeight: 44)
+            KairosIcon("magnifyingglass").frame(minWidth: 44, minHeight: 44)
         }
         .buttonStyle(.plain).accessibilityLabel("Search planner")
         .keyboardShortcut("k", modifiers: .command)
@@ -80,13 +80,13 @@ private struct PlannerSearchContent: View {
     }
     private var searchField: some View {
         HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            KairosIcon("magnifyingglass").foregroundStyle(.secondary)
             TextField("Tasks, boards, assignments", text: $query)
                 .focused($queryFocused)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
                 .submitLabel(.search).accessibilityLabel("Search planner")
                 .onChange(of: query) { _, value in if value.count > 500 { query = String(value.prefix(500)) } }
-            if !query.isEmpty { Button("Clear search", systemImage: "xmark.circle.fill") { query = "" }.labelStyle(.iconOnly).foregroundStyle(.secondary).frame(minWidth: 44, minHeight: 44) }
+            if !query.isEmpty { Button("Clear search", sharedIcon: "xmark.circle.fill") { query = "" }.labelStyle(.iconOnly).foregroundStyle(.secondary).frame(minWidth: 44, minHeight: 44) }
         }.padding(.horizontal, 12).frame(minHeight: 48)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
             .padding(16)
@@ -95,11 +95,11 @@ private struct PlannerSearchContent: View {
     @ViewBuilder private var content: some View {
         if planRepo.searchScope == nil {
             ContentUnavailableView {
-                Label(planRepo.isLoading ? "Loading planner" : "Search unavailable", systemImage: "magnifyingglass")
+                Label(planRepo.isLoading ? "Loading planner" : "Search unavailable", sharedIcon: "magnifyingglass")
             } description: { Text(planRepo.errorMessage ?? "Search will be available when your planner has loaded.") }
             actions: { if !planRepo.isLoading { Button("Retry") { planRepo.retryLoading(); retry += 1 } } }
         } else if let error {
-            ContentUnavailableView { Label("Could not search", systemImage: "exclamationmark.triangle") }
+            ContentUnavailableView { Label("Could not search", sharedIcon: "exclamationmark.triangle") }
             description: { Text(error) } actions: { Button("Retry") { retry += 1 } }
         } else if loading || currentResults == nil {
             ProgressView("Searching your planner.").frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -112,7 +112,11 @@ private struct PlannerSearchContent: View {
                     Text(result.total > result.rows.count ? "Showing \(result.rows.count) of \(result.total) matches. Refine your search to see more." : "\(result.total) \(result.total == 1 ? "result" : "results")")
                         .font(.caption).foregroundStyle(.secondary)
                     if result.rows.isEmpty {
-                        ContentUnavailableView.search(text: query)
+                        ContentUnavailableView {
+                            Label("No results", sharedIcon: "magnifyingglass")
+                        } description: {
+                            Text(query.isEmpty ? "No planner items match this filter." : "Try a different search or filter.")
+                        }
                     }
                     ForEach(result.rows) { row in
                         Button { open(row) } label: { PlannerSearchRowView(row: row) }
@@ -172,7 +176,7 @@ private struct PlannerSearchRowView: View {
     let row: KairosSearchRow
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: row.kind == "board" ? "square.stack.3d.up" : row.kind == "occurrence" || row.kind == "series" ? "repeat" : row.completed ? "checkmark.circle.fill" : "circle")
+            KairosIcon(row.kind == "board" ? "square.stack.3d.up" : row.kind == "occurrence" || row.kind == "series" ? "repeat" : row.completed ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(KairosColors.accent).frame(width: 24).padding(.top, 3)
             VStack(alignment: .leading, spacing: 5) {
                 Text(row.title).font(.headline).foregroundStyle(.primary).multilineTextAlignment(.leading)
@@ -181,7 +185,7 @@ private struct PlannerSearchRowView: View {
                 if let date = row.date { Text("\(row.dateKind ?? "Scheduled") \(date)\(row.overdue ? " · Overdue" : "")").font(.caption).foregroundStyle(row.overdue ? Color.red : Color.secondary) }
                 if let logical = row.occurrenceDate, logical != row.date { Text("Originally \(logical)").font(.caption).foregroundStyle(.secondary) }
             }.frame(maxWidth: .infinity, alignment: .leading)
-            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            KairosIcon("chevron.right", size: 12).foregroundStyle(.tertiary)
         }.padding(16).frame(maxWidth: .infinity, alignment: .leading).kairosCard(cornerRadius: 18)
             .accessibilityElement(children: .combine)
     }
@@ -213,7 +217,7 @@ private struct PlannerSearchBoard: View {
                         Section(section.title) {
                             ForEach(visibleTasks(section)) { item in
                                 Button { task = .init(taskID: item.id, boardID: boardID, sectionID: section.id) } label: {
-                                    Label(item.title, systemImage: item.completed ? "checkmark.circle.fill" : "circle").foregroundStyle(.primary)
+                                    Label(item.title, sharedIcon: item.completed ? "checkmark.circle.fill" : "circle").foregroundStyle(.primary)
                                 }
                             }
                             if visibleTasks(section).isEmpty { Text("No tasks").foregroundStyle(.secondary) }
@@ -227,3 +231,4 @@ private struct PlannerSearchBoard: View {
         }
     }
 }
+

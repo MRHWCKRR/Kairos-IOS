@@ -40,7 +40,7 @@ struct ScheduleView: View {
                 if !events.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button { showingCalendarAccess = true } label: {
-                            Image(systemName: "calendar.badge.plus")
+                            KairosIcon("calendar.badge.plus")
                         }
                         .accessibilityLabel("Add schedule to Apple Calendar")
                     }
@@ -57,8 +57,7 @@ struct ScheduleView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Image(systemName: "calendar.badge.clock")
-                .font(.title2.weight(.semibold))
+            KairosIcon("calendar.badge.clock", size: 22)
                 .foregroundStyle(KairosColors.accent)
                 .frame(width: 44, height: 44)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -105,7 +104,7 @@ struct ScheduleView: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: "calendar.badge.plus").font(.system(size: 36)).foregroundStyle(KairosColors.accent)
+            KairosIcon("calendar.badge.plus", size: 36).foregroundStyle(KairosColors.accent)
             Text("Nothing scheduled yet").font(.headline)
             Text("Use the AI Helper to create a study plan. Its scheduled sessions will appear here automatically.")
                 .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 330)
@@ -125,21 +124,21 @@ private struct CalendarAccessSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 20) {
-                Image(systemName: "calendar.badge.plus").font(.system(size: 42)).foregroundStyle(KairosColors.accent)
+                KairosIcon("calendar.badge.plus", size: 42).foregroundStyle(KairosColors.accent)
                 Text("Apple Calendar").font(.title2.weight(.bold))
                 Text("Add your Kairos study sessions to Apple Calendar. Dated sessions keep their date; weekly sessions use their weekday.")
                     .font(.body).foregroundStyle(.secondary)
 
                 switch calendarManager.authorizationState {
                 case .authorized:
-                    Label("Calendar access is enabled", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                    Label("Calendar access is enabled", sharedIcon: "checkmark.circle.fill").foregroundStyle(.green)
                     Button("Add \(events.count) Sessions to Calendar") { exportEvents() }
                         .buttonStyle(.glassProminent).tint(KairosColors.accent)
                     if exportedCount > 0 {
                         Text("Added \(exportedCount) sessions.").font(.subheadline).foregroundStyle(.secondary)
                     }
                 case .denied, .restricted:
-                    Label("Calendar access is unavailable", systemImage: "xmark.circle").foregroundStyle(.secondary)
+                    Label("Calendar access is unavailable", sharedIcon: "xmark.circle").foregroundStyle(.secondary)
                 case .notDetermined:
                     Button("Allow Calendar Access") {
                         Task { _ = await calendarManager.requestAccess() }
@@ -193,3 +192,4 @@ private struct CalendarAccessSheet: View {
 #Preview {
     ScheduleView().environment(StudyPlanRepository())
 }
+

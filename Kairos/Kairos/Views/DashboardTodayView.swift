@@ -35,7 +35,7 @@ struct DashboardTodayView: View {
                     Text("Overdue work, today's schedule and tasks to plan.").font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
-                Button { creating = true } label: { Image(systemName: "plus").frame(width: 44, height: 44) }
+                Button { creating = true } label: { KairosIcon("plus").frame(width: 44, height: 44) }
                     .buttonStyle(.bordered).accessibilityLabel("New task for today").disabled(scope == nil)
             }
             if scope == nil {
@@ -55,10 +55,10 @@ struct DashboardTodayView: View {
                 HStack {
                     Text(message).font(.caption).foregroundStyle(.secondary)
                     Spacer()
-                    Button("Dismiss", systemImage: "xmark") { self.message = nil }.labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
+                    Button("Dismiss", sharedIcon: "xmark") { self.message = nil }.labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
                 }
             }
-            Button("Open Schedule", systemImage: "calendar", action: onSchedule).font(.subheadline.weight(.semibold))
+            Button("Open Schedule", sharedIcon: "calendar", action: onSchedule).font(.subheadline.weight(.semibold))
         }.padding(20).kairosCard(cornerRadius: 28)
             .task(id: "\(isActive)-\(loadKey)-\(retry)") { await refresh() }
             .onChange(of: scope) { _, _ in
@@ -89,7 +89,7 @@ struct DashboardTodayView: View {
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.buttonStyle(.plain).frame(minHeight: 44)
                 if row.canComplete {
-                    Button { act(row, plan: false) } label: { Image(systemName: "circle").frame(width: 44, height: 44) }
+                    Button { act(row, plan: false) } label: { KairosIcon("circle").frame(width: 44, height: 44) }
                         .buttonStyle(.plain).foregroundStyle(KairosColors.accent).accessibilityLabel("Complete \(row.title)")
                 }
             }
@@ -168,3 +168,4 @@ struct DashboardTodayView: View {
         }
     }
 }
+

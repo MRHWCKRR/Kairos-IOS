@@ -81,7 +81,7 @@ struct ProfileView: View {
 
     private func statCard(title: String, value: String, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: icon).foregroundStyle(KairosColors.accent)
+            KairosIcon(icon).foregroundStyle(KairosColors.accent)
             Text(value).font(.title3.weight(.bold))
             Text(title).font(.caption).foregroundStyle(.secondary)
         }
@@ -99,8 +99,7 @@ struct ProfileView: View {
     ) -> some View {
         NavigationLink(destination: destination) {
             HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.headline)
+                KairosIcon(icon, size: 17)
                     .foregroundStyle(tint)
                     .frame(width: 40, height: 40)
                     .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -109,7 +108,7 @@ struct ProfileView: View {
                     Text(subtitle).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                KairosIcon("chevron.right", size: 12).foregroundStyle(.tertiary)
             }
             .padding(14)
             .kairosCard(cornerRadius: 18)
@@ -125,7 +124,7 @@ struct ProfileView: View {
             HStack {
                 Text("Sign Out")
                 Spacer()
-                Image(systemName: "rectangle.portrait.and.arrow.right")
+                KairosIcon("rectangle.portrait.and.arrow.right")
             }
             .font(.subheadline.weight(.semibold))
             .padding(16)
@@ -144,3 +143,4 @@ struct ProfileView: View {
         .environment(SessionStore())
         .environment(UserProfileRepository())
 }
+

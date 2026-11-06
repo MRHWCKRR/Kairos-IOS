@@ -6,8 +6,7 @@ struct EmailVerificationView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 22) {
-                Image(systemName: "envelope.badge.shield.half.filled")
-                    .font(.system(size: 48))
+                KairosIcon("envelope.badge.shield.half.filled", size: 48)
                     .foregroundStyle(KairosColors.accent)
                     .accessibilityHidden(true)
                 Text("Verify your email").font(.title2.bold())
@@ -18,7 +17,7 @@ struct EmailVerificationView: View {
                     Text(message).font(.footnote).multilineTextAlignment(.center)
                 }
                 if let error = session.lastErrorMessage {
-                    Label(error, systemImage: "exclamationmark.circle")
+                    Label(error, sharedIcon: "exclamationmark.circle")
                         .font(.footnote).foregroundStyle(.red)
                 }
                 Button("I've verified my email") { Task { await session.refreshVerification() } }
@@ -40,3 +39,4 @@ struct EmailVerificationView: View {
         }
     }
 }
+

@@ -8,18 +8,18 @@ struct SettingsView: View {
                     NavigationLink {
                         PlanningAccessibilityView()
                     } label: {
-                        Label("Accessibility", systemImage: "accessibility")
+                        Label("Accessibility", sharedIcon: "accessibility")
                     }
                     NavigationLink {
                         NotificationSettingsView()
                     } label: {
-                        Label("Notifications", systemImage: "bell.badge")
+                        Label("Notifications", sharedIcon: "bell.badge")
                     }
 
                     NavigationLink {
                         AppearanceSettingsView()
                     } label: {
-                        Label("Appearance", systemImage: "circle.lefthalf.filled")
+                        Label("Appearance", sharedIcon: "circle.lefthalf.filled")
                     }
                 }
 
@@ -27,19 +27,19 @@ struct SettingsView: View {
                     NavigationLink {
                         AchievementsView()
                     } label: {
-                        Label("Goals & Achievements", systemImage: "trophy.fill")
+                        Label("Goals & Achievements", sharedIcon: "trophy.fill")
                     }
 
                     NavigationLink {
                         StatisticsView()
                     } label: {
-                        Label("Statistics", systemImage: "chart.bar.xaxis")
+                        Label("Statistics", sharedIcon: "chart.bar.xaxis")
                     }
                 }
 
                 Section {
                     HStack(spacing: 12) {
-                        Image(systemName: "sparkles")
+                        KairosIcon("sparkles")
                             .foregroundStyle(KairosColors.accent)
                         VStack(alignment: .leading, spacing: 3) {
                             Text("Kairos")
@@ -63,3 +63,4 @@ struct SettingsView: View {
     SettingsView()
         .environment(UserProfileRepository())
 }
+

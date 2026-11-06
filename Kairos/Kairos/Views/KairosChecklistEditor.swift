@@ -6,7 +6,7 @@ struct KairosChecklistEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Checklist", systemImage: "checklist").font(.subheadline.weight(.semibold))
+            Label("Checklist", sharedIcon: "checklist").font(.subheadline.weight(.semibold))
             if !allowsCompletion {
                 Text("These are recurring series steps. Track each occurrence from Calendar.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -15,20 +15,20 @@ struct KairosChecklistEditor: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Button { item.completed.toggle() } label: {
-                            Image(systemName: item.completed ? "checkmark.circle.fill" : "circle")
+                            KairosIcon(item.completed ? "checkmark.circle.fill" : "circle")
                         }
                         .disabled(!allowsCompletion && !item.completed)
                         .accessibilityLabel(item.completed ? "Mark step incomplete" : "Complete step")
                         TextField("Step title", text: $item.title, axis: .vertical)
                             .accessibilityLabel("Checklist step title")
                         Button(role: .destructive) { items.removeAll { $0.id == item.id } } label: {
-                            Image(systemName: "trash")
+                            KairosIcon("trash")
                         }.accessibilityLabel("Remove step")
                     }
                     HStack {
-                        Button { move(item.id, by: -1) } label: { Label("Up", systemImage: "arrow.up") }
+                        Button { move(item.id, by: -1) } label: { Label("Up", sharedIcon: "arrow.up") }
                             .disabled(items.first?.id == item.id)
-                        Button { move(item.id, by: 1) } label: { Label("Down", systemImage: "arrow.down") }
+                        Button { move(item.id, by: 1) } label: { Label("Down", sharedIcon: "arrow.down") }
                             .disabled(items.last?.id == item.id)
                     }.font(.caption)
                     Divider()
@@ -36,7 +36,7 @@ struct KairosChecklistEditor: View {
             }
             Button {
                 items.append(KairosChecklistItem(id: "check-\(UUID().uuidString)", title: "", completed: false))
-            } label: { Label("Add step", systemImage: "plus") }
+            } label: { Label("Add step", sharedIcon: "plus") }
                 .disabled(items.count >= 100)
             Text("\(items.count)/100 steps · 180 characters per step")
                 .font(.caption).foregroundStyle(.secondary)
@@ -50,3 +50,4 @@ struct KairosChecklistEditor: View {
         items.swapAt(index, index + offset)
     }
 }
+

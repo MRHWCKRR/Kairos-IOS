@@ -32,7 +32,7 @@ struct TasksWorkspaceView: View {
                         ProgressView("Loading your planner…").frame(maxWidth: .infinity).padding(.vertical, 40)
                     } else if planRepo.plannerIsUnavailable {
                         VStack(alignment: .leading, spacing: 14) {
-                            Label("Your planner couldn’t load", systemImage: "exclamationmark.triangle")
+                            Label("Your planner couldn’t load", sharedIcon: "exclamationmark.triangle")
                                 .font(.headline)
                             Text(planRepo.errorMessage ?? "Retry loading your planner.")
                                 .font(.subheadline).foregroundStyle(.secondary)
@@ -105,7 +105,7 @@ struct TasksWorkspaceView: View {
             HStack {
                 Text("Tasks").font(.system(size: 34, weight: .bold, design: .rounded)).tracking(-1)
                 Spacer()
-                Button { showingArchive = true } label: { Label("Archive", systemImage: "archivebox") }
+                Button { showingArchive = true } label: { Label("Archive", sharedIcon: "archivebox") }
                     .font(.subheadline).disabled(planRepo.isLoading || planRepo.plannerIsUnavailable)
             }
             Text("Everything you need to get done, organized into focused checklists.")
@@ -160,7 +160,7 @@ struct TasksWorkspaceView: View {
             }
             if boards.isEmpty {
                 VStack(spacing: 8) {
-                    Image(systemName: "checklist").font(.system(size: 30)).foregroundStyle(KairosColors.accent)
+                    KairosIcon("checklist", size: 30).foregroundStyle(KairosColors.accent)
                     Text("Your checklist is empty").font(.headline)
                     Text("Use the + button to create your first board.").font(.subheadline).foregroundStyle(.secondary)
                 }
@@ -177,7 +177,7 @@ struct TasksWorkspaceView: View {
         let done = boardTasks.filter { $0.completed || optimisticCompletedIDs.contains($0.id) }.count
         return VStack(alignment: .leading, spacing: 15) {
             HStack(spacing: 12) {
-                Image(systemName: "checklist").font(.headline.weight(.semibold)).foregroundStyle(KairosColors.accent)
+                KairosIcon("checklist", size: 17).foregroundStyle(KairosColors.accent)
                     .frame(width: 38, height: 38)
                     .background(KairosColors.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
@@ -186,16 +186,16 @@ struct TasksWorkspaceView: View {
                 }
                 Spacer()
                 Menu {
-                    Button("Edit board", systemImage: "pencil") { editingBoard = board }
-                    Button("Archive board", systemImage: "archivebox", role: .destructive) { archiveTarget = .board(board.id) }
-                } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
+                    Button("Edit board", sharedIcon: "pencil") { editingBoard = board }
+                    Button("Archive board", sharedIcon: "archivebox", role: .destructive) { archiveTarget = .board(board.id) }
+                } label: { KairosIcon("ellipsis").frame(width: 44, height: 44) }
                 .disabled(planRepo.isSaving)
                 .accessibilityLabel("Options for \(board.title)")
             }
             if !boardTasks.isEmpty { ProgressView(value: Double(done), total: Double(boardTasks.count)).tint(KairosColors.accent).scaleEffect(y: 1.2) }
             ForEach(sections) { section in sectionBlock(board: board, section: section) }
             Button { createTarget = .section(boardID: board.id) } label: {
-                Label("Add section", systemImage: "plus").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity, alignment: .leading)
+                Label("Add section", sharedIcon: "plus").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity, alignment: .leading)
             }.foregroundStyle(KairosColors.accent)
         }
         .padding(18).kairosCard(cornerRadius: 26)
@@ -218,11 +218,11 @@ struct TasksWorkspaceView: View {
                     Text("\(done.count) of \(visible.count) complete").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                if !visible.isEmpty && open.isEmpty { Image(systemName: "checkmark.seal.fill").foregroundStyle(KairosColors.accent) }
+                if !visible.isEmpty && open.isEmpty { KairosIcon("checkmark.seal.fill").foregroundStyle(KairosColors.accent) }
                 Menu {
-                    Button("Rename section", systemImage: "pencil") { renamingSection = section }
-                    Button("Archive section", systemImage: "archivebox", role: .destructive) { archiveTarget = .section(section.id) }
-                } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
+                    Button("Rename section", sharedIcon: "pencil") { renamingSection = section }
+                    Button("Archive section", sharedIcon: "archivebox", role: .destructive) { archiveTarget = .section(section.id) }
+                } label: { KairosIcon("ellipsis").frame(width: 44, height: 44) }
                 .disabled(planRepo.isSaving)
                 .accessibilityLabel("Options for \(section.title)")
             }
@@ -232,7 +232,7 @@ struct TasksWorkspaceView: View {
                 ForEach(done) { task in taskRow(board: board, section: section, task: task) }
             }
             Button { createTarget = .task(sectionID: section.id) } label: {
-                Label("Add task", systemImage: "plus").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity, alignment: .leading)
+                Label("Add task", sharedIcon: "plus").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity, alignment: .leading)
             }.foregroundStyle(KairosColors.accent)
         }
         .padding(15)
@@ -253,7 +253,7 @@ struct TasksWorkspaceView: View {
                     Circle().stroke(completed ? KairosColors.accent : Color.secondary.opacity(0.48), lineWidth: 1.8).frame(width: 24, height: 24)
                     if completed {
                         Circle().fill(KairosColors.accent).frame(width: 24, height: 24)
-                        Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                        KairosIcon("checkmark", size: 12).foregroundStyle(.white)
                     }
                 }
             }.buttonStyle(.plain)
@@ -266,19 +266,19 @@ struct TasksWorkspaceView: View {
                     Text(task.title).font(.subheadline.weight(completed ? .medium : .semibold)).foregroundStyle(completed ? .secondary : .primary)
                         .strikethrough(completed, color: KairosColors.accent).multilineTextAlignment(.leading)
                     HStack(spacing: 8) {
-                        if task.recurrence?.enabled == true { Label("Repeats · manage occurrences in Schedule", systemImage: "repeat") }
-                        if let date = task.date { Label(Self.displayDate(date, dueTime: task.dueTime, timeFormat: profileRepo.accessibilitySettings?.timeFormat ?? "12"), systemImage: "calendar") }
-                        if task.parentTaskID != nil { Label("Subtask", systemImage: "arrow.turn.down.right") }
-                        if (task.notes ?? task.taskDescription)?.isEmpty == false { Image(systemName: "text.alignleft") }
+                        if task.recurrence?.enabled == true { Label("Repeats · manage occurrences in Schedule", sharedIcon: "repeat") }
+                        if let date = task.date { Label(Self.displayDate(date, dueTime: task.dueTime, timeFormat: profileRepo.accessibilitySettings?.timeFormat ?? "12"), sharedIcon: "calendar") }
+                        if task.parentTaskID != nil { Label("Subtask", sharedIcon: "arrow.turn.down.right") }
+                        if (task.notes ?? task.taskDescription)?.isEmpty == false { KairosIcon("text.alignleft") }
                     }
                     .font(.caption2).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
             }.buttonStyle(.plain)
             Menu {
-                Button("Task details", systemImage: "pencil") { selectedTask = TaskDetailContext(taskID: task.id, boardID: board.id, sectionID: section.id) }
-                Button("Archive task", systemImage: "archivebox", role: .destructive) { archiveTarget = .task(task.id) }
-            } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
+                Button("Task details", sharedIcon: "pencil") { selectedTask = TaskDetailContext(taskID: task.id, boardID: board.id, sectionID: section.id) }
+                Button("Archive task", sharedIcon: "archivebox", role: .destructive) { archiveTarget = .task(task.id) }
+            } label: { KairosIcon("ellipsis").frame(width: 44, height: 44) }
             .disabled(planRepo.isSaving || pendingTaskIDs.contains(task.id))
             .accessibilityLabel("Options for \(task.title)")
         }
@@ -294,8 +294,7 @@ struct TasksWorkspaceView: View {
         HStack {
             Spacer()
             Button { showCreateChooser = true } label: {
-                Image(systemName: isCreateExpanded ? "xmark" : "plus")
-                    .font(.title2.weight(.semibold)).frame(width: 58, height: 58)
+                KairosIcon(isCreateExpanded ? "xmark" : "plus", size: 22).frame(width: 58, height: 58)
             }
             .foregroundStyle(.white)
             .background(KairosColors.accent, in: Circle())
@@ -477,7 +476,7 @@ struct TaskDetailView: View {
 
     private var detailsCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Notes", systemImage: "text.alignleft").font(.subheadline.weight(.semibold))
+            Label("Notes", sharedIcon: "text.alignleft").font(.subheadline.weight(.semibold))
             TextEditor(text: $taskNotes).frame(minHeight: 110).scrollContentBackground(.hidden)
                 .padding(8).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }.padding(18).kairosCard(cornerRadius: 22)
@@ -504,7 +503,7 @@ struct TaskDetailView: View {
 
     private var scheduleCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Schedule", systemImage: "calendar").font(.subheadline.weight(.semibold))
+            Label("Schedule", sharedIcon: "calendar").font(.subheadline.weight(.semibold))
             Group {
                 Toggle("Scheduled date", isOn: $hasDueDate)
                 if hasDueDate { DatePicker("Date", selection: $dueDate, displayedComponents: .date) }
@@ -525,7 +524,7 @@ struct TaskDetailView: View {
 
     private var planningCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Planning & reminders", systemImage: "calendar.badge.clock").font(.subheadline.weight(.semibold))
+            Label("Planning & reminders", sharedIcon: "calendar.badge.clock").font(.subheadline.weight(.semibold))
             Toggle("Task reminder", isOn: $hasReminder)
             if hasReminder {
                 TextField("Minutes before (1–10080)", text: $reminderText).keyboardType(.numberPad).accessibilityLabel("Reminder minutes before scheduled start")
@@ -543,15 +542,15 @@ struct TaskDetailView: View {
 
     private var childrenCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack { Label("Subtasks", systemImage: "arrow.turn.down.right").font(.subheadline.weight(.semibold)); Spacer(); Text("\(children.filter(\.completed).count)/\(children.count)").font(.caption).foregroundStyle(.secondary) }
+            HStack { Label("Subtasks", sharedIcon: "arrow.turn.down.right").font(.subheadline.weight(.semibold)); Spacer(); Text("\(children.filter(\.completed).count)/\(children.count)").font(.caption).foregroundStyle(.secondary) }
             ForEach(children) { child in
                 Button { openLinkedTask(child.id) } label: { HStack(spacing: 10) {
-                    Image(systemName: child.completed ? "checkmark.circle.fill" : "circle").foregroundStyle(child.completed ? KairosColors.accent : .secondary)
+                    KairosIcon(child.completed ? "checkmark.circle.fill" : "circle").foregroundStyle(child.completed ? KairosColors.accent : .secondary)
                     Text(child.title).font(.subheadline).strikethrough(child.completed)
                     Spacer()
                 } }.buttonStyle(.plain)
             }
-            Button { showSubtaskCreator = true } label: { Label("Add subtask", systemImage: "plus") }.foregroundStyle(KairosColors.accent).disabled(originalTask?.recurrence?.enabled == true)
+            Button { showSubtaskCreator = true } label: { Label("Add subtask", sharedIcon: "plus") }.foregroundStyle(KairosColors.accent).disabled(originalTask?.recurrence?.enabled == true)
         }.padding(18).kairosCard(cornerRadius: 22)
     }
 
@@ -648,3 +647,4 @@ struct TaskDetailView: View {
 #Preview {
     TasksWorkspaceView().environment(StudyPlanRepository()).environment(UserProfileRepository())
 }
+
