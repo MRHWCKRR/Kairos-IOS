@@ -24,6 +24,14 @@ struct KairosTaskPatch {
     var startTime: KairosFieldEdit<String?> = .unchanged
     var endTime: KairosFieldEdit<String?> = .unchanged
     var dueDate: KairosFieldEdit<String?> = .unchanged
+    var reminderMinutes: KairosFieldEdit<Int?> = .unchanged
+    var scheduleLocked: KairosFieldEdit<Bool?> = .unchanged
+    var schedulingPreference: KairosFieldEdit<String?> = .unchanged
+    var changesScheduledTime: Bool {
+        for field in [date, startTime, endTime] { if case .set = field { return true } }
+        return false
+    }
+    var unlocksSchedule: Bool { if case .set(false) = scheduleLocked { return true }; return false }
 }
 
 enum KairosTaskCommand {
@@ -79,6 +87,10 @@ enum KairosTaskMutation {
                 if case .set(let notes) = patch.notes, let notes, notes.utf16.count > 3000 { throw Invalid() }
                 if case .set(let priority) = patch.priority, let priority, !["low", "medium", "high"].contains(priority) { throw Invalid() }
                 if case .set(let minutes) = patch.estimatedMinutes, let minutes, !(1...1440).contains(minutes) { throw Invalid() }
+                if case .set(let reminder) = patch.reminderMinutes, let reminder, !(1...10080).contains(reminder) { throw Invalid() }
+                if case .set(let preference) = patch.schedulingPreference, let preference, !["morning", "afternoon", "evening"].contains(preference) { throw Invalid() }
+                if case .set(nil) = patch.scheduleLocked { throw Invalid() }
+                if tasks[ti].scheduleLocked == true && patch.changesScheduledTime && !patch.unlocksSchedule { throw Invalid() }
                 if case .set(let date) = patch.date, let date, !KairosScheduleProjection.validDay(date) { throw Invalid() }
                 if case .set(let date) = patch.dueDate, let date, !KairosScheduleProjection.validDay(date) { throw Invalid() }
                 for edit in [patch.startTime, patch.endTime] {
@@ -87,6 +99,9 @@ enum KairosTaskMutation {
                 try patch.notes.apply(to: &tasks[ti].notes, expected: expected.map { $0.notes })
                 try patch.priority.apply(to: &tasks[ti].priority, expected: expected.map { $0.priority })
                 try patch.estimatedMinutes.apply(to: &tasks[ti].estimatedMinutes, expected: expected.map { $0.estimatedMinutes })
+                try patch.reminderMinutes.apply(to: &tasks[ti].reminderMinutes, expected: expected.map { $0.reminderMinutes })
+                try patch.scheduleLocked.apply(to: &tasks[ti].scheduleLocked, expected: expected.map { $0.scheduleLocked })
+                try patch.schedulingPreference.apply(to: &tasks[ti].schedulingPreference, expected: expected.map { $0.schedulingPreference })
                 if case .set(let items) = patch.checklist {
                     try KairosChecklist.validate(items)
                     if tasks[ti].recurrence?.enabled == true && items.contains(where: \.completed) { throw Invalid() }

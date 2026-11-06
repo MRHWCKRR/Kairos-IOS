@@ -642,7 +642,27 @@ final class StudyPlanRepository {
 
     @discardableResult
     func updateTask(taskID: String, patch: KairosTaskPatch, expected: KairosTask? = nil) async -> Bool {
-        await performTask(.update(taskID: taskID, patch: patch, expected: expected))
+        do {
+            let guardValue = try KairosTaskEditGuard.capture(plan: rawPlan, taskID: taskID, changesSchedule: patch.changesScheduledTime, unlocking: patch.unlocksSchedule)
+            return await mutateBoards(validateRemote: { try guardValue.validate($0) }) { boards in
+                boards = try KairosTaskMutation.apply(.update(taskID: taskID, patch: patch, expected: expected), to: boards)
+            }
+        } catch { errorMessage = error.localizedDescription; return false }
+    }
+
+    func assignmentProgress(taskID: String, today: String) async throws -> KairosAssignmentSummary? {
+        guard searchScope != nil else { throw KairosPlannerSearch.Unavailable() }
+        let scope = searchScope, revision = plannerRevision
+        let payload = try KairosAssignmentProgress.inputJSON(rawPlan)
+        let work = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            let result = try KairosAssignmentProgress.read(planJSON: payload, taskID: taskID, today: today)
+            try Task.checkCancellation()
+            return result
+        }
+        let result = try await withTaskCancellationHandler(operation: { try await work.value }, onCancel: { work.cancel() })
+        guard scope == searchScope, revision == plannerRevision else { throw CancellationError() }
+        return result
     }
 
     @discardableResult
