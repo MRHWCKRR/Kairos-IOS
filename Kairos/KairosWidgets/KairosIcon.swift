@@ -98,7 +98,7 @@ struct KairosIcon: View {
     private let inheritsFontSize: Bool
     private let decorative: Bool
     @Environment(\.self) private var environment
-    @ScaledMetric(relativeTo: .body) private var size: CGFloat
+    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 17
 
     init(_ symbol: String, size: CGFloat? = nil, decorative: Bool = false) {
         self.symbol = symbol

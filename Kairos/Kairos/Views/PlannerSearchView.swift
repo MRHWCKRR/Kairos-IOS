@@ -112,7 +112,11 @@ private struct PlannerSearchContent: View {
                     Text(result.total > result.rows.count ? "Showing \(result.rows.count) of \(result.total) matches. Refine your search to see more." : "\(result.total) \(result.total == 1 ? "result" : "results")")
                         .font(.caption).foregroundStyle(.secondary)
                     if result.rows.isEmpty {
-                        ContentUnavailableView.search(text: query)
+                        ContentUnavailableView {
+                            Label("No results", sharedIcon: "magnifyingglass")
+                        } description: {
+                            Text(query.isEmpty ? "No planner items match this filter." : "Try a different search or filter.")
+                        }
                     }
                     ForEach(result.rows) { row in
                         Button { open(row) } label: { PlannerSearchRowView(row: row) }
