@@ -24,11 +24,11 @@ struct AIHelperView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Chats and projects", sharedIcon: "sidebar.left") { inputFocused = false; showingHistory = true }
+                    KairosToolbarButton("Chats and projects", sharedIcon: "sidebar.left") { inputFocused = false; showingHistory = true }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     if let vm = viewModel {
-                        Button("New chat", sharedIcon: "square.and.pencil") { Task { await vm.newChat() } }.disabled(vm.isEditingWorkspace || profileRepo.aiWorkspace == nil)
+                        KairosToolbarButton("New chat", sharedIcon: "square.and.pencil") { Task { await vm.newChat() } }.disabled(vm.isEditingWorkspace || profileRepo.aiWorkspace == nil)
                         Menu {
                             Button("Create plan from chat", sharedIcon: "list.bullet.clipboard") { vm.createPlanFromChat() }.disabled(vm.chatMessages.isEmpty || vm.isLoading)
                         } label: { KairosIcon("ellipsis") }

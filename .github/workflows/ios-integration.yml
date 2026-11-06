@@ -47,3 +47,17 @@ jobs:
           test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/planning-settings-engine.js
           test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/assignment-progress-engine.js
 
+  toolbar-layout:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check rendered iOS 26 toolbar bounds
+        run: bash Tools/toolbar-visual-smoke.sh
+      - name: Upload toolbar screenshots and bounds
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-toolbar-regression
+          path: /tmp/kairos-toolbar-artifacts
+

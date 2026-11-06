@@ -127,9 +127,9 @@ struct CalendarView: View {
             .onChange(of: scenePhase) { _, phase in if phase != .active { interaction = nil } }
             .onDisappear { interaction = nil }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button("Backlog", sharedIcon: "tray") { showingBacklog = true } }
+                ToolbarItem(placement: .topBarLeading) { KairosToolbarButton("Backlog", sharedIcon: "tray") { showingBacklog = true } }
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button(showingDayDetails ? "Timeline" : "Agenda", sharedIcon: showingDayDetails ? "clock" : "list.bullet") { showingDayDetails.toggle() }.labelStyle(.iconOnly)
+                    KairosToolbarButton(showingDayDetails ? "Timeline" : "Agenda", sharedIcon: showingDayDetails ? "clock" : "list.bullet") { showingDayDetails.toggle() }
                     Menu { Toggle("Completed tasks", isOn: $showCompleted); Toggle("Skipped occurrences", isOn: $showSkipped); Toggle("Fixed events", isOn: $showEvents) } label: { KairosIcon("line.3.horizontal.decrease") }.accessibilityLabel("Schedule filters")
                     Menu {
                         Button("Task", sharedIcon: "checkmark.circle") { creatingTask = true }

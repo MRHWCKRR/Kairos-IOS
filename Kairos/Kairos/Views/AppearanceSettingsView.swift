@@ -93,7 +93,7 @@ struct AppearanceSettingsView: View {
         .navigationTitle("Appearance")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
-        .toolbar { ToolbarItem(placement: .topBarLeading) { Button { attemptLeave() } label: { Label("Back", sharedIcon: "chevron.left") }.disabled(isSaving) } }
+        .toolbar { ToolbarItem(placement: .topBarLeading) { KairosToolbarButton("Back", sharedIcon: "chevron.left") { attemptLeave() }.disabled(isSaving) } }
         .alert("Unsaved changes", isPresented: $showingUnsavedChanges) {
             Button("Save Changes") { Task { await saveAndLeave() } }
             Button("Discard Changes", role: .destructive) { discardChanges(); dismiss() }
