@@ -53,4 +53,19 @@ final class TaskEditorParityTests: XCTestCase {
         XCTAssertEqual(summary.remainingMinutes, 25); XCTAssertEqual(summary.readiness?.state, "ready"); XCTAssertEqual(summary.lateSessions, 1)
         XCTAssertEqual(summary.isSession, true)
     }
+    func testKnownEditsKeepAssignmentAndFocusMetadata() throws {
+        let encoder = JSONEncoder(), source = boards()
+        let before = try JSONSerialization.jsonObject(with: encoder.encode(source)) as! [[String: Any]]
+        var raw = before, sections = raw[0]["sections"] as! [[String: Any]], tasks = sections[0]["tasks"] as! [[String: Any]]
+        tasks[0]["assignmentId"] = "parent"; tasks[0]["sessionIndex"] = 2; tasks[0]["focusLoggedSeconds"] = 300; tasks[0]["futureMetadata"] = "keep"
+        sections[0]["tasks"] = tasks; raw[0]["sections"] = sections
+        var patch = KairosTaskPatch(); patch.reminderMinutes = .set(15); patch.schedulingPreference = .set("evening")
+        let after = try KairosTaskMutation.apply(.update(taskID: "t", patch: patch, expected: source[0].sections[0].tasks[0]), to: source)
+        let local = try JSONSerialization.jsonObject(with: encoder.encode(after)) as! [[String: Any]]
+        let result = try KairosPlannerMerge.applyingKnownEdits(base: ["boards": before], local: ["boards": local], to: ["boards": raw])
+        let b = result["boards"] as! [[String: Any]], s = b[0]["sections"] as! [[String: Any]], t = s[0]["tasks"] as! [[String: Any]]
+        XCTAssertEqual(t[0]["reminderMinutes"] as? Int, 15); XCTAssertEqual(t[0]["assignmentId"] as? String, "parent")
+        XCTAssertEqual(t[0]["sessionIndex"] as? Int, 2); XCTAssertEqual(t[0]["focusLoggedSeconds"] as? Int, 300)
+        XCTAssertEqual(t[0]["futureMetadata"] as? String, "keep")
+    }
 }

@@ -419,6 +419,10 @@ struct TaskDetailView: View {
     private var task: KairosTask? {
         planRepo.currentPlan?.boards.first(where: { $0.id == context.boardID })?.sections.first(where: { $0.id == context.sectionID })?.tasks.first(where: { $0.id == context.taskID })
     }
+    private var contextAvailable: Bool {
+        guard let current = resolveLinkedTask(context.taskID) else { return false }
+        return current.boardID == context.boardID && current.sectionID == context.sectionID
+    }
 
     private var children: [KairosTask] {
         guard let task else { return [] }
@@ -437,6 +441,7 @@ struct TaskDetailView: View {
                     scheduleCard
                     AssignmentProgressCard(taskID: context.taskID, open: openLinkedTask)
                     childrenCard
+                    if initialized && !contextAvailable { Text("This task moved or became unavailable. Your draft is still here; reopen its current details before saving.").font(.footnote).foregroundStyle(.secondary) }
                     if let saveError { Text(saveError).font(.footnote).foregroundStyle(.red) }
                     if submitting { ProgressView("Saving…") }
                 }.padding(20).disabled(submitting)
@@ -448,7 +453,7 @@ struct TaskDetailView: View {
                 ToolbarItem(placement: .topBarTrailing) { PlannerSearchButton().disabled(submitting) }
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(submitting) }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }.disabled(submitting || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || originalTask == nil || originalScope == nil || originalScope != planRepo.searchScope)
+                    Button("Save") { save() }.disabled(submitting || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || originalTask == nil || originalScope == nil || originalScope != planRepo.searchScope || !contextAvailable)
                 }
             }
             .interactiveDismissDisabled()
@@ -551,7 +556,7 @@ struct TaskDetailView: View {
     }
 
     private func load() {
-        guard !initialized, let task else { return }
+        guard !initialized, contextAvailable, let task else { return }
         initialized = true
         var calendar = editorCalendar; calendar.timeZone = editorTimeZone; capturedCalendar = calendar
         originalScope = planRepo.searchScope
@@ -572,7 +577,7 @@ struct TaskDetailView: View {
     }
 
     private func save() {
-        guard !submitting, let originalTask, originalScope != nil, originalScope == planRepo.searchScope else { return }
+        guard !submitting, let originalTask, originalScope != nil, originalScope == planRepo.searchScope, contextAvailable else { return }
         var patch = KairosTaskPatch()
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let estimate = hasEstimate ? Int(estimateText) : nil
@@ -605,12 +610,13 @@ struct TaskDetailView: View {
         submitting = true
         saveError = nil
         Task {
-            let saved = await planRepo.updateTask(taskID: context.taskID, patch: patch, expected: originalTask)
             defer { submitting = false }
+            guard originalScope != nil, originalScope == planRepo.searchScope, contextAvailable else { return }
+            let saved = await planRepo.updateTask(taskID: context.taskID, patch: patch, expected: originalTask)
             guard originalScope == planRepo.searchScope else { return }
             if saved {
                 if reminder != nil && reminder != originalTask.reminderMinutes {
-                    let hint = await KairosTaskReminderScheduler.enableFromUserAction(notificationsEnabled: profileRepo.notificationSettings?.enabled ?? false)
+                    let hint = await KairosTaskReminderScheduler.enableFromUserAction(notificationsEnabled: profileRepo.notificationSettings?.enabled != false)
                     guard self.originalScope == planRepo.searchScope else { return }
                     if let hint { reminderHint = hint; return }
                 }
@@ -627,11 +633,15 @@ struct TaskDetailView: View {
 
     private func openLinkedTask(_ taskID: String) {
         guard !submitting, originalScope == planRepo.searchScope, originalScope != nil else { return }
+        guard let linked = resolveLinkedTask(taskID) else { saveError = "This linked task is no longer available. Your draft is unchanged."; return }
+        linkedTask = linked
+    }
+    private func resolveLinkedTask(_ taskID: String) -> TaskDetailContext? {
         let boards = planRepo.currentPlan?.boards ?? []
         let matches = boards.flatMap { board in board.sections.flatMap { section in section.tasks.filter { $0.id == taskID }.map { (board, section, $0) } } }
         guard matches.count == 1, let (board, section, task) = matches.first, !board.archived, !section.archived, !task.archived,
-              boards.filter({ $0.id == board.id }).count == 1, board.sections.filter({ $0.id == section.id }).count == 1 else { saveError = "This linked task is no longer available. Your draft is unchanged."; return }
-        linkedTask = .init(taskID: task.id, boardID: board.id, sectionID: section.id)
+              boards.filter({ $0.id == board.id }).count == 1, board.sections.filter({ $0.id == section.id }).count == 1 else { return nil }
+        return .init(taskID: task.id, boardID: board.id, sectionID: section.id)
     }
 }
 
