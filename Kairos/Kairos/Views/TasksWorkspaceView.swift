@@ -380,6 +380,7 @@ struct TaskCreationSheet: View {
 
 struct TaskDetailView: View {
     @Environment(StudyPlanRepository.self) private var planRepo
+    @Environment(UserProfileRepository.self) private var profileRepo
     @Environment(\.dismiss) private var dismiss
     @Environment(\.calendar) private var editorCalendar
     @Environment(\.timeZone) private var editorTimeZone
@@ -404,6 +405,16 @@ struct TaskDetailView: View {
     @State private var submitting = false
     @State private var saveError: String?
     @State private var initialized = false
+    @State private var hasReminder = false
+    @State private var reminderText = "15"
+    @State private var scheduleLocked = false
+    @State private var schedulingPreference = ""
+    @State private var linkedTask: TaskDetailContext?
+    @State private var reminderHint: String?
+    @State private var originalScope: String?
+    @State private var capturedCalendar: Calendar?
+    private var draftCalendar: Calendar { capturedCalendar ?? editorCalendar }
+    private var draftTimeZone: TimeZone { capturedCalendar?.timeZone ?? editorTimeZone }
 
     private var task: KairosTask? {
         planRepo.currentPlan?.boards.first(where: { $0.id == context.boardID })?.sections.first(where: { $0.id == context.sectionID })?.tasks.first(where: { $0.id == context.taskID })
@@ -421,8 +432,10 @@ struct TaskDetailView: View {
                     titleCard
                     detailsCard
                     metadataCard
+                    planningCard
                     KairosChecklistEditor(items: $checklist, allowsCompletion: originalTask?.recurrence?.enabled != true)
                     scheduleCard
+                    AssignmentProgressCard(taskID: context.taskID, open: openLinkedTask)
                     childrenCard
                     if let saveError { Text(saveError).font(.footnote).foregroundStyle(.red) }
                     if submitting { ProgressView("Saving…") }
@@ -435,15 +448,19 @@ struct TaskDetailView: View {
                 ToolbarItem(placement: .topBarTrailing) { PlannerSearchButton().disabled(submitting) }
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(submitting) }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }.disabled(submitting || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || originalTask == nil)
+                    Button("Save") { save() }.disabled(submitting || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || originalTask == nil || originalScope == nil || originalScope != planRepo.searchScope)
                 }
             }
             .interactiveDismissDisabled()
             .sheet(isPresented: $showSubtaskCreator) {
                 TaskCreationSheet(target: .subtask(parentTaskID: context.taskID, sectionID: context.sectionID)).environment(planRepo)
             }
+            .sheet(item: $linkedTask) { TaskDetailView(context: $0) }
+            .alert("Reminder saved", isPresented: Binding(get: { reminderHint != nil }, set: { if !$0 { reminderHint = nil } })) {
+                Button("Done") { reminderHint = nil; dismiss() }
+            } message: { Text(reminderHint ?? "") }
             .onAppear { load() }
-        }
+        }.environment(\.calendar, draftCalendar).environment(\.timeZone, draftTimeZone)
     }
 
     private var titleCard: some View {
@@ -483,13 +500,15 @@ struct TaskDetailView: View {
     private var scheduleCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Schedule", systemImage: "calendar").font(.subheadline.weight(.semibold))
-            Toggle("Scheduled date", isOn: $hasDueDate)
-            if hasDueDate { DatePicker("Date", selection: $dueDate, displayedComponents: .date) }
-            Toggle("Scheduled time", isOn: $hasScheduledTime)
-            if hasScheduledTime {
-                DatePicker("Start", selection: $scheduledStart, displayedComponents: .hourAndMinute)
-                DatePicker("End", selection: $scheduledEnd, displayedComponents: .hourAndMinute)
-            }
+            Group {
+                Toggle("Scheduled date", isOn: $hasDueDate)
+                if hasDueDate { DatePicker("Date", selection: $dueDate, displayedComponents: .date) }
+                Toggle("Scheduled time", isOn: $hasScheduledTime)
+                if hasScheduledTime {
+                    DatePicker("Start", selection: $scheduledStart, displayedComponents: .hourAndMinute)
+                    DatePicker("End", selection: $scheduledEnd, displayedComponents: .hourAndMinute)
+                }
+            }.disabled(scheduleLocked)
             Toggle("Deadline", isOn: $hasDeadline)
             if hasDeadline { DatePicker("Due date", selection: $deadline, displayedComponents: .date) }
             Toggle("Due time", isOn: $hasDueTime)
@@ -499,23 +518,43 @@ struct TaskDetailView: View {
         }.padding(18).kairosCard(cornerRadius: 22)
     }
 
+    private var planningCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Planning & reminders", systemImage: "calendar.badge.clock").font(.subheadline.weight(.semibold))
+            Toggle("Task reminder", isOn: $hasReminder)
+            if hasReminder {
+                TextField("Minutes before (1–10080)", text: $reminderText).keyboardType(.numberPad).accessibilityLabel("Reminder minutes before scheduled start")
+                Text("Reminders use the scheduled date and start time. Allow notifications in iOS and Kairos Settings for alerts.").font(.caption).foregroundStyle(.secondary)
+            }
+            Picker("Preferred time", selection: $schedulingPreference) {
+                Text("Any time").tag("")
+                Text("Morning").tag("morning"); Text("Afternoon").tag("afternoon"); Text("Evening").tag("evening")
+                if !["", "morning", "afternoon", "evening"].contains(schedulingPreference) { Text("Saved: \(schedulingPreference)").tag(schedulingPreference) }
+            }
+            Toggle("Lock schedule", isOn: $scheduleLocked)
+            Text("The lock keeps this placement fixed during AI planning and touch rescheduling. Unlock it to edit the scheduled date or time. Changing a preferred time does not move this task.").font(.caption).foregroundStyle(.secondary)
+        }.padding(18).kairosCard(cornerRadius: 22)
+    }
+
     private var childrenCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack { Label("Subtasks", systemImage: "arrow.turn.down.right").font(.subheadline.weight(.semibold)); Spacer(); Text("\(children.filter(\.completed).count)/\(children.count)").font(.caption).foregroundStyle(.secondary) }
             ForEach(children) { child in
-                HStack(spacing: 10) {
+                Button { openLinkedTask(child.id) } label: { HStack(spacing: 10) {
                     Image(systemName: child.completed ? "checkmark.circle.fill" : "circle").foregroundStyle(child.completed ? KairosColors.accent : .secondary)
                     Text(child.title).font(.subheadline).strikethrough(child.completed)
                     Spacer()
-                }
+                } }.buttonStyle(.plain)
             }
-            Button { showSubtaskCreator = true } label: { Label("Add subtask", systemImage: "plus") }.foregroundStyle(KairosColors.accent)
+            Button { showSubtaskCreator = true } label: { Label("Add subtask", systemImage: "plus") }.foregroundStyle(KairosColors.accent).disabled(originalTask?.recurrence?.enabled == true)
         }.padding(18).kairosCard(cornerRadius: 22)
     }
 
     private func load() {
         guard !initialized, let task else { return }
         initialized = true
+        var calendar = editorCalendar; calendar.timeZone = editorTimeZone; capturedCalendar = calendar
+        originalScope = planRepo.searchScope
         originalTask = task
         title = task.title
         taskNotes = task.notes ?? task.taskDescription ?? ""
@@ -523,6 +562,8 @@ struct TaskDetailView: View {
         hasEstimate = task.estimatedMinutes != nil
         estimateText = task.estimatedMinutes.map(String.init) ?? ""
         checklist = task.checklist ?? []
+        hasReminder = task.reminderMinutes != nil; reminderText = String(task.reminderMinutes ?? 15)
+        scheduleLocked = task.scheduleLocked ?? false; schedulingPreference = task.schedulingPreference ?? ""
         if let dateKey = task.date { hasDueDate = true; dueDate = date(from: dateKey) ?? Date() }
         if let value = task.dueTime, let date = time(from: value) { hasDueTime = true; dueTime = date }
         if let value = task.startTime, let date = time(from: value) { hasScheduledTime = true; scheduledStart = date }
@@ -531,10 +572,16 @@ struct TaskDetailView: View {
     }
 
     private func save() {
-        guard !submitting, let originalTask else { return }
+        guard !submitting, let originalTask, originalScope != nil, originalScope == planRepo.searchScope else { return }
         var patch = KairosTaskPatch()
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let estimate = hasEstimate ? Int(estimateText) : nil
+        let reminder = hasReminder ? Int(reminderText) : nil
+        guard !hasReminder || reminder.map({ (1...10080).contains($0) }) == true else { saveError = "Enter reminder minutes from 1 to 10080, or turn the reminder off."; return }
+        if reminder != originalTask.reminderMinutes { patch.reminderMinutes = .set(reminder) }
+        if scheduleLocked != (originalTask.scheduleLocked ?? false) { patch.scheduleLocked = .set(scheduleLocked) }
+        let preference: String? = schedulingPreference.isEmpty ? nil : schedulingPreference
+        if preference != originalTask.schedulingPreference { patch.schedulingPreference = .set(preference) }
         guard !hasEstimate || (estimate.map { (1...1440).contains($0) } == true) else {
             saveError = "Enter an estimate from 1 to 1440 minutes."
             return
@@ -559,16 +606,33 @@ struct TaskDetailView: View {
         saveError = nil
         Task {
             let saved = await planRepo.updateTask(taskID: context.taskID, patch: patch, expected: originalTask)
-            submitting = false
-            if saved { dismiss() }
+            defer { submitting = false }
+            guard originalScope == planRepo.searchScope else { return }
+            if saved {
+                if reminder != nil && reminder != originalTask.reminderMinutes {
+                    let hint = await KairosTaskReminderScheduler.enableFromUserAction(notificationsEnabled: profileRepo.notificationSettings?.enabled ?? false)
+                    guard self.originalScope == planRepo.searchScope else { return }
+                    if let hint { reminderHint = hint; return }
+                }
+                dismiss()
+            }
             else { saveError = planRepo.errorMessage ?? "Could not save. Your edits are still here." }
         }
     }
 
-    private func dateKey(from date: Date) -> String { let f = DateFormatter(); f.calendar = editorCalendar; f.timeZone = editorTimeZone; f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date) }
-    private func date(from key: String) -> Date? { let f = DateFormatter(); f.calendar = editorCalendar; f.timeZone = editorTimeZone; f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"; return f.date(from: key) }
-    private func timeKey(from date: Date) -> String { let f = DateFormatter(); f.calendar = editorCalendar; f.timeZone = editorTimeZone; f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "HH:mm"; return f.string(from: date) }
-    private func time(from key: String) -> Date? { let f = DateFormatter(); f.calendar = editorCalendar; f.timeZone = editorTimeZone; f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "HH:mm"; return f.date(from: key) }
+    private func dateKey(from date: Date) -> String { let f = DateFormatter(); f.calendar = draftCalendar; f.timeZone = draftTimeZone; f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date) }
+    private func date(from key: String) -> Date? { let f = DateFormatter(); f.calendar = draftCalendar; f.timeZone = draftTimeZone; f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"; return f.date(from: key) }
+    private func timeKey(from date: Date) -> String { let f = DateFormatter(); f.calendar = draftCalendar; f.timeZone = draftTimeZone; f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "HH:mm"; return f.string(from: date) }
+    private func time(from key: String) -> Date? { let f = DateFormatter(); f.calendar = draftCalendar; f.timeZone = draftTimeZone; f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "HH:mm"; return f.date(from: key) }
+
+    private func openLinkedTask(_ taskID: String) {
+        guard !submitting, originalScope == planRepo.searchScope, originalScope != nil else { return }
+        let boards = planRepo.currentPlan?.boards ?? []
+        let matches = boards.flatMap { board in board.sections.flatMap { section in section.tasks.filter { $0.id == taskID }.map { (board, section, $0) } } }
+        guard matches.count == 1, let (board, section, task) = matches.first, !board.archived, !section.archived, !task.archived,
+              boards.filter({ $0.id == board.id }).count == 1, board.sections.filter({ $0.id == section.id }).count == 1 else { saveError = "This linked task is no longer available. Your draft is unchanged."; return }
+        linkedTask = .init(taskID: task.id, boardID: board.id, sectionID: section.id)
+    }
 }
 
 #Preview {

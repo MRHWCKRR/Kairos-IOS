@@ -1,0 +1,10 @@
+const fs=require('fs'),vm=require('vm'),path=require('path'),assert=require('assert');const p=path.join(__dirname,'../Kairos/Kairos/Core/Resources/assignment-progress-engine.js'),ctx=vm.createContext({});if(fs.existsSync(p))vm.runInContext(fs.readFileSync(p,'utf8'),ctx);
+assert.equal(typeof ctx.kairosAssignmentProgress,'function','Native assignment progress is not implemented');
+const task={id:'a',title:'Essay',dueDate:'2026-11-05',sessionOrder:'sequential'},first={id:'s1',title:'Research',assignmentId:'a',sessionIndex:1,date:'2026-11-05',startTime:'09:00',endTime:'10:00'},second={id:'s2',title:'Write',assignmentId:'a',sessionIndex:2,date:'2026-11-06',remainingMinutes:25,estimatedMinutes:60};
+const state={boards:[{id:'b',sections:[{id:'s',tasks:[task,first,second,{id:'arch',title:'Old',assignmentId:'a',archived:true}]}]}]},before=JSON.stringify(state);
+const run=(id,model=state)=>JSON.parse(ctx.kairosAssignmentProgress(JSON.stringify({state:model,today:'2026-11-05',taskID:id})));
+let r=run('a');assert.equal(r.total,2);assert.equal(r.completed,0);assert.equal(r.remainingMinutes,85);assert.equal(r.status,'Due today');assert.equal(r.lateSessions,1);assert.equal(r.sessions[1].readiness.state,'waiting');assert.equal(run('s2').parentId,'a');assert.equal(run('s2').isSession,true);assert.equal(JSON.stringify(state),before);
+const changed=JSON.parse(before);changed.boards[0].sections[0].tasks[1].completed=true;r=run('a',changed);assert.equal(r.completed,1);assert.equal(r.remainingMinutes,25);assert.equal(r.sessions[1].readiness.state,'ready');
+const dup=JSON.parse(before);dup.boards[0].sections[0].tasks.push({...task,archived:true});assert.equal(run('a',dup),null);
+const invalid=JSON.parse(before);invalid.boards[0].sections[0].tasks[2].sessionIndex=1;assert.equal(run('s2',invalid).readiness.state,'review');
+console.log('Assignment progress: sessions, remaining work, deadlines, readiness, archived/duplicate identities and read-only behavior passed');
