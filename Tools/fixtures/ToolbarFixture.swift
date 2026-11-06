@@ -64,9 +64,9 @@ private struct ToolbarBoundsProbe: UIViewRepresentable {
                 let className = NSStringFromClass(type(of: current))
                 let rect = current.convert(current.bounds, to: window)
                 ancestors.append(["class": className, "width": rect.width, "height": rect.height])
-                // Keep the outermost native toolbar button, not a nested 44pt
-                // UIButton whose enclosing glass pill could still be too wide.
-                if className.contains("ButtonBarButton") {
+                // iOS 26 wraps each control in PlatterItemView. Its parent
+                // glass platter can legitimately group multiple controls.
+                if className.contains("ButtonBarButton") || className.contains("NavigationBarPlatterItemView") {
                     nativeButton = rect
                 }
                 parent = current.superview

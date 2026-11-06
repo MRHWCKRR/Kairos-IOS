@@ -7,7 +7,7 @@ APP="$BUILD/ToolbarFixture.app"
 mkdir -p "$APP" "$OUTPUT"
 SDK="$(xcrun --sdk iphonesimulator --show-sdk-path)"
 ARCH="$(uname -m)"
-xcrun swiftc -parse-as-library -target "$ARCH-apple-ios18.0-simulator" -sdk "$SDK" \
+xcrun --sdk iphonesimulator swiftc -parse-as-library -target "$ARCH-apple-ios18.0-simulator" -sdk "$SDK" \
   Kairos/Kairos/Theme/KairosIcon.swift Tools/fixtures/ToolbarFixture.swift -o "$APP/ToolbarFixture"
 cat > "$APP/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -40,7 +40,12 @@ PY
 )"
 xcrun simctl boot "$DEVICE" || true
 xcrun simctl bootstatus "$DEVICE" -b
-xcrun actool Kairos/Kairos/Assets.xcassets --compile "$APP" --platform iphonesimulator \
+mkdir -p "$BUILD/Assets.xcassets"
+printf '%s\n' '{"info":{"author":"xcode","version":1}}' > "$BUILD/Assets.xcassets/Contents.json"
+for ICON in sidebar_simple tray note_pencil dots_three list_bullets funnel plus; do
+  cp -R "Kairos/Kairos/Assets.xcassets/kairos_$ICON.imageset" "$BUILD/Assets.xcassets/"
+done
+xcrun actool "$BUILD/Assets.xcassets" --compile "$APP" --platform iphonesimulator \
   --minimum-deployment-target 18.0 --target-device iphone --output-partial-info-plist "$BUILD/assets.plist"
 codesign --force --sign - "$APP"
 xcrun simctl install "$DEVICE" "$APP"
@@ -67,8 +72,10 @@ import json, sys
 prefix = sys.argv[1]
 reports = [json.load(open(f'{prefix}-{name}.json')) for name in ('leading', 'trailing')]
 for r in reports:
-    for key in ('labelWidth', 'labelHeight', 'nativeWidth', 'nativeHeight'):
+    for key in ('labelWidth', 'labelHeight', 'nativeWidth'):
         assert 44 <= r[key] <= 56, f'{prefix} {r["name"]} {key}: {r[key]}pt; {r}'
+    # The iOS 26 native visual item is 36pt tall inside a 44pt SwiftUI hit area.
+    assert 32 <= r['nativeHeight'] <= 56, f'{prefix} {r["name"]} native height: {r}'
     assert r['y'] < 130, f'Control is not in navigation bar: {r}'
     assert r['titleVisible'], f'Navigation title is missing or hidden: {r}'
 assert reports[0]['nativeX'] + reports[0]['nativeWidth'] < reports[1]['nativeX'], 'Toolbar buttons overlap'
