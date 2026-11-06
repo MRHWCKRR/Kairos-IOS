@@ -9,7 +9,7 @@ struct PlanningAccessibilityView: View {
                 PlanningSettingsEditor(initial: seed.value, ownerStamp: stamp).id(stamp)
             } else if profileRepo.isLoading { ProgressView("Loading settings.") }
             else {
-                ContentUnavailableView { Label("Settings unavailable", systemImage: "exclamationmark.triangle") }
+                ContentUnavailableView { Label("Settings unavailable", sharedIcon: "exclamationmark.triangle") }
                 description: { Text(profileRepo.planningSettingsError ?? profileRepo.errorMessage ?? "Wait for your verified account's settings to load.") }
                 actions: { Button("Retry") { profileRepo.retryPlanningSettings() } }
             }
@@ -107,7 +107,7 @@ private struct PlanningSettingsEditor: View {
                             }
                         }
                         if day.windows.isEmpty { Text("Unavailable").foregroundStyle(.secondary) }
-                        Button("Add window", systemImage: "plus") { day.windows.append(.init(start: "09:00", end: "17:00")) }
+                        Button("Add window", sharedIcon: "plus") { day.windows.append(.init(start: "09:00", end: "17:00")) }
                             .disabled(day.windows.count >= 4)
                     }
                 }
@@ -179,7 +179,7 @@ private struct PlanningTimezonePicker: View {
         NavigationStack {
             List(zones, id: \.self) { zone in
                 Button { selection = zone; dismiss() } label: {
-                    HStack { Text(zone.replacingOccurrences(of: "_", with: " ")); Spacer(); if selection == zone { Image(systemName: "checkmark") } }
+                    HStack { Text(zone.replacingOccurrences(of: "_", with: " ")); Spacer(); if selection == zone { KairosIcon("checkmark") } }
                 }
             }.searchable(text: $query, prompt: "Search timezones")
                 .navigationTitle("Profile timezone").navigationBarTitleDisplayMode(.inline)
@@ -187,3 +187,4 @@ private struct PlanningTimezonePicker: View {
         }
     }
 }
+

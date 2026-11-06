@@ -1,0 +1,706 @@
+{
+  "version": 1,
+  "source": "https://github.com/phosphor-icons/core",
+  "license": "MIT",
+  "coordinateSystem": {
+    "width": 256,
+    "height": 256
+  },
+  "symbols": {
+    "accessibility": {
+      "slug": "person-arms-spread",
+      "assetName": "kairos_person_arms_spread",
+      "path": "svg/person-arms-spread.svg"
+    },
+    "archivebox": {
+      "slug": "archive",
+      "assetName": "kairos_archive",
+      "path": "svg/archive.svg"
+    },
+    "arrow.counterclockwise": {
+      "slug": "arrow-counter-clockwise",
+      "assetName": "kairos_arrow_counter_clockwise",
+      "path": "svg/arrow-counter-clockwise.svg"
+    },
+    "arrow.down": {
+      "slug": "arrow-down",
+      "assetName": "kairos_arrow_down",
+      "path": "svg/arrow-down.svg"
+    },
+    "arrow.turn.down.right": {
+      "slug": "arrow-elbow-down-right",
+      "assetName": "kairos_arrow_elbow_down_right",
+      "path": "svg/arrow-elbow-down-right.svg"
+    },
+    "arrow.up": {
+      "slug": "arrow-up",
+      "assetName": "kairos_arrow_up",
+      "path": "svg/arrow-up.svg"
+    },
+    "arrow.up.and.down": {
+      "slug": "arrows-down-up",
+      "assetName": "kairos_arrows_down_up",
+      "path": "svg/arrows-down-up.svg"
+    },
+    "arrow.up.right": {
+      "slug": "arrow-up-right",
+      "assetName": "kairos_arrow_up_right",
+      "path": "svg/arrow-up-right.svg"
+    },
+    "bell.badge": {
+      "slug": "bell-ringing",
+      "assetName": "kairos_bell_ringing",
+      "path": "svg/bell-ringing.svg"
+    },
+    "bell.badge.fill": {
+      "slug": "bell-ringing-fill",
+      "assetName": "kairos_bell_ringing_fill",
+      "path": "svg/bell-ringing-fill.svg"
+    },
+    "bell.fill": {
+      "slug": "bell-fill",
+      "assetName": "kairos_bell_fill",
+      "path": "svg/bell-fill.svg"
+    },
+    "birthday.cake": {
+      "slug": "cake",
+      "assetName": "kairos_cake",
+      "path": "svg/cake.svg"
+    },
+    "bubble.left.and.bubble.right": {
+      "slug": "chats",
+      "assetName": "kairos_chats",
+      "path": "svg/chats.svg"
+    },
+    "bubble.left.and.bubble.right.fill": {
+      "slug": "chats-fill",
+      "assetName": "kairos_chats_fill",
+      "path": "svg/chats-fill.svg"
+    },
+    "calendar": {
+      "slug": "calendar-blank",
+      "assetName": "kairos_calendar_blank",
+      "path": "svg/calendar-blank.svg"
+    },
+    "calendar.badge.clock": {
+      "slug": "calendar-dots",
+      "assetName": "kairos_calendar_dots",
+      "path": "svg/calendar-dots.svg"
+    },
+    "calendar.badge.plus": {
+      "slug": "calendar-plus",
+      "assetName": "kairos_calendar_plus",
+      "path": "svg/calendar-plus.svg"
+    },
+    "chart.bar.fill": {
+      "slug": "chart-bar-fill",
+      "assetName": "kairos_chart_bar_fill",
+      "path": "svg/chart-bar-fill.svg"
+    },
+    "chart.bar.xaxis": {
+      "slug": "chart-bar",
+      "assetName": "kairos_chart_bar",
+      "path": "svg/chart-bar.svg"
+    },
+    "checklist": {
+      "slug": "list-checks",
+      "assetName": "kairos_list_checks",
+      "path": "svg/list-checks.svg"
+    },
+    "checkmark": {
+      "slug": "check",
+      "assetName": "kairos_check",
+      "path": "svg/check.svg"
+    },
+    "checkmark.circle": {
+      "slug": "check-circle",
+      "assetName": "kairos_check_circle",
+      "path": "svg/check-circle.svg"
+    },
+    "checkmark.circle.fill": {
+      "slug": "check-circle-fill",
+      "assetName": "kairos_check_circle_fill",
+      "path": "svg/check-circle-fill.svg"
+    },
+    "checkmark.seal.fill": {
+      "slug": "seal-check-fill",
+      "assetName": "kairos_seal_check_fill",
+      "path": "svg/seal-check-fill.svg"
+    },
+    "checkmark.shield.fill": {
+      "slug": "shield-check-fill",
+      "assetName": "kairos_shield_check_fill",
+      "path": "svg/shield-check-fill.svg"
+    },
+    "chevron.down": {
+      "slug": "caret-down",
+      "assetName": "kairos_caret_down",
+      "path": "svg/caret-down.svg"
+    },
+    "chevron.left": {
+      "slug": "caret-left",
+      "assetName": "kairos_caret_left",
+      "path": "svg/caret-left.svg"
+    },
+    "chevron.right": {
+      "slug": "caret-right",
+      "assetName": "kairos_caret_right",
+      "path": "svg/caret-right.svg"
+    },
+    "chevron.up": {
+      "slug": "caret-up",
+      "assetName": "kairos_caret_up",
+      "path": "svg/caret-up.svg"
+    },
+    "circle": {
+      "slug": "circle",
+      "assetName": "kairos_circle",
+      "path": "svg/circle.svg"
+    },
+    "circle.lefthalf.filled": {
+      "slug": "circle-half",
+      "assetName": "kairos_circle_half",
+      "path": "svg/circle-half.svg"
+    },
+    "clock": {
+      "slug": "clock",
+      "assetName": "kairos_clock",
+      "path": "svg/clock.svg"
+    },
+    "ellipsis": {
+      "slug": "dots-three",
+      "assetName": "kairos_dots_three",
+      "path": "svg/dots-three.svg"
+    },
+    "ellipsis.circle": {
+      "slug": "dots-three-circle",
+      "assetName": "kairos_dots_three_circle",
+      "path": "svg/dots-three-circle.svg"
+    },
+    "envelope.badge.shield.half.filled": {
+      "slug": "envelope-simple",
+      "assetName": "kairos_envelope_simple",
+      "path": "svg/envelope-simple.svg"
+    },
+    "exclamationmark.circle": {
+      "slug": "warning-circle",
+      "assetName": "kairos_warning_circle",
+      "path": "svg/warning-circle.svg"
+    },
+    "exclamationmark.circle.fill": {
+      "slug": "warning-circle-fill",
+      "assetName": "kairos_warning_circle_fill",
+      "path": "svg/warning-circle-fill.svg"
+    },
+    "exclamationmark.triangle": {
+      "slug": "warning",
+      "assetName": "kairos_warning",
+      "path": "svg/warning.svg"
+    },
+    "face.smiling": {
+      "slug": "smiley",
+      "assetName": "kairos_smiley",
+      "path": "svg/smiley.svg"
+    },
+    "flame.fill": {
+      "slug": "fire-fill",
+      "assetName": "kairos_fire_fill",
+      "path": "svg/fire-fill.svg"
+    },
+    "folder": {
+      "slug": "folder",
+      "assetName": "kairos_folder",
+      "path": "svg/folder.svg"
+    },
+    "folder.badge.plus": {
+      "slug": "folder-plus",
+      "assetName": "kairos_folder_plus",
+      "path": "svg/folder-plus.svg"
+    },
+    "gear": {
+      "slug": "gear",
+      "assetName": "kairos_gear",
+      "path": "svg/gear.svg"
+    },
+    "gearshape.fill": {
+      "slug": "gear-fill",
+      "assetName": "kairos_gear_fill",
+      "path": "svg/gear-fill.svg"
+    },
+    "globe": {
+      "slug": "globe",
+      "assetName": "kairos_globe",
+      "path": "svg/globe.svg"
+    },
+    "hand.raised.fill": {
+      "slug": "hand-palm-fill",
+      "assetName": "kairos_hand_palm_fill",
+      "path": "svg/hand-palm-fill.svg"
+    },
+    "house.fill": {
+      "slug": "house-fill",
+      "assetName": "kairos_house_fill",
+      "path": "svg/house-fill.svg"
+    },
+    "info.circle": {
+      "slug": "info",
+      "assetName": "kairos_info",
+      "path": "svg/info.svg"
+    },
+    "line.3.horizontal.decrease": {
+      "slug": "funnel",
+      "assetName": "kairos_funnel",
+      "path": "svg/funnel.svg"
+    },
+    "list.bullet": {
+      "slug": "list-bullets",
+      "assetName": "kairos_list_bullets",
+      "path": "svg/list-bullets.svg"
+    },
+    "list.bullet.clipboard": {
+      "slug": "clipboard-text",
+      "assetName": "kairos_clipboard_text",
+      "path": "svg/clipboard-text.svg"
+    },
+    "lock.fill": {
+      "slug": "lock-fill",
+      "assetName": "kairos_lock_fill",
+      "path": "svg/lock-fill.svg"
+    },
+    "magnifyingglass": {
+      "slug": "magnifying-glass",
+      "assetName": "kairos_magnifying_glass",
+      "path": "svg/magnifying-glass.svg"
+    },
+    "pause.fill": {
+      "slug": "pause-fill",
+      "assetName": "kairos_pause_fill",
+      "path": "svg/pause-fill.svg"
+    },
+    "pencil": {
+      "slug": "pencil-simple",
+      "assetName": "kairos_pencil_simple",
+      "path": "svg/pencil-simple.svg"
+    },
+    "person.crop.circle": {
+      "slug": "user-circle",
+      "assetName": "kairos_user_circle",
+      "path": "svg/user-circle.svg"
+    },
+    "person.crop.circle.fill": {
+      "slug": "user-circle-fill",
+      "assetName": "kairos_user_circle_fill",
+      "path": "svg/user-circle-fill.svg"
+    },
+    "play.fill": {
+      "slug": "play-fill",
+      "assetName": "kairos_play_fill",
+      "path": "svg/play-fill.svg"
+    },
+    "plus": {
+      "slug": "plus",
+      "assetName": "kairos_plus",
+      "path": "svg/plus.svg"
+    },
+    "rectangle.portrait.and.arrow.right": {
+      "slug": "sign-out",
+      "assetName": "kairos_sign_out",
+      "path": "svg/sign-out.svg"
+    },
+    "repeat": {
+      "slug": "repeat",
+      "assetName": "kairos_repeat",
+      "path": "svg/repeat.svg"
+    },
+    "sidebar.left": {
+      "slug": "sidebar-simple",
+      "assetName": "kairos_sidebar_simple",
+      "path": "svg/sidebar-simple.svg"
+    },
+    "sparkles": {
+      "slug": "sparkle",
+      "assetName": "kairos_sparkle",
+      "path": "svg/sparkle.svg"
+    },
+    "speaker.wave.2": {
+      "slug": "speaker-high",
+      "assetName": "kairos_speaker_high",
+      "path": "svg/speaker-high.svg"
+    },
+    "square.and.pencil": {
+      "slug": "note-pencil",
+      "assetName": "kairos_note_pencil",
+      "path": "svg/note-pencil.svg"
+    },
+    "square.stack.3d.up": {
+      "slug": "stack",
+      "assetName": "kairos_stack",
+      "path": "svg/stack.svg"
+    },
+    "square.stack.3d.up.fill": {
+      "slug": "stack-fill",
+      "assetName": "kairos_stack_fill",
+      "path": "svg/stack-fill.svg"
+    },
+    "stop.fill": {
+      "slug": "stop-fill",
+      "assetName": "kairos_stop_fill",
+      "path": "svg/stop-fill.svg"
+    },
+    "text.alignleft": {
+      "slug": "text-align-left",
+      "assetName": "kairos_text_align_left",
+      "path": "svg/text-align-left.svg"
+    },
+    "timer": {
+      "slug": "timer",
+      "assetName": "kairos_timer",
+      "path": "svg/timer.svg"
+    },
+    "trash": {
+      "slug": "trash",
+      "assetName": "kairos_trash",
+      "path": "svg/trash.svg"
+    },
+    "tray": {
+      "slug": "tray",
+      "assetName": "kairos_tray",
+      "path": "svg/tray.svg"
+    },
+    "trophy.fill": {
+      "slug": "trophy-fill",
+      "assetName": "kairos_trophy_fill",
+      "path": "svg/trophy-fill.svg"
+    },
+    "wifi.slash": {
+      "slug": "wifi-slash",
+      "assetName": "kairos_wifi_slash",
+      "path": "svg/wifi-slash.svg"
+    },
+    "xmark": {
+      "slug": "x",
+      "assetName": "kairos_x",
+      "path": "svg/x.svg"
+    },
+    "xmark.circle": {
+      "slug": "x-circle",
+      "assetName": "kairos_x_circle",
+      "path": "svg/x-circle.svg"
+    },
+    "xmark.circle.fill": {
+      "slug": "x-circle-fill",
+      "assetName": "kairos_x_circle_fill",
+      "path": "svg/x-circle-fill.svg"
+    }
+  },
+  "assets": {
+    "arrow-down": {
+      "sourcePath": "assets/regular/arrow-down.svg",
+      "sha256": "cc6416ae83e20660f14b11f5525c6d05ee679c3f26cee41b696cb37aa905d4f5"
+    },
+    "archive": {
+      "sourcePath": "assets/regular/archive.svg",
+      "sha256": "bde81c0c44e80a7b8bf97f29ec11488c1b48998f2f74b2eb29e13ef8c1975e75"
+    },
+    "arrow-counter-clockwise": {
+      "sourcePath": "assets/regular/arrow-counter-clockwise.svg",
+      "sha256": "4eb160d5ae781107c674481ac081962e6bce6281a646129e6c3f960b9dd5dac6"
+    },
+    "arrows-down-up": {
+      "sourcePath": "assets/regular/arrows-down-up.svg",
+      "sha256": "64046920e174a406b080ec61e040bf73bf231be019d92ce8caec14d2035e167d"
+    },
+    "bell-fill": {
+      "sourcePath": "assets/fill/bell-fill.svg",
+      "sha256": "26437565edc7418a2c326a74078fb4519aa2316e84fcf1adefbdd1b2c89f4ac5"
+    },
+    "arrow-up": {
+      "sourcePath": "assets/regular/arrow-up.svg",
+      "sha256": "361aa9f9c52a759bf598faf6ed38ccd426f949f541d662c65b5b5d868fa76980"
+    },
+    "arrow-elbow-down-right": {
+      "sourcePath": "assets/regular/arrow-elbow-down-right.svg",
+      "sha256": "79a6415d7e98d919d4cf438b68537b18bcd3f97bf599c93b8cce9eed8f5c7db4"
+    },
+    "arrow-up-right": {
+      "sourcePath": "assets/regular/arrow-up-right.svg",
+      "sha256": "44db5257b360ec04863eb6daaa41f220c8b714d23fb81403517d0a30acfda9f4"
+    },
+    "calendar-blank": {
+      "sourcePath": "assets/regular/calendar-blank.svg",
+      "sha256": "6268583ae0ea04e93fd24f1e70d47a8e8d79c88fc304af397b95b318980215d6"
+    },
+    "calendar-dots": {
+      "sourcePath": "assets/regular/calendar-dots.svg",
+      "sha256": "7911ba8e60afd4506bdc5fcef0549a9c1bc22c0439d1d946507116dfd8acf3d9"
+    },
+    "calendar-plus": {
+      "sourcePath": "assets/regular/calendar-plus.svg",
+      "sha256": "c9799e0708c591545412e9bd75f1c014a2de6da91e363b38f30c6ac37bb9432e"
+    },
+    "caret-left": {
+      "sourcePath": "assets/regular/caret-left.svg",
+      "sha256": "623bf248fe21a8170344e168aaac2e174119cea5d7c5d0fb0dc84f581009475f"
+    },
+    "bell-ringing": {
+      "sourcePath": "assets/regular/bell-ringing.svg",
+      "sha256": "fe22f9fc41a5fc83538046ccb7ad3634315d97d555f1d1038ea2bad8813679c2"
+    },
+    "bell-ringing-fill": {
+      "sourcePath": "assets/fill/bell-ringing-fill.svg",
+      "sha256": "089431e7d4e6ff10ad909ee7d842a93fd36487cb43b50b4443c19b24c7fde001"
+    },
+    "cake": {
+      "sourcePath": "assets/regular/cake.svg",
+      "sha256": "90174cab080b71675cfacfc656b213cbd0a56f9213b0cd27b32ee5e0678ca860"
+    },
+    "caret-down": {
+      "sourcePath": "assets/regular/caret-down.svg",
+      "sha256": "53f0cf2d0b144ac3cb07e353e0cd0853ffb3ed432d741460ce288edfcb0924b1"
+    },
+    "caret-right": {
+      "sourcePath": "assets/regular/caret-right.svg",
+      "sha256": "e6dec01e074807965b7f3146b976a9b5e82c31d9c2c88aeb52e77cc2ab16c1d7"
+    },
+    "chart-bar": {
+      "sourcePath": "assets/regular/chart-bar.svg",
+      "sha256": "d161e503af4f5386a370ffd742d19d85e98625fd6d6eadbabbdb36d58dcca22c"
+    },
+    "chats": {
+      "sourcePath": "assets/regular/chats.svg",
+      "sha256": "246d81e02c169c439a73d212bf28d4068cc727a6a527663e568f5c7da547aed3"
+    },
+    "chart-bar-fill": {
+      "sourcePath": "assets/fill/chart-bar-fill.svg",
+      "sha256": "a417cc075c304374043e7d47f7622606b15f14e4c65663fd7a8a9898d768362a"
+    },
+    "chats-fill": {
+      "sourcePath": "assets/fill/chats-fill.svg",
+      "sha256": "c88539cf3c42ef3a42f90d10e9c4736cbad59e2639948dbe647227e56160447b"
+    },
+    "check": {
+      "sourcePath": "assets/regular/check.svg",
+      "sha256": "cbb89a8c42f283d4f846eb935e05d88c1be04462f16480e068c0f82b9ce40b12"
+    },
+    "check-circle": {
+      "sourcePath": "assets/regular/check-circle.svg",
+      "sha256": "e02a080c3d1a758de5c5fd41abd913dec4cffbc70fe1e9637dbf7ce35f377055"
+    },
+    "caret-up": {
+      "sourcePath": "assets/regular/caret-up.svg",
+      "sha256": "bccc26004e73e5de783ac6dde607e3671e776261d81972ccdbd296b4aca21ca9"
+    },
+    "circle": {
+      "sourcePath": "assets/regular/circle.svg",
+      "sha256": "efc9ee22b165d0d40c21b1c5ebe2463c99744af44ab6f530b4d6c44f25181974"
+    },
+    "clipboard-text": {
+      "sourcePath": "assets/regular/clipboard-text.svg",
+      "sha256": "1b1116133ad78d227c8d77f52856bde049dc02a351a1810d5dc91b2475cb873f"
+    },
+    "circle-half": {
+      "sourcePath": "assets/regular/circle-half.svg",
+      "sha256": "4e5376acc240190bf951be566c4649b69936c928f679eba6793412295bb90736"
+    },
+    "check-circle-fill": {
+      "sourcePath": "assets/fill/check-circle-fill.svg",
+      "sha256": "6ba676543869fddabb7a4ba7026fc51e14351455f4c095ea389b89d0e1d79708"
+    },
+    "clock": {
+      "sourcePath": "assets/regular/clock.svg",
+      "sha256": "b8c6c2899d2b9af48a55ba02ba6d7faf89b757915772dd24f5397f7b0d02aa5c"
+    },
+    "dots-three": {
+      "sourcePath": "assets/regular/dots-three.svg",
+      "sha256": "ca4e748007101155641ec3041cd129bb03a8030d0eed16e313b9dd75e6beac77"
+    },
+    "envelope-simple": {
+      "sourcePath": "assets/regular/envelope-simple.svg",
+      "sha256": "f114441afbd3c3da8aee24ba4cddea1576cf55aa304eb507410fca494c8ee169"
+    },
+    "dots-three-circle": {
+      "sourcePath": "assets/regular/dots-three-circle.svg",
+      "sha256": "10f9bc60e36813e3135b6581f383b13a23569dfe4ba80f1c198f09e533b97650"
+    },
+    "fire-fill": {
+      "sourcePath": "assets/fill/fire-fill.svg",
+      "sha256": "512355fb2a156f0c39485a28bc6f81cf1df3de35faed9c5ad62c30cec5d8d63c"
+    },
+    "gear-fill": {
+      "sourcePath": "assets/fill/gear-fill.svg",
+      "sha256": "564f53f72b0bd4371dc14a3d39a3fcf4c5a1a74d285eb56fff465a954f993ec8"
+    },
+    "funnel": {
+      "sourcePath": "assets/regular/funnel.svg",
+      "sha256": "26b847aa9f8566707443669502dcf08bf0a2d1d3cfb2dc1136842f4033104abb"
+    },
+    "gear": {
+      "sourcePath": "assets/regular/gear.svg",
+      "sha256": "5c0cb3ba307c72babf78d952d9140c682ff30307fedc7fbb87c9a293c1e2fd64"
+    },
+    "hand-palm-fill": {
+      "sourcePath": "assets/fill/hand-palm-fill.svg",
+      "sha256": "30b104d0f8daeb71d7059a41590b67142aa17318a2d72f4963bb29159b53daf1"
+    },
+    "folder": {
+      "sourcePath": "assets/regular/folder.svg",
+      "sha256": "4a882bcd4a91ae0a01887024f08d358932f183b6b171e87a3e48c5910364d507"
+    },
+    "globe": {
+      "sourcePath": "assets/regular/globe.svg",
+      "sha256": "3b53d207c09fc72de699c8b2149892e065b570b3ae144412ae53244b0a0f7977"
+    },
+    "folder-plus": {
+      "sourcePath": "assets/regular/folder-plus.svg",
+      "sha256": "576f2e68f6adf880e3334363b1d3baa2bd07ef41b7ae04a77cbe4eea240e62df"
+    },
+    "house-fill": {
+      "sourcePath": "assets/fill/house-fill.svg",
+      "sha256": "4783cdf0ae5f5ec363df6f77167a41642aac42fe8d73251b9a61232ab43f355d"
+    },
+    "info": {
+      "sourcePath": "assets/regular/info.svg",
+      "sha256": "438a1f319d53d86e840af73fb7b1d224c9224a437b9fa449a4e2cb45a82a3552"
+    },
+    "list-checks": {
+      "sourcePath": "assets/regular/list-checks.svg",
+      "sha256": "b2d11fc95de627d6abe9feeced5f7e0cdce3ccdf8d9f9d2334d596b8b5cc5cc4"
+    },
+    "list-bullets": {
+      "sourcePath": "assets/regular/list-bullets.svg",
+      "sha256": "5c685a673fbd053a3c548039725d1a9f902938fbcddaef3c5f958f0a64c19341"
+    },
+    "lock-fill": {
+      "sourcePath": "assets/fill/lock-fill.svg",
+      "sha256": "7c3bb342922c2eb313d14a196d50dd897f7048e336da9382c418242e59c4cf79"
+    },
+    "pause-fill": {
+      "sourcePath": "assets/fill/pause-fill.svg",
+      "sha256": "156d3cdfa5cea803caec50b35f49bc635070c8bd84e7fe78df94b025017ccee1"
+    },
+    "note-pencil": {
+      "sourcePath": "assets/regular/note-pencil.svg",
+      "sha256": "85f05d1a02f8d808ca9b023e765e7dec7ec2d706313dddf464010f35c9469264"
+    },
+    "magnifying-glass": {
+      "sourcePath": "assets/regular/magnifying-glass.svg",
+      "sha256": "f9fa2561978a9a3291e8ae0ebfcb651104f5069fade8f84871627bca68889cde"
+    },
+    "seal-check-fill": {
+      "sourcePath": "assets/fill/seal-check-fill.svg",
+      "sha256": "27702a62622ac4156d2a18b10fc7c526b3b2b9f782741e2cb07aea6964d71132"
+    },
+    "repeat": {
+      "sourcePath": "assets/regular/repeat.svg",
+      "sha256": "12cef5f8ba7074921f909838088154a6847b936b11342c28daa475c62b71df86"
+    },
+    "person-arms-spread": {
+      "sourcePath": "assets/regular/person-arms-spread.svg",
+      "sha256": "2b77ca4124fd33b1125981ee0cdb9dff6383ab886d33f24a9ad994826a31d0f9"
+    },
+    "plus": {
+      "sourcePath": "assets/regular/plus.svg",
+      "sha256": "d688feb9dd2e41c1721d6906a05a2a42e18cd774762fe706d72b2bdfd91cddc4"
+    },
+    "shield-check-fill": {
+      "sourcePath": "assets/fill/shield-check-fill.svg",
+      "sha256": "16ebdabca38405206b1d36869ae74b0e9f69d34a23bc77d7cbe61dfa34bef1d7"
+    },
+    "sidebar-simple": {
+      "sourcePath": "assets/regular/sidebar-simple.svg",
+      "sha256": "36818e1212cb24f5e1aa7e10480b0f4dc399d2c61d9b9b53c062d799dde162a3"
+    },
+    "pencil-simple": {
+      "sourcePath": "assets/regular/pencil-simple.svg",
+      "sha256": "999530da442f44d8cf0054364373d16150f3e082c2ac294a4988a9c3a4295c28"
+    },
+    "play-fill": {
+      "sourcePath": "assets/fill/play-fill.svg",
+      "sha256": "6d2a75bc5700a68dec50516ebae121c307807e4e6fcca5c863e5b4af006df880"
+    },
+    "sign-out": {
+      "sourcePath": "assets/regular/sign-out.svg",
+      "sha256": "511fe7958ef31f8904185631fd7045c11f35c8034a2a64ccb3bdcc4dfa81df77"
+    },
+    "smiley": {
+      "sourcePath": "assets/regular/smiley.svg",
+      "sha256": "9486a397f921e6a6472ae4655002a468b9d4475d1ff44dc639aa95fd830b7d60"
+    },
+    "sparkle": {
+      "sourcePath": "assets/regular/sparkle.svg",
+      "sha256": "9e2c17a26564098cb48dd95737a83c742156f755f13cedaa30f9d864d0e3eb76"
+    },
+    "stack": {
+      "sourcePath": "assets/regular/stack.svg",
+      "sha256": "ee9eaaeb345e8a28c9662cf8a59147cb86080bd922e41f143444189e0116ea7e"
+    },
+    "text-align-left": {
+      "sourcePath": "assets/regular/text-align-left.svg",
+      "sha256": "4d166977720d3beb386288a8607fbb36134fef06fdd99496ab09cf2d2da211b5"
+    },
+    "speaker-high": {
+      "sourcePath": "assets/regular/speaker-high.svg",
+      "sha256": "caca5fc1ee8489ac19232301d2c96f6d4048802491d75d761bbb89d5c98e459d"
+    },
+    "stack-fill": {
+      "sourcePath": "assets/fill/stack-fill.svg",
+      "sha256": "549d53f6eaf6a1da0d66be403180199f1578f0651506bfc137ae036b1fc2a60b"
+    },
+    "stop-fill": {
+      "sourcePath": "assets/fill/stop-fill.svg",
+      "sha256": "7d9cb9f0bc3363ba8846cf915bc8a84e824804025defaba58eb9df8c21105bb1"
+    },
+    "timer": {
+      "sourcePath": "assets/regular/timer.svg",
+      "sha256": "eccb04ff7903c451948aba91d91606eba71d9e050ed52b9e14a0e11199379d0e"
+    },
+    "user-circle-fill": {
+      "sourcePath": "assets/fill/user-circle-fill.svg",
+      "sha256": "4e16cdba116195993e6398bb097e7c4b354fb129fafdf2b56fd4b7c069f440d3"
+    },
+    "user-circle": {
+      "sourcePath": "assets/regular/user-circle.svg",
+      "sha256": "5aee25838c1915058940900df322afc36b76f4ea7e48499c33603cf121258b2a"
+    },
+    "tray": {
+      "sourcePath": "assets/regular/tray.svg",
+      "sha256": "2fbf5c1b17b8b0aa58445720164692b2220092a4f61be440c54d83f7e16ceebd"
+    },
+    "trophy-fill": {
+      "sourcePath": "assets/fill/trophy-fill.svg",
+      "sha256": "6d12bce1ad52193fe62e6d9cba30fbce19b355f3f096cafc316c3bc36c1f7ebe"
+    },
+    "warning": {
+      "sourcePath": "assets/regular/warning.svg",
+      "sha256": "047c8edbdfddb9f1692bbf56acc85b7e4649b567c60eb39470e98e4f9ddc6a2e"
+    },
+    "warning-circle": {
+      "sourcePath": "assets/regular/warning-circle.svg",
+      "sha256": "e48a90760a68659fd3f06dd9187e471aead4877c72e915339071b2c7f7bd714c"
+    },
+    "trash": {
+      "sourcePath": "assets/regular/trash.svg",
+      "sha256": "e6a830c0409f9e101e3695c981eef98427d39fd01f502b9cbd6900930b01f19c"
+    },
+    "wifi-slash": {
+      "sourcePath": "assets/regular/wifi-slash.svg",
+      "sha256": "39ed62ae822a3917ac70239bbaa2144152049783451f4687456aae8f044152fc"
+    },
+    "warning-circle-fill": {
+      "sourcePath": "assets/fill/warning-circle-fill.svg",
+      "sha256": "29199dd3ff20a7fc36380dc366c9004fafa98d979649dc2311c5b1f8fd968dac"
+    },
+    "x-circle": {
+      "sourcePath": "assets/regular/x-circle.svg",
+      "sha256": "cff9cacbd83ab11a01585dc63af07d289479bdb332708b0de2ad4c953f67d223"
+    },
+    "x": {
+      "sourcePath": "assets/regular/x.svg",
+      "sha256": "7397b15e1fa66eaf6ff9b59fe91d483cb5c3bcf75b2fe052097ab6f0593b513a"
+    },
+    "x-circle-fill": {
+      "sourcePath": "assets/fill/x-circle-fill.svg",
+      "sha256": "cee7f5396e855eb535011c0dbaa3ee4a55589aabd589f26690dac496780f8e93"
+    }
+  }
+}

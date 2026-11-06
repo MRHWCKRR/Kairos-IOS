@@ -26,7 +26,7 @@ struct FocusTimerLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Image(systemName: context.state.isRunning ? "timer" : "pause.fill")
+                    KairosIcon(context.state.isRunning ? "timer" : "pause.fill")
                         .foregroundStyle(.tint)
                 }
                 DynamicIslandExpandedRegion(.center) {
@@ -39,7 +39,7 @@ struct FocusTimerLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack {
-                        Label("Kairos", systemImage: "sparkles")
+                        Label("Kairos", sharedIcon: "sparkles")
                         Spacer()
                         Text(context.state.isRunning ? "In progress" : "Paused")
                             .foregroundStyle(.secondary)
@@ -47,13 +47,13 @@ struct FocusTimerLiveActivity: Widget {
                     .font(.caption)
                 }
             } compactLeading: {
-                Image(systemName: "timer")
+                KairosIcon("timer")
             } compactTrailing: {
                 FocusElapsedText(context: context)
                     .monospacedDigit()
                     .font(.caption2)
             } minimal: {
-                Image(systemName: "timer")
+                KairosIcon("timer")
             }
             .widgetURL(URL(string: "kairos://focus"))
         }
@@ -65,8 +65,7 @@ private struct FocusTimerLockScreenView: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: "timer")
-                .font(.title2.weight(.semibold))
+            KairosIcon("timer", size: 22)
                 .frame(width: 42, height: 42)
                 .background(.thinMaterial, in: Circle())
 
@@ -109,3 +108,4 @@ private extension Int {
             : String(format: "%02d:%02d", minutes, seconds)
     }
 }
+

@@ -18,8 +18,7 @@ struct KairosFocusLiveActivity: Widget {
                 ZStack {
                     Circle()
                         .fill(.secondary.opacity(0.14))
-                    Image(systemName: context.state.isRunning ? "timer" : "pause.fill")
-                        .font(.headline.weight(.semibold))
+                    KairosIcon(context.state.isRunning ? "timer" : "pause.fill", size: 17)
                 }
                 .frame(width: 38, height: 38)
 
@@ -45,8 +44,7 @@ struct KairosFocusLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Image(systemName: context.state.isRunning ? "timer" : "pause.fill")
-                        .font(.title3.weight(.semibold))
+                    KairosIcon(context.state.isRunning ? "timer" : "pause.fill", size: 20)
                 }
 
                 DynamicIslandExpandedRegion(.center) {
@@ -65,13 +63,13 @@ struct KairosFocusLiveActivity: Widget {
                         .tracking(0.6)
                 }
             } compactLeading: {
-                Image(systemName: context.state.isRunning ? "timer" : "pause.fill")
+                KairosIcon(context.state.isRunning ? "timer" : "pause.fill")
             } compactTrailing: {
                 Text(timerText(context))
                     .font(.caption2.weight(.semibold))
                     .monospacedDigit()
             } minimal: {
-                Image(systemName: context.state.isRunning ? "timer" : "pause.fill")
+                KairosIcon(context.state.isRunning ? "timer" : "pause.fill")
             }
         }
     }
@@ -100,8 +98,7 @@ struct KairosHomeWidget: Widget {
 
                     Spacer()
 
-                    Image(systemName: "timer")
-                        .font(.title3.weight(.semibold))
+                    KairosIcon("timer", size: 20)
                         .frame(width: 34, height: 34)
                         .background(.thinMaterial, in: Circle())
                 }
@@ -159,3 +156,4 @@ struct KairosWidgetsBundle: WidgetBundle {
         KairosHomeWidget()
     }
 }
+

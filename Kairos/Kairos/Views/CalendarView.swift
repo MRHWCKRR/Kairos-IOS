@@ -107,7 +107,7 @@ struct CalendarView: View {
                 controls
                 if planRepo.isLoading { ProgressView("Loading schedule…").frame(maxWidth: .infinity, maxHeight: .infinity) }
                 else if planRepo.plannerIsUnavailable {
-                    ContentUnavailableView { Label("Schedule unavailable", systemImage: "exclamationmark.triangle") } description: { Text(planRepo.errorMessage ?? "Could not read your planner.") } actions: { Button("Retry") { planRepo.retryLoading() } }
+                    ContentUnavailableView { Label("Schedule unavailable", sharedIcon: "exclamationmark.triangle") } description: { Text(planRepo.errorMessage ?? "Could not read your planner.") } actions: { Button("Retry") { planRepo.retryLoading() } }
                 } else {
                     if let loadError { Text(loadError).font(.caption).foregroundStyle(.red).padding(.horizontal) }
                     if loading { ProgressView().controlSize(.small).padding(4) }
@@ -127,14 +127,14 @@ struct CalendarView: View {
             .onChange(of: scenePhase) { _, phase in if phase != .active { interaction = nil } }
             .onDisappear { interaction = nil }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button("Backlog", systemImage: "tray") { showingBacklog = true } }
+                ToolbarItem(placement: .topBarLeading) { Button("Backlog", sharedIcon: "tray") { showingBacklog = true } }
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button(showingDayDetails ? "Timeline" : "Agenda", systemImage: showingDayDetails ? "clock" : "list.bullet") { showingDayDetails.toggle() }.labelStyle(.iconOnly)
-                    Menu { Toggle("Completed tasks", isOn: $showCompleted); Toggle("Skipped occurrences", isOn: $showSkipped); Toggle("Fixed events", isOn: $showEvents) } label: { Image(systemName: "line.3.horizontal.decrease") }.accessibilityLabel("Schedule filters")
+                    Button(showingDayDetails ? "Timeline" : "Agenda", sharedIcon: showingDayDetails ? "clock" : "list.bullet") { showingDayDetails.toggle() }.labelStyle(.iconOnly)
+                    Menu { Toggle("Completed tasks", isOn: $showCompleted); Toggle("Skipped occurrences", isOn: $showSkipped); Toggle("Fixed events", isOn: $showEvents) } label: { KairosIcon("line.3.horizontal.decrease") }.accessibilityLabel("Schedule filters")
                     Menu {
-                        Button("Task", systemImage: "checkmark.circle") { creatingTask = true }
-                        Button("Fixed event", systemImage: "calendar.badge.plus") { creatingEvent = true }
-                    } label: { Image(systemName: "plus") }.accessibilityLabel("Add to schedule").disabled(planRepo.isLoading || planRepo.plannerIsUnavailable)
+                        Button("Task", sharedIcon: "checkmark.circle") { creatingTask = true }
+                        Button("Fixed event", sharedIcon: "calendar.badge.plus") { creatingEvent = true }
+                    } label: { KairosIcon("plus") }.accessibilityLabel("Add to schedule").disabled(planRepo.isLoading || planRepo.plannerIsUnavailable)
                 }
             }
             .sheet(item: $selectedTask) { TaskDetailView(context: $0).environment(planRepo) }
@@ -155,8 +155,8 @@ struct CalendarView: View {
                 DatePicker("Date", selection: $selectedDate, displayedComponents: .date).labelsHidden()
                 Spacer()
                 Button("Today") { selectedDate = Date() }.font(.subheadline.weight(.medium))
-                Button("Previous", systemImage: "chevron.left") { navigate(-1) }.labelStyle(.iconOnly).frame(minWidth: 34, minHeight: 44)
-                Button("Next", systemImage: "chevron.right") { navigate(1) }.labelStyle(.iconOnly).frame(minWidth: 34, minHeight: 44)
+                Button("Previous", sharedIcon: "chevron.left") { navigate(-1) }.labelStyle(.iconOnly).frame(minWidth: 34, minHeight: 44)
+                Button("Next", sharedIcon: "chevron.right") { navigate(1) }.labelStyle(.iconOnly).frame(minWidth: 34, minHeight: 44)
             }
             Picker("Schedule view", selection: $mode) { ForEach(MobileScheduleView.allCases) { Text($0.rawValue).tag($0) } }.pickerStyle(.segmented)
         }.padding(.horizontal, 16).padding(.bottom, 10)
@@ -258,18 +258,18 @@ struct CalendarView: View {
             if day.count == 0 { Text("Nothing scheduled. Add a task or choose one from your backlog.").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 20) }
             ForEach(day.tasks) { taskRow($0) }
             ForEach(day.occurrences) { occurrence in
-                Button { selectedOccurrence = occurrence } label: { HStack { Image(systemName: "repeat"); Text(occurrence.task.title); Spacer(); Text(occurrence.startTime.map { KairosTimeDisplay.time($0, format: profileRepo.accessibilitySettings?.timeFormat ?? "12") } ?? occurrence.status).font(.caption) }.padding(.vertical, 12) }.buttonStyle(.plain)
+                Button { selectedOccurrence = occurrence } label: { HStack { KairosIcon("repeat"); Text(occurrence.task.title); Spacer(); Text(occurrence.startTime.map { KairosTimeDisplay.time($0, format: profileRepo.accessibilitySettings?.timeFormat ?? "12") } ?? occurrence.status).font(.caption) }.padding(.vertical, 12) }.buttonStyle(.plain)
             }
             ForEach(day.events) { event in
-                Button { selectedEvent = event } label: { HStack { Image(systemName: "calendar"); Text(event.title); Spacer(); Text(displayClock(event.startMin)).font(.caption) }.padding(.vertical, 12) }.buttonStyle(.plain)
+                Button { selectedEvent = event } label: { HStack { KairosIcon("calendar"); Text(event.title); Spacer(); Text(displayClock(event.startMin)).font(.caption) }.padding(.vertical, 12) }.buttonStyle(.plain)
             }
         }
     }
     private func taskRow(_ entry: ScheduleTaskEntry) -> some View {
         HStack(spacing: 8) {
-            Button { complete(entry) } label: { Image(systemName: entry.task.completed ? "checkmark.circle.fill" : "circle").frame(minWidth: 34, minHeight: 44) }.disabled(planRepo.isSaving)
+            Button { complete(entry) } label: { KairosIcon(entry.task.completed ? "checkmark.circle.fill" : "circle").frame(minWidth: 34, minHeight: 44) }.disabled(planRepo.isSaving)
             Button { selectedTask = entry.context } label: { VStack(alignment: .leading, spacing: 4) { Text(entry.task.title).strikethrough(entry.task.completed); Text(entry.boardTitle).font(.caption).foregroundStyle(.secondary) }.frame(maxWidth: .infinity, alignment: .leading) }.buttonStyle(.plain)
-            Button("Schedule", systemImage: "calendar.badge.clock") { scheduleTarget = entry }.labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
+            Button("Schedule", sharedIcon: "calendar.badge.clock") { scheduleTarget = entry }.labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
         }.padding(.vertical, 6)
     }
     private var backlogSheet: some View {
@@ -442,8 +442,9 @@ struct CalendarView: View {
                         Task { let saved = await planRepo.undoTouchEdit(undo); undoingTouch = false; if saved { touchUndo = nil; touchMessage = "Schedule restored" } else { touchMessage = planRepo.errorMessage ?? "Could not restore this schedule." } }
                     }.keyboardShortcut("z", modifiers: .command)
                 }
-                Button("Dismiss", systemImage: "xmark") { pendingTouch = nil; touchUndo = nil; touchMessage = nil }.labelStyle(.iconOnly).frame(minWidth: 34, minHeight: 44)
+                Button("Dismiss", sharedIcon: "xmark") { pendingTouch = nil; touchUndo = nil; touchMessage = nil }.labelStyle(.iconOnly).frame(minWidth: 34, minHeight: 44)
             }.padding(.horizontal, 14).padding(.vertical, 4).background(.bar)
         }
     }
 }
+

@@ -21,7 +21,7 @@ struct PlannerArchiveView: View {
                 }
                 if let error { Text(error).foregroundStyle(.red) }
                 if restoring { ProgressView("Restoring…") }
-                if boards.isEmpty { ContentUnavailableView("Archive is empty", systemImage: "archivebox") }
+                if boards.isEmpty { ContentUnavailableView { Label("Archive is empty", sharedIcon: "archivebox") } }
                 ForEach(boards) { board in
                     Section {
                         if board.archived {
@@ -74,3 +74,4 @@ struct PlannerArchiveView: View {
         }
     }
 }
+

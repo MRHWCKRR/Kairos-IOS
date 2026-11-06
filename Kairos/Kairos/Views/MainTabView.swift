@@ -92,11 +92,15 @@ struct MainTabView: View {
         let selected = selectedTab == tab
         Button { select(tab) } label: {
             VStack(spacing: 3) {
-                Image(systemName: icon).font(.system(size: prominent ? 17 : 15, weight: .semibold)).symbolEffect(.bounce, value: selected && !reduceMotion)
+                KairosIcon(icon, size: prominent ? 17 : 15).phaseAnimator([0.0, 1.0, 0.0], trigger: selected) { content, phase in
+                    content.offset(y: reduceMotion || !selected ? 0 : -3 * phase)
+                        .scaleEffect(x: reduceMotion || !selected ? 1 : 1 + 0.08 * phase,
+                                     y: reduceMotion || !selected ? 1 : 1 - 0.10 * phase)
+                } animation: { _ in .spring(response: 0.22, dampingFraction: 0.55) }
                 Text(title).font(.system(size: 10, weight: .semibold))
             }
             .foregroundStyle(selected ? accent : .secondary)
-            .frame(maxWidth: .infinity).frame(height: 46)
+            .frame(maxWidth: .infinity).frame(minHeight: 46)
             .background { if selected { RoundedRectangle(cornerRadius: 16, style: .continuous).fill(accent.opacity(0.13)) } }
             .overlay { if prominent && selected { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(accent.opacity(0.18), lineWidth: 0.8) } }
         }
@@ -109,3 +113,4 @@ struct MainTabView: View {
 #Preview {
     MainTabView().environment(SessionStore()).environment(StudyPlanRepository()).environment(UserProfileRepository())
 }
+

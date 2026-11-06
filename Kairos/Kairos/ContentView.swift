@@ -214,8 +214,7 @@ final class KairosAmbientAudioController {
 private struct OfflineBanner: View {
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "wifi.slash")
-                .font(.subheadline.weight(.semibold))
+            KairosIcon("wifi.slash", size: 15)
             VStack(alignment: .leading, spacing: 1) {
                 Text("You're offline")
                     .font(.subheadline.weight(.semibold))
@@ -239,4 +238,5 @@ private struct OfflineBanner: View {
 #Preview {
     ContentView().environment(SessionStore())
 }
+
 

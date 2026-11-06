@@ -68,8 +68,7 @@ struct NotificationSettingsView: View {
 
     private var introCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: "bell.badge.fill")
-                .font(.title2)
+            KairosIcon("bell.badge.fill", size: 22)
                 .foregroundStyle(KairosColors.accent)
             Text("Stay in rhythm")
                 .font(.title3.weight(.bold))
@@ -85,7 +84,7 @@ struct NotificationSettingsView: View {
     private var permissionCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("iOS permission", systemImage: "checkmark.shield.fill")
+                Label("iOS permission", sharedIcon: "checkmark.shield.fill")
                     .font(.headline)
                 Spacer()
                 statusBadge
@@ -98,13 +97,13 @@ struct NotificationSettingsView: View {
                         if !granted { showingPermissionAlert = true }
                     }
                 } label: {
-                    Label("Allow Notifications", systemImage: "bell.fill")
+                    Label("Allow Notifications", sharedIcon: "bell.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.glassProminent)
                 .tint(KairosColors.accent)
             } else if notificationManager.authorizationState == .denied {
-                Button("Open iOS Settings", systemImage: "gear") {
+                Button("Open iOS Settings", sharedIcon: "gear") {
                     notificationManager.openSystemSettings()
                 }
                 .buttonStyle(.glass)
@@ -117,7 +116,7 @@ struct NotificationSettingsView: View {
     private var remindersCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("Apple Reminders", systemImage: "checklist")
+                Label("Apple Reminders", sharedIcon: "checklist")
                     .font(.headline)
                 Spacer()
                 Text(reminderPermissionLabel)
@@ -136,22 +135,22 @@ struct NotificationSettingsView: View {
                         if !granted { showingReminderAlert = true }
                     }
                 } label: {
-                    Label("Allow Reminders Access", systemImage: "checklist")
+                    Label("Allow Reminders Access", sharedIcon: "checklist")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.glassProminent)
                 .tint(KairosColors.accent)
             } else if reminderManager.authorizationState == .denied {
-                Button("Open iOS Settings", systemImage: "gear") {
+                Button("Open iOS Settings", sharedIcon: "gear") {
                     openSystemSettings()
                 }
                 .buttonStyle(.glass)
             } else if reminderManager.authorizationState == .authorized {
-                Label("Ready for task export", systemImage: "checkmark.circle.fill")
+                Label("Ready for task export", sharedIcon: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .font(.subheadline.weight(.semibold))
             } else {
-                Label("Reminders access is restricted", systemImage: "lock.fill")
+                Label("Reminders access is restricted", sharedIcon: "lock.fill")
                     .foregroundStyle(.secondary)
                     .font(.subheadline.weight(.semibold))
             }
@@ -238,3 +237,4 @@ struct NotificationSettingsView: View {
             .environment(UserProfileRepository())
     }
 }
+

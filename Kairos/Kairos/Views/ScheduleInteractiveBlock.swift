@@ -32,14 +32,14 @@ struct ScheduleInteractiveBlock: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title).font(.caption.weight(.semibold)).lineLimit(3).strikethrough(completed)
                     Text("\(displayClock(start))–\(displayClock(end))").font(.system(size: 10)).monospacedDigit().lineLimit(1)
-                    if recurring { Image(systemName: "repeat").font(.system(size: 9)) }
+                    if recurring { KairosIcon("repeat", size: 9) }
                 }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(6)
             }
             .buttonStyle(.plain)
             .highPriorityGesture(moveGesture, including: editable && !busy ? .all : .subviews)
             if editable {
                 Button(action: editDetails) {
-                    Image(systemName: "arrow.up.and.down").font(.system(size: 11, weight: .semibold))
+                    KairosIcon("arrow.up.and.down", size: 11)
                         .frame(width: 44).frame(maxHeight: .infinity)
                         .contentShape(Rectangle())
                 }
@@ -109,3 +109,4 @@ struct ScheduleViewportFrame: PreferenceKey {
     nonisolated static let defaultValue: CGRect = .zero
     nonisolated static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
 }
+

@@ -29,7 +29,7 @@ struct AssignmentProgressCard: View {
     }
     private func card(_ value: KairosAssignmentSummary) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(value.isSession == true ? "Assignment session" : "Assignment progress", systemImage: "list.bullet.clipboard").font(.headline)
+            Label(value.isSession == true ? "Assignment session" : "Assignment progress", sharedIcon: "list.bullet.clipboard").font(.headline)
             if value.isSession == true {
                 Button(value.parentTitle) { open(value.parentId) }.font(.subheadline.weight(.semibold))
                 if let number = value.sessionIndex { Text("Session \(number)").font(.caption).foregroundStyle(.secondary) }
@@ -72,3 +72,4 @@ struct AssignmentProgressCard: View {
         return parts.joined(separator: " · ")
     }
 }
+
