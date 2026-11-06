@@ -164,3 +164,32 @@ extension Button where Label == SwiftUI.Label<Text, KairosIcon> {
         self.init(role: role, action: action) { SwiftUI.Label(title, sharedIcon: sharedIcon) }
     }
 }
+
+/// Explicit icon-only toolbar content: custom vector Labels do not receive the
+/// system-symbol toolbar's automatic icon-only sizing on iOS 26.
+struct KairosToolbarButton: View {
+    private let title: LocalizedStringKey
+    private let symbol: String
+    private let action: () -> Void
+
+    init(_ title: LocalizedStringKey, sharedIcon: String, action: @escaping () -> Void) {
+        self.title = title
+        self.symbol = sharedIcon
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Image(KairosIconCatalog.asset(for: symbol))
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 20, height: 20)
+                .accessibilityHidden(true)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .frame(width: 44, height: 44)
+        .accessibilityLabel(Text(title))
+    }
+}

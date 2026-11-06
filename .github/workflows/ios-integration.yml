@@ -35,6 +35,14 @@ jobs:
       - run: swift --version
       - name: Verify shared icon assets and call sites
         run: node Tools/check-icons.cjs
+      - name: Check rendered iOS 26 toolbar bounds
+        run: bash Tools/toolbar-visual-smoke.sh
+      - name: Upload toolbar screenshots and bounds
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-toolbar-regression
+          path: /tmp/kairos-toolbar-artifacts
       - name: Build the existing iOS app without signing
         run: xcodebuild -project Kairos/Kairos.xcodeproj -scheme Kairos -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/kairos-build CODE_SIGNING_ALLOWED=NO ARCHS=arm64 build
       - name: Verify bundled schedule engines
