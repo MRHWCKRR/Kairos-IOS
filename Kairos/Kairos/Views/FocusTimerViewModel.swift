@@ -26,9 +26,7 @@ final class FocusTimerViewModel {
 
     /// Logs the session if it is at least 1 second, then resets the display.
     func stopAndLog() {
-        let seconds = coordinator.stopAndReset()
-        guard seconds >= 1 else { return }
-        Task { await profileRepo.logFocusSession(seconds: seconds) }
+        coordinator.log()
     }
 
     static func formatHMS(_ totalSeconds: Int64) -> String {

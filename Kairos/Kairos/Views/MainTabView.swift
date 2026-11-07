@@ -20,6 +20,9 @@ struct MainTabView: View {
         VStack(spacing: 0) {
             ZStack { tabContent }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if selectedTab != 0, FocusTimerCoordinator.shared.session != nil || FocusTimerCoordinator.shared.notice != nil || FocusTimerCoordinator.shared.errorMessage != nil {
+                FocusSessionControls(allowsGeneralStart: false).padding(14).kairosCard(cornerRadius: 20).padding(.horizontal, 14)
+            }
             HStack(spacing: 0) {
                 premiumTabBar
                 PlannerSearchButton()
@@ -113,4 +116,5 @@ struct MainTabView: View {
 #Preview {
     MainTabView().environment(SessionStore()).environment(StudyPlanRepository()).environment(UserProfileRepository())
 }
+
 

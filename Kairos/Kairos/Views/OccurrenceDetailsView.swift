@@ -37,6 +37,7 @@ struct OccurrenceDetailsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     details
+                    TaskFocusView(taskID: occurrence.seriesId, occurrenceDate: occurrence.occurrenceDate)
                     Picker("Status", selection: $status) {
                         Text("Pending").tag("pending")
                         Text("Completed").tag("completed")
@@ -132,3 +133,4 @@ struct OccurrenceDetailsView: View {
         return KairosScheduleProjection.clock((parts.hour ?? 0) * 60 + (parts.minute ?? 0))
     }
 }
+

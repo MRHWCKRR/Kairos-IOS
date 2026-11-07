@@ -53,10 +53,7 @@ struct DashboardView: View {
     }
 
     private var focusCard: some View {
-        Group { if let focusTimer { VStack(alignment: .leading, spacing: 18) {
-            HStack { Label("FOCUS SESSION", sharedIcon: "timer").font(.caption.weight(.bold)).tracking(1.1).foregroundStyle(accent); Spacer(); Circle().fill(focusTimer.isRunning ? accent : .secondary.opacity(0.45)).frame(width: 7, height: 7) }
-            HStack(alignment: .bottom) { VStack(alignment: .leading, spacing: 4) { Text(FocusTimerViewModel.formatHMS(focusTimer.elapsedSeconds)).font(.system(size: 44, weight: .bold, design: .rounded)).monospacedDigit().tracking(-1.5); Text(focusTimer.isRunning ? "Stay in the zone." : "Ready when you are.").font(.subheadline).foregroundStyle(.secondary) }; Spacer(); HStack(spacing: 10) { Button { if focusTimer.isRunning { focusTimer.pause() } else { focusTimer.start() }; fireFocusHaptic() } label: { KairosIcon(focusTimer.isRunning ? "pause.fill" : "play.fill").frame(width: 50, height: 50) }.foregroundStyle(.white).background(accent, in: Circle()).shadow(color: accent.opacity(0.24), radius: 18, y: 8); if focusTimer.isRunning { Button { focusTimer.stopAndLog(); fireFocusHaptic() } label: { KairosIcon("stop.fill").frame(width: 42, height: 42) }.foregroundStyle(.primary).kairosGlass(cornerRadius: 21) } } }
-        }.padding(20).kairosCard(cornerRadius: 28) } }
+        FocusSessionControls(allowsGeneralStart: true).padding(20).kairosCard(cornerRadius: 28)
     }
 
     private var progressCard: some View {
@@ -69,4 +66,5 @@ struct DashboardView: View {
 }
 
 #Preview { DashboardView().environment(SessionStore()).environment(StudyPlanRepository()).environment(UserProfileRepository()) }
+
 

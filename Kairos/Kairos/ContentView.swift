@@ -26,6 +26,7 @@ struct ContentView: View {
 private struct KairosWorkspaceView: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.scenePhase) private var scenePhase
+    @State private var focusBinding = UUID()
     @State private var reminderRefreshToken = UUID()
     @State private var reminderScope = UUID()
     @State private var planRepo = StudyPlanRepository()
@@ -113,11 +114,17 @@ private struct KairosWorkspaceView: View {
             profileRepo.startListening(userID: uid)
         }
         .onDisappear {
+            FocusTimerCoordinator.shared.detach(binding: focusBinding)
             planRepo.stopListening()
             profileRepo.stopListening()
             ambientAudio.stop()
             Task { await KairosTaskReminderScheduler.cancel(scopeID: reminderScope) }
         }
+        .task(id: planRepo.searchScope) {
+            guard let uid = session.userID else { return }
+            FocusTimerCoordinator.shared.bind(planRepo: planRepo, profileRepo: profileRepo, owner: uid, binding: focusBinding)
+        }
+        .onChange(of: scenePhase) { _, phase in if phase != .active { FocusTimerCoordinator.shared.pause() } }
         .task(id: ambientAudioKey) {
             await ambientAudio.apply(appearance)
         }
@@ -238,5 +245,6 @@ private struct OfflineBanner: View {
 #Preview {
     ContentView().environment(SessionStore())
 }
+
 
 

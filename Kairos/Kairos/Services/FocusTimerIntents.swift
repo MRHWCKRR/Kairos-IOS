@@ -13,11 +13,11 @@ struct OpenKairosIntent: AppIntent {
 struct StartFocusTimerIntent: AppIntent {
     static let title: LocalizedStringResource = "Start Focus Timer"
     static let description = IntentDescription("Start the Kairos focus timer.")
-    static let openAppWhenRun = false
+    static let openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
         await MainActor.run {
-            FocusTimerCoordinator.shared.start()
+            FocusTimerCoordinator.shared.requestGeneralStart()
         }
         return .result()
     }
@@ -38,12 +38,12 @@ struct PauseFocusTimerIntent: AppIntent {
 
 struct StopFocusTimerIntent: AppIntent {
     static let title: LocalizedStringResource = "Stop Focus Timer"
-    static let description = IntentDescription("Stop and reset the Kairos focus timer.")
-    static let openAppWhenRun = false
+    static let description = IntentDescription("Pause the Kairos focus timer and open it to review or log the session.")
+    static let openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
         await MainActor.run {
-            _ = FocusTimerCoordinator.shared.stopAndReset()
+            FocusTimerCoordinator.shared.pause()
         }
         return .result()
     }
