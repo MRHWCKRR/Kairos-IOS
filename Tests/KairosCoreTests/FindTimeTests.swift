@@ -21,9 +21,9 @@ final class FindTimeTests: XCTestCase {
         let task: [String: Any] = ["id": "t", "title": "Work", "estimatedMinutes": 30, "webOnly": ["keep": true]]
         let plan: [String: Any] = ["boards": [["id": "b", "sections": [["id": "s", "tasks": [task]]]]]]
         let settings = KairosPlanningSettings(timezone: "UTC", timeFormat: "24", dailyLimitMinutes: 0, gapMinutes: 0, rescheduleCompleted: false, weeklyAvailability: nil)
-        let review = try KairosFindTime.preview(state: KairosFindTime.state(plan), target: .init(taskId: "t"), recovery: false, settings: settings, ownerID: "u", planID: "p")
+        let review = try KairosFindTime.preview(state: KairosFindTime.state(plan), target: .init(taskId: "t"), recovery: false, settings: settings, ownerID: "u", planID: "p", now: 1794132000000)
         let placement = try XCTUnwrap(review.slots.first)
-        try KairosFindTime.validate(plan: plan, profile: [:], draft: review.draft, placement: placement, review: try XCTUnwrap(review.draft.planningReviewJSON))
+        try KairosFindTime.validate(plan: plan, profile: [:], draft: review.draft, placement: placement, review: try XCTUnwrap(review.draft.planningReviewJSON), now: 1794132000000)
         let applied = try KairosTouchSchedule.apply(plan: plan, draft: review.draft, placement: placement, allowCompleted: false)
         let tasks = try KairosAIProposalEngine.maps(applied.plan["boards"]).flatMap { try KairosAIProposalEngine.maps($0["sections"]) }.flatMap { try KairosAIProposalEngine.maps($0["tasks"]) }
         XCTAssertEqual((tasks[0]["webOnly"] as? [String: Bool])?["keep"], true)

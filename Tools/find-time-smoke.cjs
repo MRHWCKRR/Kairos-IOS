@@ -51,3 +51,10 @@ console.log('Recurring recovery retains logical identity and focus metadata');
 task.schedulingPreference='evening';assert.equal(run({mode:'preview',target:{taskId:'t'},settings}).slots[0].startTime,'17:00');delete task.schedulingPreference;
 
 recurring.recurrence.exceptions['2026-11-02'].override.scheduleLocked=true;assert.throws(()=>run({mode:'preview',state:rs,target:rt,settings,recovery:true}));
+
+assert.throws(()=>run({mode:'validate',now:Date.parse('2026-11-08T10:05:00Z'),target:{taskId:'t'},changes,review,profile}));
+const dstWeek=Object.fromEntries(Array.from({length:7},(_,i)=>[i,i===0?[{start:'01:00',end:'04:00'}]:[]]));
+const dstState={boards:[{id:'b',sections:[{id:'s',tasks:[{id:'dst',estimatedMinutes:120}]}]}]};
+const dst=run({mode:'preview',state:dstState,target:{taskId:'dst'},timezone:'America/New_York',now:Date.parse('2027-03-13T12:00:00Z'),settings:{gapMinutes:0,dailyLimitMinutes:0,weeklyAvailability:dstWeek}});
+assert.ok(!dst.slots.some(slot=>slot.date==='2027-03-14'));
+assert.ok(dst.slots.some(slot=>slot.date==='2027-03-21'));

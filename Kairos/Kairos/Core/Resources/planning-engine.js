@@ -950,11 +950,14 @@ function validReminderMinutes(value) {
     return Number.isInteger(value) && value >= 1 && value <= 10080;
 }
 
+// Reuse immutable formatters within this request context; timezone math is unchanged.
+const nativeFormatters=new Map();
 function localParts(epoch, timeZone) {
-    return Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    if(!nativeFormatters.has(timeZone))nativeFormatters.set(timeZone,new Intl.DateTimeFormat('en-CA', {
         timeZone, year:'numeric', month:'2-digit', day:'2-digit',
         hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23'
-    }).formatToParts(new Date(epoch)).filter(part=>part.type!=='literal').map(part=>[part.type,part.value]));
+    }));
+    return Object.fromEntries(nativeFormatters.get(timeZone).formatToParts(new Date(epoch)).filter(part=>part.type!=='literal').map(part=>[part.type,part.value]));
 }
 function wallEpoch(parts) {
     return Date.UTC(+parts.year,+parts.month-1,+parts.day,+parts.hour,+parts.minute,+parts.second);

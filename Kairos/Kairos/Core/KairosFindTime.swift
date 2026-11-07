@@ -64,9 +64,9 @@ enum KairosFindTime {
         guard let result else { throw KairosTouchSchedule.Failure("Planning could not finish.") }
         return result
     }
-    nonisolated static func preview(state: [String: Any], target: KairosTouchTarget, recovery: Bool, settings: KairosPlanningSettings, ownerID: String, planID: String) throws -> KairosFindTimeReview {
+    nonisolated static func preview(state: [String: Any], target: KairosTouchTarget, recovery: Bool, settings: KairosPlanningSettings, ownerID: String, planID: String, now: Double = Date().timeIntervalSince1970 * 1000) throws -> KairosFindTimeReview {
         let targetMap = try KairosTouchSchedule.object(KairosTouchSchedule.encode(target))
-        let reportJSON = try run(["mode": "preview", "state": state, "timezone": settings.timezone, "target": targetMap, "recovery": recovery, "settings": KairosTouchSchedule.object(KairosTouchSchedule.encode(settings))])
+        let reportJSON = try run(["mode": "preview", "now": now, "state": state, "timezone": settings.timezone, "target": targetMap, "recovery": recovery, "settings": KairosTouchSchedule.object(KairosTouchSchedule.encode(settings))])
         let report = try KairosTouchSchedule.object(reportJSON)
         let slots = (report["slots"] as? [[String: Any]] ?? []).compactMap { slot -> KairosSchedulePlacement? in
             guard let date = slot["date"] as? String, let start = KairosScheduleProjection.minutes(slot["startTime"] as? String), let duration = report["duration"] as? Int else { return nil }
@@ -84,7 +84,7 @@ enum KairosFindTime {
     nonisolated static func changes(target: KairosTouchTarget, placement: KairosSchedulePlacement) -> [String: Any] {
         ["date": placement.date, "startTime": KairosScheduleProjection.clock(placement.start), "endTime": KairosScheduleProjection.clock(placement.end), target.occurrenceDate == nil ? "lastScheduledMinutes" : "durationMinutes": placement.duration]
     }
-    nonisolated static func validate(plan: [String: Any], profile: [String: Any], draft: KairosTouchDraft, placement: KairosSchedulePlacement, review: String) throws {
-        _ = try run(["mode": "validate", "state": state(plan), "profile": ["settings": profile["settings"] ?? [:]], "timezone": draft.timezone, "target": KairosTouchSchedule.object(KairosTouchSchedule.encode(draft.target)), "changes": changes(target: draft.target, placement: placement), "review": KairosTouchSchedule.object(review)])
+    nonisolated static func validate(plan: [String: Any], profile: [String: Any], draft: KairosTouchDraft, placement: KairosSchedulePlacement, review: String, now: Double = Date().timeIntervalSince1970 * 1000) throws {
+        _ = try run(["mode": "validate", "now": now, "state": state(plan), "profile": ["settings": profile["settings"] ?? [:]], "timezone": draft.timezone, "target": KairosTouchSchedule.object(KairosTouchSchedule.encode(draft.target)), "changes": changes(target: draft.target, placement: placement), "review": KairosTouchSchedule.object(review)])
     }
 }
