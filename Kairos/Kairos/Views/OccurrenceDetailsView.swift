@@ -14,6 +14,7 @@ struct OccurrenceDetailsView: View {
     @State private var startTime: Date
     @State private var endTime: Date
     @State private var timed: Bool
+    @State private var showRepeatEditor = false
     @State private var saving = false
     @State private var error: String?
 
@@ -50,6 +51,8 @@ struct OccurrenceDetailsView: View {
                         }
                     }.padding(18).kairosCard(cornerRadius: 22)
                     KairosChecklistEditor(items: $items, allowsCompletion: true)
+                    Button("Edit occurrence or repeat rule") { showRepeatEditor = true }
+                    Text("The repeat editor uses saved values. Save this draft before changing repeat settings.").font(.caption).foregroundStyle(.secondary)
                     if let error { Text(error).font(.footnote).foregroundStyle(.red) }
                     if saving { ProgressView("Saving…") }
                 }
@@ -68,6 +71,7 @@ struct OccurrenceDetailsView: View {
                     Button("Save") { save() }.disabled(saving || planRepo.isSaving)
                 }
             }
+            .sheet(isPresented: $showRepeatEditor) { RecurringTaskEditor(taskID: occurrence.seriesId, occurrenceDate: occurrence.occurrenceDate) }
             .interactiveDismissDisabled()
         }.environment(\.calendar, calendar).environment(\.timeZone, calendar.timeZone)
     }

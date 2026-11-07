@@ -362,6 +362,9 @@ struct TaskCreationSheet: View {
     let target: TaskCreateTarget
 
     var body: some View {
+        if case .task(let sectionID) = target {
+            RecurringTaskCreationView(sectionID: sectionID)
+        } else {
         KairosNameEditor(heading: titleForTarget, saveLabel: "Create", failureMessage: { planRepo.errorMessage }) { value in
             switch target {
             case .board: return await planRepo.addBoard(title: value)
@@ -372,6 +375,7 @@ struct TaskCreationSheet: View {
         }
     }
 
+        }
     private var titleForTarget: String {
         switch target { case .board: return "New board"; case .section: return "New section"; case .task: return "New task"; case .subtask: return "New subtask" }
     }
@@ -411,6 +415,7 @@ struct TaskDetailView: View {
     @State private var linkedTask: TaskDetailContext?
     @State private var reminderHint: String?
     @State private var originalScope: String?
+    @State private var showRepeatEditor = false
     @State private var capturedCalendar: Calendar?
     private var draftCalendar: Calendar { capturedCalendar ?? editorCalendar }
     private var draftTimeZone: TimeZone { capturedCalendar?.timeZone ?? editorTimeZone }
@@ -438,6 +443,11 @@ struct TaskDetailView: View {
                     planningCard
                     KairosChecklistEditor(items: $checklist, allowsCompletion: originalTask?.recurrence?.enabled != true)
                     scheduleCard
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button(task?.recurrence?.enabled == true ? "Edit repeat rule" : "Make recurring") { showRepeatEditor = true }
+                            .disabled(!contextAvailable)
+                        Text("Repeat settings use saved task values. Save other draft changes first.").font(.caption).foregroundStyle(.secondary)
+                    }.padding(18).kairosCard(cornerRadius: 22)
                     AssignmentProgressCard(taskID: context.taskID, open: openLinkedTask)
                     childrenCard
                     if initialized && !contextAvailable { Text("This task moved or became unavailable. Your draft is still here; reopen its current details before saving.").font(.footnote).foregroundStyle(.secondary) }
@@ -459,7 +469,8 @@ struct TaskDetailView: View {
             .sheet(isPresented: $showSubtaskCreator) {
                 TaskCreationSheet(target: .subtask(parentTaskID: context.taskID, sectionID: context.sectionID)).environment(planRepo)
             }
-            .sheet(item: $linkedTask) { TaskDetailView(context: $0) }
+            .sheet(isPresented: $showRepeatEditor) { RecurringTaskEditor(taskID: context.taskID, occurrenceDate: nil) }
+              .sheet(item: $linkedTask) { TaskDetailView(context: $0) }
             .alert("Reminder saved", isPresented: Binding(get: { reminderHint != nil }, set: { if !$0 { reminderHint = nil } })) {
                 Button("Done") { reminderHint = nil; dismiss() }
             } message: { Text(reminderHint ?? "") }
