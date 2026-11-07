@@ -8,7 +8,6 @@ struct DashboardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var onNavigate: ((Int) -> Void)? = nil
     @State private var showingProfile = false
-    @State private var focusTimer: FocusTimerViewModel?
     var isActive = true
 
     private var appearance: KairosAppearanceSettings? { profileRepo.appearanceSettings }
@@ -42,7 +41,6 @@ struct DashboardView: View {
             .sheet(isPresented: $showingProfile) { ProfileView().environment(session).environment(profileRepo) }
         }
         .environment(\.timeZone, calendar.timeZone).environment(\.calendar, calendar)
-        .task { if focusTimer == nil { focusTimer = FocusTimerViewModel(profileRepo: profileRepo) } }
     }
 
     private var hero: some View {

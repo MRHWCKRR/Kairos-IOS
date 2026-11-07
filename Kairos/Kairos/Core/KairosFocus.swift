@@ -148,9 +148,13 @@ enum KairosFocus {
                 return item
             }
         }
-        user["focusLogReceiptFloor"] = raw["focusLogReceiptFloor"]
+        if let floor = raw["focusLogReceiptFloor"] {
+            guard let number = floor as? NSNumber, number.doubleValue.isFinite, number.doubleValue >= 0 else { throw KairosPlannerMerge.Conflict() }
+            user["focusLogReceiptFloor"] = floor
+        }
         if let value = raw["focusHistory"] {
-            guard let history = value as? [String: Any], let sessions = history["sessions"] as? [[String: Any]], sessions.count <= 100 else { throw KairosPlannerMerge.Conflict() }
+            guard let history = value as? [String: Any], let sessions = history["sessions"] as? [[String: Any]], sessions.count <= 100,
+                  Set(sessions.compactMap { $0["id"] as? String }).count == sessions.count else { throw KairosPlannerMerge.Conflict() }
             user["focusHistory"] = ["baselineLongest": history["baselineLongest"] ?? 0, "sessions": sessions.map { pick($0, ["id","planId","endedAt","day","seconds","revision","taskId","title","assignmentTitle","attributed","source","occurrenceDate","occurrenceDisplayDate","removed"]) }]
         }
         if let settings = raw["settings"] as? [String: Any], let profile = settings["profile"] as? [String: Any], let timezone = profile["timezone"] as? String {

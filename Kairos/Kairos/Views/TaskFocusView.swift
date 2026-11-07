@@ -26,7 +26,7 @@ struct FocusSessionControls: View {
                         }
                     }
                     if timer.hasPendingLog { Text(timer.expiredRequest ? "This request is too old to replay. Review your focus totals or web history before clearing it." : "Your exact log request is retained until the save is confirmed.").font(.caption).foregroundStyle(.secondary) }
-                    else { Text(timer.isRunning ? "Leaving the foreground pauses and saves a checkpoint." : "Paused. Resume when you are ready.").font(.caption).foregroundStyle(.secondary) }
+                    else { Text(timer.isRunning ? "The timer keeps elapsed time in the background. Relaunch recovery pauses at the last saved checkpoint." : "Paused. Resume when you are ready.").font(.caption).foregroundStyle(.secondary) }
                 } else if allowsGeneralStart {
                     Text("Focus session").font(.headline)
                     Button("Start general focus") { timer.start() }.buttonStyle(.borderedProminent).disabled(!timer.canStart)

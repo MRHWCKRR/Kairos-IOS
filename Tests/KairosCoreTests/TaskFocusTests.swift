@@ -38,6 +38,21 @@ final class TaskFocusTests: XCTestCase {
     func testMalformedReceiptStateCannotLoseRetryProtection() throws {
         let entry = KairosFocusLog(id: "f", ownerId: "one", planId: nil, createdAt: now - 1000, endedAt: now, seconds: 1, target: nil)
         XCTAssertThrowsError(try KairosFocus.apply(user: ["focusLogReceipts": "invalid"], plan: nil, entry: entry, now: now))
+        XCTAssertThrowsError(try KairosFocus.apply(user: ["focusLogReceiptFloor": -1], plan: nil, entry: entry, now: now))
+    }
+    func testRetainedReceiptAndHistoryNestedMetadataStayRaw() throws {
+        let source = plan(), target = try XCTUnwrap(KairosFocus.target(plan: source, taskID: "t").0)
+        let first = KairosFocusLog(id: "first", ownerId: "one", planId: "p", createdAt: now - 60000, endedAt: now, seconds: 60, target: target)
+        var user = try XCTUnwrap(KairosFocus.apply(user: [:], plan: source, entry: first, now: now).userPatch)
+        var receipts = user["focusLogReceipts"] as! [[String: Any]], result = receipts[0]["result"] as! [String: Any], task = result["task"] as! [String: Any]
+        task["extra"] = Date(); result["task"] = task; result["extra"] = Date(); receipts[0]["result"] = result; user["focusLogReceipts"] = receipts
+        var history = user["focusHistory"] as! [String: Any], rows = history["sessions"] as! [[String: Any]]
+        rows[0]["extra"] = Date(); history["sessions"] = rows; user["focusHistory"] = history
+        let second = KairosFocusLog(id: "second", ownerId: "one", planId: "p", createdAt: now - 60000, endedAt: now, seconds: 60, target: target)
+        let updated = try XCTUnwrap(KairosFocus.apply(user: user, plan: source, entry: second, now: now).userPatch)
+        let savedReceipts = updated["focusLogReceipts"] as! [[String: Any]], savedResult = savedReceipts[0]["result"] as! [String: Any]
+        XCTAssertNotNil(savedResult["extra"]); XCTAssertNotNil((savedResult["task"] as! [String: Any])["extra"])
+        XCTAssertNotNil(((updated["focusHistory"] as! [String: Any])["sessions"] as! [[String: Any]])[0]["extra"])
     }
     func testOccurrenceChecklistMetadataDoesNotEnterFocusProjection() throws {
         let source: [String: Any] = ["userID": "one", "boards": [["id": "b", "sections": [["id": "s", "tasks": [["id": "r", "title": "Read", "recurrence": ["enabled": true, "frequency": "daily", "startDate": "2026-11-01", "exceptions": ["2026-11-07": ["override": ["checklist": [["id": "c", "title": "Read", "completed": true, "custom": Date()]]]]]]]]]]]]]

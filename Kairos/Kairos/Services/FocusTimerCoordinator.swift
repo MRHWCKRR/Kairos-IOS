@@ -20,19 +20,20 @@ final class FocusTimerCoordinator {
     private var liveActivity: Activity<FocusTimerAttributes>?
     private var recoveryBlocked = false
     private var requestedStartOwner: String?
+    private var foreground = false
     private let store: KairosFocusRecoveryStore
     var isRunning: Bool { session?.startedAt != nil }
     var hasPendingLog: Bool { session?.pending != nil }
-    var canStart: Bool { !recoveryBlocked && planRepo?.focusIdentity?.owner == owner && owner != nil }
+    var canStart: Bool { foreground && !recoveryBlocked && planRepo?.focusIdentity?.owner == owner && owner != nil }
     private var now: Double { Date().timeIntervalSince1970 * 1000 }
     func belongs(to uid: String?) -> Bool { uid != nil && uid == owner && Auth.auth().currentUser?.uid == uid }
-    func clearFeedback() { notice = nil; if session == nil { errorMessage = nil } }
+    func clearFeedback() { notice = nil; if session == nil && !recoveryBlocked { errorMessage = nil } }
 
     private init() {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? FileManager.default.temporaryDirectory
         store = .init(directory: base.appendingPathComponent("KairosFocusRecovery", isDirectory: true))
     }
-    func bind(planRepo: StudyPlanRepository, profileRepo: UserProfileRepository, owner: String, binding: UUID) {
+    func bind(planRepo: StudyPlanRepository, profileRepo: UserProfileRepository, owner: String, binding: UUID, active: Bool) {
         if self.owner != owner {
             pause()
             self.owner = owner; session = nil; elapsedSeconds = 0; errorMessage = nil; notice = nil
@@ -47,9 +48,15 @@ final class FocusTimerCoordinator {
                 }
             } catch { recoveryBlocked = true; errorMessage = "Focus recovery could not be read safely. Your saved record is retained. Restart Kairos to retry." }
         }
-        self.binding = binding; self.planRepo = planRepo; self.profileRepo = profileRepo
+        self.binding = binding; self.planRepo = planRepo; self.profileRepo = profileRepo; foreground = active
         if let session, let identity = planRepo.focusIdentity, session.planId != identity.plan { pause(); errorMessage = "Open this session’s original planner before resuming or logging." }
-        if requestedStartOwner == owner, planRepo.focusIdentity != nil { requestedStartOwner = nil; start() }
+        if requestedStartOwner == owner, canStart { requestedStartOwner = nil; start() }
+    }
+    func sceneChanged(active: Bool, binding: UUID) {
+        guard self.binding == binding else { return }
+        foreground = active
+        if let session, isRunning { _ = persist(session.checkpoint(now: now, running: true)); Task { await updateActivity() } }
+        else if requestedStartOwner == owner, canStart { requestedStartOwner = nil; start() }
     }
     func requestGeneralStart() {
         KairosFirebase.configure()
@@ -57,17 +64,18 @@ final class FocusTimerCoordinator {
         requestedStartOwner = user.uid
         if canStart { requestedStartOwner = nil; start() }
     }
+    func requestPause() { requestedStartOwner = nil; pause() }
     func accountChanged(to uid: String?) {
         guard owner != uid else { return }
         pause(); endActivity(); endStaleActivities()
         if let requestedStartOwner, requestedStartOwner != uid { self.requestedStartOwner = nil }
-        owner = nil; binding = nil; session = nil; elapsedSeconds = 0
+        owner = nil; binding = nil; session = nil; elapsedSeconds = 0; foreground = false
         planRepo = nil; profileRepo = nil; isSaving = false; notice = nil; errorMessage = nil
     }
     func detach(binding: UUID) {
         guard self.binding == binding else { return }
         pause(); endActivity(); endStaleActivities(); session = nil; elapsedSeconds = 0; owner = nil
-        self.binding = nil; planRepo = nil; profileRepo = nil; errorMessage = nil; notice = nil
+        self.binding = nil; planRepo = nil; profileRepo = nil; errorMessage = nil; notice = nil; foreground = false
     }
     @discardableResult private func persist(_ value: KairosFocusSession) -> Bool {
         do { try store.write(value); session = value; elapsedSeconds = value.accumulatedMs / 1000; return true }
@@ -90,7 +98,8 @@ final class FocusTimerCoordinator {
             guard current.planId == identity.plan, target == nil || current.target == target else { errorMessage = "Log or discard the current session before starting a different task."; return }
             guard !isRunning else { return }
             var copy = current; copy.startedAt = now; copy.lastSeenAt = now
-            guard copy.accumulatedMs < 86_400_000, persist(copy) else { return }
+            guard copy.accumulatedMs < 86_400_000 else { errorMessage = "The 24-hour session limit is reached. Log this session before starting another."; return }
+            guard persist(copy) else { return }
         } else {
             let time = now
             let value = KairosFocusSession(id: "focus-\(UUID().uuidString)", ownerId: owner, planId: identity.plan, createdAt: time, startedAt: time, lastSeenAt: time, target: target)

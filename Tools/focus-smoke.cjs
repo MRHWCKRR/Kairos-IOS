@@ -19,4 +19,11 @@ assert.equal(logged.planPatch.boards[0].sections[0].tasks[1].recurrence.exceptio
 assert.equal(logged.planPatch.boards[0].sections[0].tasks[1].focusLoggedSeconds,undefined);
 const moved=structuredClone(plan);moved.boards[0].id='new';const fallback=call({operation:'log',user,plan:moved,entry,now});assert.equal(fallback.result.attributed,false);assert.equal(fallback.planPatch,null);
 const report=call({operation:'breakdown',plan:{...plan,...logged.planPatch}});assert.equal(report.totalSeconds,60);assert.equal(report.tasks[1].occurrences[0].occurrenceDate,'2026-11-06');
-console.log('Focus: task/occurrence attribution, timezone day, exact retry, stale fallback and lifetime breakdown passed');
+const general=call({operation:'log',user:{},plan:null,entry:{...entry,id:'general',planId:null,target:null},now});assert.equal(general.result.attributed,false);assert.equal(general.userPatch.focusData.totalSeconds,60);
+let retained={},saved=plan;
+for(let i=0;i<105;i++){const r=call({operation:'log',user:retained,plan:saved,entry:{...entry,id:'log'+i,seconds:1,createdAt:now-1000+i},now});retained={...retained,...r.userPatch};saved={...saved,...r.planPatch};}
+assert.ok(retained.focusLogReceipts.length<=100);assert.ok(retained.focusHistory.sessions.length<=100);
+assert.throws(()=>call({operation:'log',user:retained,plan:saved,entry:{...entry,id:'log0',seconds:1,createdAt:now-1000},now}),/old|reconcile/);
+const assignment=structuredClone(plan);assignment.boards[0].sections[0].tasks=[{id:'a',title:'Essay',focusLoggedSeconds:30},{id:'session',title:'Draft',assignmentId:'a',focusLoggedSeconds:60,estimatedMinutes:25},{id:'archived',assignmentId:'a',title:'Notes',archived:true,focusLoggedSeconds:90}];
+const totals=call({operation:'breakdown',plan:assignment});assert.equal(totals.totalSeconds,180);assert.equal(totals.assignments[0].loggedSeconds,180);assert.equal(totals.boards[0].loggedSeconds,180);
+console.log('Focus: attribution, recurrence, timezone, retries/expiry, bounded history and unduplicated assignment totals passed');

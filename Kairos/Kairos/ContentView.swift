@@ -122,9 +122,9 @@ private struct KairosWorkspaceView: View {
         }
         .task(id: planRepo.searchScope) {
             guard let uid = session.userID else { return }
-            FocusTimerCoordinator.shared.bind(planRepo: planRepo, profileRepo: profileRepo, owner: uid, binding: focusBinding)
+            FocusTimerCoordinator.shared.bind(planRepo: planRepo, profileRepo: profileRepo, owner: uid, binding: focusBinding, active: scenePhase == .active)
         }
-        .onChange(of: scenePhase) { _, phase in if phase != .active { FocusTimerCoordinator.shared.pause() } }
+        .onChange(of: scenePhase) { _, phase in FocusTimerCoordinator.shared.sceneChanged(active: phase == .active, binding: focusBinding) }
         .task(id: ambientAudioKey) {
             await ambientAudio.apply(appearance)
         }
