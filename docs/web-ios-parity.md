@@ -20,6 +20,10 @@ Settings > Accessibility now edits timezone, 12/24-hour display, daily task work
 
 Task details now edit reminder timing, AI scheduling lock and preferred time using the shared web fields. Assignment/session links show web-compatible progress, remaining estimates, deadlines and readiness, with navigation between linked tasks. Saves retain drafts and reject conflicting edits, archived targets and moved tasks. See [task-editor-parity.md](task-editor-parity.md).
 
+## Recurring authoring follow-up (7 November 2026)
+
+New task > Repeat and task/occurrence details > Edit repeat now reach native rule authoring. The editor previews up to four affected dates before Apply, defaults to a single occurrence when opened from one, and preserves historical, individually moved and progress-bearing occurrences across splits. No destructive series removal is exposed. See [recurring-authoring.md](recurring-authoring.md).
+
 ## Verified native equivalents already present
 
 - Task/board/section creation; task notes, priority, estimates, checklists, scheduled times and deadlines; native subtasks.
@@ -34,7 +38,7 @@ Task details now edit reminder timing, AI scheduling lock and preferred time usi
 | Priority | Capability gap | Evidence / implementation scope |
 | --- | --- | --- |
 | 1 | Remaining task properties and assignment authoring | Web `task-detail-pane.js`, `task-actions.js`; native still lacks assignment/session creation, color/deadline-impact controls and move/reorder/duplicate/multiselect/bulk. Assignment/session progress is now readable; native parentTaskID subtasks remain distinct from web assignmentId sessions. |
-| 1 | Recurring rule creation/editing | Web `schedule-recurrence-ui.js`, `schedule-inspector.js`; native supports occurrence edits but not authoring rules or this-and-future/entire-series scopes. Requires split/ledger preservation tests. |
+| 2 | Remaining recurring workflows | Native now authors daily/weekly/monthly/yearly/custom rules and reviews occurrence/future/series edits. Destructive scoped deletion and disabling existing series remain separate follow-ups. |
 | 1 | Task-linked focus, recovery and reporting | Web `focus-model.js`, `focus-store.js`, `focus-history-model.js`, `manual-focus-model.js`, `focus-breakdown-model.js`, `docs/task-focus.md`; native timer logs overall totals only, with no task/occurrence attribution, durable pending logs, corrections/manual entries or lifetime breakdown. Must reuse atomic receipt/history semantics before exposing these writes. |
 | 1 | Planning hub / schedule AI | Web `planning-hub.js`, `schedule-ai.js`, `schedule-day-change-ui.js`; native lacks deadline/assignment/session/combined/conflict/review workflows, Plan schedule and My day changed proposals. Basic chat plan creation is distinct. |
 | 1 | Find a time / complete backlog | Web `schedule-find-time.js`, `schedule-overdue.js`; native backlog/manual sheet lacks suggested slots, elapsed-today recovery and full recurring/deadline backlog. |

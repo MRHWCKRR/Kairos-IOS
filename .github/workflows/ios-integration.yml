@@ -26,6 +26,8 @@ jobs:
         run: node Tools/planning-settings-smoke.cjs
       - name: Check assignment progress
         run: node Tools/assignment-progress-smoke.cjs
+      - name: Check recurring authoring
+        run: node Tools/recurring-edit-smoke.cjs
       - run: swift test
   app-build:
     runs-on: macos-latest

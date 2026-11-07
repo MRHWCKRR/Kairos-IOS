@@ -280,6 +280,56 @@ final class StudyPlanRepository {
         return result
     }
 
+    func recurringEditorBaseline(taskID: String) throws -> KairosSeriesBaseline {
+        guard searchScope != nil else { throw KairosPlannerMerge.Conflict() }
+        return try KairosRecurringEdit.capture(rawPlan, taskID: taskID)
+    }
+
+    func saveRecurringEdit(baseline: KairosSeriesBaseline, request: KairosRecurringEditRequest, scope: String) async -> Bool {
+        let newID = "task-\(UUID().uuidString)"
+        return await mutateRecurring(scope: scope) { data, allowCompleted in
+            try KairosRecurringEdit.apply(data, baseline: baseline, request: request, newTaskID: newID, allowCompleted: allowCompleted)
+        }
+    }
+
+    func createRecurringTask(sectionID: String, title: String, rule: KairosRepeatRule, scope: String, startTime: String? = nil, endTime: String? = nil) async -> Bool {
+        let newID = "task-\(UUID().uuidString)"
+        return await mutateRecurring(scope: scope) { data, _ in
+            try KairosRecurringEdit.create(data, sectionID: sectionID, taskID: newID, title: title, rule: rule, startTime: startTime, endTime: endTime)
+        }
+    }
+
+    private func mutateRecurring(scope: String, transform: @escaping @Sendable ([String: Any], Bool) throws -> [String: Any]) async -> Bool {
+        guard !isSaving, scope == searchScope, let user = Auth.auth().currentUser, user.isEmailVerified else {
+            errorMessage = "Your planner changed. Reopen this editor before saving."; return false
+        }
+        let uid = user.uid, token = generation
+        let reference = db.collection("study_plans").document(currentPlan?.id ?? uid), userReference = db.collection("users").document(uid)
+        isSaving = true
+        defer { if generation == token { isSaving = false } }
+        do {
+            _ = try await db.runTransaction { transaction, pointer in
+                do {
+                    guard let active = Auth.auth().currentUser, active.uid == uid, active.isEmailVerified else { throw CancellationError() }
+                    let snapshot = try transaction.getDocument(reference)
+                    let profile = try transaction.getDocument(userReference).data() ?? [:]
+                    let settings = profile["settings"] as? [String: Any]
+                    let allowCompleted = (settings?["planning"] as? [String: Any])?["rescheduleCompleted"] as? Bool == true
+                    guard let data = snapshot.data(), data["userID"] as? String == uid else { throw KairosPlannerMerge.Conflict() }
+                    _ = try Self.normalizedPlanner(data)
+                    let updated = try transform(data, allowCompleted)
+                    transaction.updateData(["boards": updated["boards"] ?? []], forDocument: reference)
+                    return true
+                } catch { pointer?.pointee = error as NSError; return nil }
+            }
+            guard token == generation, scope == searchScope else { return false }
+            errorMessage = nil; return true
+        } catch {
+            guard token == generation else { return false }
+            errorMessage = error.localizedDescription; return false
+        }
+    }
+
     // MARK: - Recurring occurrences
     func beginTouchEdit(target: KairosTouchTarget, timezone: String, allowCompleted: Bool) throws -> KairosTouchDraft {
         guard hasLoadedSnapshot, !isLoading, !isSaving, let user = Auth.auth().currentUser, user.isEmailVerified, user.uid == listeningUserID, let planID = currentPlan?.id else { throw KairosTouchSchedule.Failure("Wait for your verified account’s planner to load.") }

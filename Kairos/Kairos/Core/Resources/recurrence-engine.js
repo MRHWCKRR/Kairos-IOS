@@ -229,3 +229,89 @@ function kairosOccurrenceRequest(json) {
     }
     return JSON.stringify([...dates].sort().map(key=>projectOccurrence(task,rule,key,day)).filter(item=>item.displayDate===day&&item.status!=='deleted'));
 }
+
+// Shared web applyRecurringEdit; native review adapter follows.
+function applyRecurringEdit(task,date,{scope,changes={},recurrence,newTaskId='preview-series'}={}){
+ if(scope!=='occurrence'&&Object.hasOwn(changes,'durationMinutes')&&!(Object.hasOwn(changes,'startTime')?changes.startTime:task.startTime))changes={...changes,estimatedMinutes:changes.durationMinutes};
+ if(scope==='occurrence')return [applyOccurrenceOverride(task,date,changes)];
+ if(scope==='future'){const split=splitRecurringSeries(task,date,{...changes,recurrence},newTaskId,{preserveMoved:true});
+  const details=Object.fromEntries(Object.entries(changes).filter(([key])=>!['date','startTime','endTime','durationMinutes','recurrence'].includes(key)));
+  for(const [key,exception] of Object.entries(task.recurrence.exceptions||{}))if(key>=date&&preserveOccurrenceOnSeriesEdit(exception)){const old=projectStoredOccurrence(task,key);split.originalTask=applyOccurrenceOverride(split.originalTask,key,details);if(old){const kept=split.originalTask.recurrence.exceptions[key];kept.override={...kept.override,date:old.displayDate,startTime:old.startTime,endTime:old.endTime,durationMinutes:old.durationMinutes};}}
+  return [split.originalTask,...(split.newTask?[split.newTask]:[])]}
+ if(scope!=='series')throw Error('Choose an edit scope.');
+ const next={...structuredClone(task),...structuredClone(changes),recurrence:normalizeRecurrence(recurrence||task.recurrence,task.recurrence.startDate)};
+ next.recurrence.exceptions=structuredClone(task.recurrence.exceptions||{});
+ // A series edit must not change a placement the user adjusted individually.
+ for(const [key,exception] of Object.entries(next.recurrence.exceptions))if(preserveOccurrenceOnSeriesEdit(exception)){
+  const old=projectStoredOccurrence(task,key);if(old)exception.override={...exception.override,date:old.displayDate,startTime:old.startTime,endTime:old.endTime,durationMinutes:old.durationMinutes};
+ }
+ return [next];
+}
+
+// Protect pending occurrence progress as well as the web's moved/resolved dates.
+function nativeProtectedTask(source,scope,selectedDay){
+ const task=structuredClone(source);
+ for(const [day,e] of Object.entries(task.recurrence?.exceptions||{})){
+  if(scope==='occurrence'&&day!==selectedDay)continue;
+  if(!validDateKey(day)||!e||typeof e!=='object'||Array.isArray(e))throw Error('Invalid occurrence history');
+  if((Object.hasOwn(e.override||{},'checklist')||Object.hasOwn(e,'remainingMinutes')||Number(e.focusLoggedSeconds)>0)&&!hasOccurrenceScheduleOverride(e)){
+   const old=projectStoredOccurrence(task,day);if(!old)throw Error('Cannot preserve occurrence progress');
+   e.override={...e.override,date:old.displayDate,startTime:old.startTime,endTime:old.endTime,durationMinutes:old.durationMinutes};
+  }
+ }
+ return task;
+}
+function nativeRule(source){
+ assertRecurrenceInput(source);
+ if(!validDateKey(source.startDate)||Number(source.startDate.slice(0,4))<1900||Number(source.startDate.slice(0,4))>2200||source.interval>999||source.count>10000)throw Error('Repeat rule exceeds native limits');
+ if(source.frequency==='weekly'&&(!source.weekdays?.length))throw Error('Choose at least one weekday');
+ const rule=normalizeRecurrence(source,source.startDate);
+ if(!validateRecurrence(rule))throw Error('Review the repeat rule and end date');
+ return rule;
+}
+function kairosRecurringEditRequest(json){
+ const r=JSON.parse(json),source=r.task||{},changes=r.changes||{},keys=Object.keys(changes);
+ if(r.scope==='seed'){
+  const rule=normalizeRecurrence(source,source.date||r.day),occurrence=r.day?projectStoredOccurrence(source,r.day):null;
+  return JSON.stringify({rule,...(occurrence?{occurrence}: {})});
+ }
+ if(!['create','occurrence','future','series'].includes(r.scope)||!validDateKey(r.day))throw Error('Choose an edit scope and date');
+ if(keys.some(k=>!['title','date','startTime','endTime'].includes(k)))throw Error('Unsupported series edit');
+ if(Object.hasOwn(changes,'title')&&(typeof changes.title!=='string'||!changes.title.trim()||changes.title.length>180))throw Error('Enter a task title of 1–180 characters');
+ if(changes.date!=null&&!validDateKey(changes.date))throw Error('Invalid schedule date');
+ const start=Object.hasOwn(changes,'startTime')?changes.startTime:source.startTime,end=Object.hasOwn(changes,'endTime')?changes.endTime:source.endTime;
+ if((start!=null||end!=null)&&!(parseMinutes(start)!==null&&parseMinutes(end)!==null&&parseMinutes(end)>parseMinutes(start)))throw Error('End time must be later than start time on the same day');
+ if(source.scheduleLocked===true)throw Error('Unlock this task’s schedule in task details first');
+ let task=nativeProtectedTask(source,r.scope,r.day),rule=r.scope==='occurrence'?null:nativeRule(r.rule);
+ if(task.recurrence?.enabled===true){
+  assertRecurrenceInput(task.recurrence);
+  const oldRule=normalizeRecurrence(task,task.date||r.day),retired=oldRule.endType==='date'&&oldRule.endDate<oldRule.startDate;
+  if(!validateRecurrence(oldRule)&&!(retired&&validateRecurrence({...oldRule,endType:'never',endDate:null})))throw Error('Review the saved repeat rule');
+  for(const e of Object.values(oldRule.exceptions))if(e.status!=null&&!['pending','completed','skipped','deleted'].includes(e.status))throw Error('Unsupported occurrence status');
+  if(Object.keys(task.recurrence.exceptions||{}).length>10000)throw Error('Too much occurrence history');
+  if(r.scope!=='series'&&(!projectStoredOccurrence(task,r.day)||!generateTaskOccurrences(task,r.day,r.day).some(o=>o.occurrenceDate===r.day&&o.status!=='deleted')))throw Error('The selected logical occurrence no longer exists');
+ }else if(r.scope!=='create')throw Error('This task is no longer recurring');
+ let next;
+ if(r.scope==='create'){
+  if(task.recurrence?.enabled)throw Error('This task is already recurring');
+  if(task.completed||task.parentTaskID||task.assignmentId||task.sessionOrder||task.sessionIndex!=null)throw Error('Only an unfinished standalone task can become recurring');
+  next=[{...task,...changes,completed:false,date:rule.startDate,recurrence:rule}];
+ }else next=applyRecurringEdit(task,r.day,{scope:r.scope,changes,recurrence:rule,newTaskId:r.newTaskID});
+ if(r.allowCompleted!==true){
+  for(const [day,e] of Object.entries(task.recurrence?.exceptions||{}))if(e.status==='completed'){
+   const old=projectStoredOccurrence(task,day),current=projectStoredOccurrence(next[0],day);
+   const placement=o=>o?[o.displayDate,o.startTime,o.endTime,o.durationMinutes]:null;
+   if(JSON.stringify(placement(old))!==JSON.stringify(placement(current)))throw Error('Completed schedules are locked. Enable rescheduling completed tasks in Accessibility first.');
+  }
+ }
+ const anchor=r.scope==='series'?task.recurrence.startDate:r.day;
+ if(!validDateKey(anchor)||Number(anchor.slice(0,4))<1900||Number(anchor.slice(0,4))>2200)throw Error('Date exceeds native limits');
+ const sample=tasks=>{
+  const from=r.scope==='series'?tasks.map(t=>t.recurrence?.startDate).filter(validDateKey).sort()[0]||anchor:anchor;
+  const horizon=new Date(from+'T12:00:00');horizon.setFullYear(horizon.getFullYear()+5);const until=dateKey(horizon);
+  return tasks.flatMap(t=>generateTaskOccurrences(t,from,until)).filter(o=>!['deleted','skipped'].includes(o.status)&&(r.scope!=='occurrence'||o.occurrenceDate===r.day)).sort((a,b)=>a.displayDate.localeCompare(b.displayDate)||a.occurrenceDate.localeCompare(b.occurrenceDate)).slice(0,4).map(o=>({date:o.displayDate,startTime:o.startTime,endTime:o.endTime}));
+ };
+ const preserved=r.scope==='occurrence'?0:Object.entries(task.recurrence?.exceptions||{}).filter(([k,e])=>preserveOccurrenceOnSeriesEdit(e)&&(r.scope!=='future'||k>=r.day)).length;
+ const preview={description:r.scope==='create'?'Create a recurring series.':r.scope==='occurrence'?`Only the occurrence originally dated ${r.day}. The repeat rule stays unchanged.`:r.scope==='future'?`Logical dates from ${r.day} onward. Earlier dates stay unchanged.`:'Every logical date in this series, including earlier dates.',before:task.recurrence?.enabled?sample([task]):[],after:sample(next),preserved};
+ return JSON.stringify(r.preview?{preview}:{tasks:next,preview});
+}
