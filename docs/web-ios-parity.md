@@ -28,6 +28,10 @@ New task > Repeat and task/occurrence details > Edit repeat now reach native rul
 
 Task details and dated recurring occurrences now start a shared native focus session. Account-scoped recovery retains checkpoints and immutable pending requests. Logging uses shared web receipt/history semantics and updates the exact task or logical occurrence ledger with account totals in one transaction. Statistics adds a lifetime current-planner breakdown by board, assignment and task with estimate comparisons. Corrections, manual entries, explicit completion and remaining-work check-ins remain separate follow-ups. See [task-linked-focus.md](task-linked-focus.md).
 
+## Find a time follow-up (8 November 2026)
+
+Schedule > Backlog now reaches web-compatible slot suggestions with preview, guarded Apply/exact retry and Undo. Backlog includes recurring and elapsed-today work; suggestions respect saved availability, conflicts, gaps, deadlines, locks and assignment daily limits. See [find-time-planning.md](find-time-planning.md).
+
 ## Verified native equivalents already present
 
 - Task/board/section creation; task notes, priority, estimates, checklists, scheduled times and deadlines; native subtasks.
@@ -45,7 +49,7 @@ Task details and dated recurring occurrences now start a shared native focus ses
 | 2 | Remaining recurring workflows | Native now authors daily/weekly/monthly/yearly/custom rules and reviews occurrence/future/series edits. Destructive scoped deletion and disabling existing series remain separate follow-ups. |
 | 2 | Remaining focus workflows | Native supports attribution, recovery, exact retries and lifetime reporting using web-compatible ledgers/history. Remaining work: recent-history corrections/removal, manual entries, explicit Log and complete, and remaining-work check-ins. |
 | 1 | Planning hub / schedule AI | Web `planning-hub.js`, `schedule-ai.js`, `schedule-day-change-ui.js`; native lacks deadline/assignment/session/combined/conflict/review workflows, Plan schedule and My day changed proposals. Basic chat plan creation is distinct. |
-| 1 | Find a time / complete backlog | Web `schedule-find-time.js`, `schedule-overdue.js`; native backlog/manual sheet lacks suggested slots, elapsed-today recovery and full recurring/deadline backlog. |
+| Done | Find a time / complete backlog | Native backlog now includes suggestions, overdue/elapsed-today recovery and recurring logical dates, with reviewed Apply and Undo. |
 | 1 | Calendar import / conflict repair | Web `calendar-import.js`, `calendar-conflict-review.js`; native renders imported read-only events but has no file/feed/source manager or reviewed conflict repair. |
 | 1 | Account data export / deletion | Web account export/deletion in `app.js`; native lacks account privacy actions. Requires verified reauthentication and coordinated user/planner deletion, separate from reversible UI work. |
 | 2 | AI action/context completeness | Web `ai-action-schema.js`, `ai-workspace.js`; missing plan_* workflows, relocation/archive coverage, advanced event args, confirmed-target follow-ups, AI Undo, memory editing/summary generation/sibling summaries and native continuation of web-pending batches. |
@@ -61,4 +65,5 @@ Task details and dated recurring occurrences now start a shared native focus ses
 Node Today smoke checks run the real vendored model and engines: missed schedules/deadlines, event order, historical/moved occurrence identity, skipped/completed exclusions, duplicates and no input writes. Swift tests exercise the native Today bridge and board mutation guards/parent-first archive behavior. CI also runs the existing core suite in UTC, Australia/Brisbane and America/New_York, builds the iOS app/widget, and verifies bundled engines. Native sheet/menu/touch interaction remains a separate manual simulator/device check.
 
 This batch adds no cloud listeners, collection migrations, destructive removal, billing changes or focus-ledger writes.
+
 

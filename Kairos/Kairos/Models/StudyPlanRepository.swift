@@ -376,6 +376,30 @@ final class StudyPlanRepository {
 
 
     // MARK: - Recurring occurrences
+    func planningBacklog(timezone: String) async throws -> [KairosPlanningRow] {
+        guard let scope = searchScope else { throw KairosPlannerSearch.Unavailable() }
+        let revision = plannerRevision
+        let input = try KairosTouchSchedule.json(["mode": "backlog", "state": planningState(), "timezone": timezone])
+        let rows = try await Task.detached {
+            let result = try KairosFindTime.run(KairosTouchSchedule.object(input))
+            return try JSONDecoder().decode([KairosPlanningRow].self, from: Data(result.utf8))
+        }.value
+        guard searchScope == scope, plannerRevision == revision else { throw KairosPlannerSearch.Unavailable() }
+        return rows
+    }
+
+    private func planningState() throws -> [String: Any] { try KairosFindTime.state(rawPlan) }
+
+    func findTime(_ row: KairosPlanningRow, settings: KairosPlanningSettings) async throws -> KairosFindTimeReview {
+        guard hasLoadedSnapshot, !isLoading, !isSaving, let user = Auth.auth().currentUser, user.isEmailVerified, user.uid == listeningUserID, let planID = currentPlan?.id else { throw KairosTouchSchedule.Failure("Wait for your verified account’s planner to load.") }
+        let input = try KairosTouchSchedule.json(planningState()), scope = searchScope, revision = plannerRevision, ownerID = user.uid
+        let result = try await Task.detached {
+            try KairosFindTime.preview(state: KairosTouchSchedule.object(input), target: row.target, recovery: row.reason != nil, settings: settings, ownerID: ownerID, planID: planID)
+        }.value
+        guard searchScope == scope, plannerRevision == revision else { throw KairosPlannerSearch.Unavailable() }
+        return result
+    }
+
     func beginTouchEdit(target: KairosTouchTarget, timezone: String, allowCompleted: Bool) throws -> KairosTouchDraft {
         guard hasLoadedSnapshot, !isLoading, !isSaving, let user = Auth.auth().currentUser, user.isEmailVerified, user.uid == listeningUserID, let planID = currentPlan?.id else { throw KairosTouchSchedule.Failure("Wait for your verified account’s planner to load.") }
         return try KairosTouchSchedule.begin(plan: rawPlan, target: target, ownerID: user.uid, planID: planID, timezone: timezone, allowCompleted: allowCompleted)
@@ -388,7 +412,7 @@ final class StudyPlanRepository {
         isSaving = true
         defer { if generation == token { isSaving = false } }
         do {
-            let fingerprint = try KairosAIProposalEngine.digest(["id": draft.id, "target": KairosTouchSchedule.encode(draft.target), "expected": draft.expectedJSON, "date": placement.date, "start": placement.start, "end": placement.end, "timezone": draft.timezone])
+            let fingerprint = try KairosAIProposalEngine.digest(["id": draft.id, "target": KairosTouchSchedule.encode(draft.target), "expected": draft.expectedJSON, "date": placement.date, "start": placement.start, "end": placement.end, "timezone": draft.timezone, "planningReview": draft.planningReviewJSON ?? ""])
             let result = try await db.runTransaction { transaction, pointer in
                 do {
                     guard let current = Auth.auth().currentUser, current.uid == uid, current.isEmailVerified else { throw CancellationError() }
@@ -404,6 +428,9 @@ final class StudyPlanRepository {
                     let settings = profile["settings"] as? [String: Any], account = settings?["profile"] as? [String: Any]
                     guard account?["timezone"] as? String == nil || account?["timezone"] as? String == draft.timezone else { throw KairosTouchSchedule.Failure("Your timezone changed. Start the gesture again.") }
                     let allowCompleted = (settings?["planning"] as? [String: Any])?["rescheduleCompleted"] as? Bool == true
+                    if let review = draft.planningReviewJSON {
+                        try KairosFindTime.validate(plan: raw, profile: profile, draft: draft, placement: placement, review: review)
+                    }
                     let applied = try KairosTouchSchedule.apply(plan: raw, draft: draft, placement: placement, allowCompleted: allowCompleted)
                     let undo = try KairosTouchSchedule.encode(applied.undo)
                     receipts.append(["id": draft.id, "createdAt": draft.createdAt, "fingerprint": fingerprint, "undoJSON": undo, "undone": false])
@@ -898,5 +925,6 @@ final class StudyPlanRepository {
         return await persist(before: before, after: plan, includeEvents: true)
     }
 }
+
 
 

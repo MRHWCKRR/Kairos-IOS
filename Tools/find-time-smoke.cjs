@@ -1,0 +1,53 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+for(const name of ['recurrence-engine','planning-engine','schedule-touch-engine'])vm.runInThisContext(fs.readFileSync(`${__dirname}/../Kairos/Kairos/Core/Resources/${name}.js`,'utf8'));
+const now=Date.parse('2026-11-08T10:00:00Z'),timezone='UTC';
+const task={id:'t',title:'Work',estimatedMinutes:30};
+const state={boards:[{id:'b',sections:[{id:'s',tasks:[task]}]}],scheduleEvents:[]};
+const settings={gapMinutes:10,dailyLimitMinutes:60,weeklyAvailability:null};
+const run=r=>JSON.parse(kairosPlanningRequest(JSON.stringify({now,timezone,state,...r})));
+const review=run({mode:'preview',target:{taskId:'t'},settings});
+assert.equal(review.slots[0].startTime,'10:05');
+const changes={...review.slots[0],lastScheduledMinutes:30};
+const profile={settings:{planning:settings,profile:{timezone}}};
+run({mode:'validate',target:{taskId:'t'},changes,review,profile});
+const changed=structuredClone(state);changed.scheduleEvents=[{id:'event',date:'2026-11-08',start:'10:00',end:'12:00'}];
+assert.throws(()=>run({mode:'validate',state:changed,target:{taskId:'t'},changes,review,profile}));
+assert.throws(()=>run({mode:'validate',target:{taskId:'t'},changes,review,profile:{settings:{planning:{...settings,gapMinutes:15},profile:{timezone}}}}));
+task.scheduleLocked=true;assert.throws(()=>run({mode:'preview',target:{taskId:'t'},settings}));delete task.scheduleLocked;
+task.date='2026-11-08';task.startTime='08:00';task.endTime='09:00';
+assert.equal(run({mode:'backlog'})[0].reason,'schedule');
+assert.throws(()=>run({mode:'preview',target:{taskId:'t'},settings}));
+assert.ok(run({mode:'preview',target:{taskId:'t'},settings,recovery:true}).slots.length);
+task.dueDate='2026-11-07';assert.equal(run({mode:'preview',target:{taskId:'t'},settings,recovery:true}).afterDeadline,'2026-11-07');
+delete task.dueDate;delete task.date;delete task.startTime;delete task.endTime;
+task.assignmentId='assignment';settings.dailyLimitMinutes=15;
+assert.equal(run({mode:'preview',target:{taskId:'t'},settings}).slots.length,0);
+delete task.assignmentId;settings.dailyLimitMinutes=60;
+state.boards[0].sections[0].tasks.push({id:'done',completed:true,date:'2026-11-08',startTime:'10:00',endTime:'11:00'});
+assert.equal(run({mode:'preview',target:{taskId:'t'},settings}).slots[0].startTime,'11:10');
+const week=Object.fromEntries(Array.from({length:7},(_,i)=>[i,[]]));
+assert.equal(run({mode:'preview',target:{taskId:'t'},settings:{...settings,weeklyAvailability:week}}).slots.length,0);
+const target={taskId:'t'};
+const expected=JSON.parse(kairosTouchScheduleRequest(JSON.stringify({mode:'planning',state,target,changes})));
+const applied=JSON.parse(kairosTouchScheduleRequest(JSON.stringify({mode:'apply',state,target,changes,expected})));
+const undone=JSON.parse(kairosTouchScheduleRequest(JSON.stringify({mode:'undo',state:applied.next,record:applied.result.scheduleUndo})));
+assert.deepEqual(undone.next,state);
+console.log('Find-time slots, guards, recovery, limits, completed occupancy and Undo passed');
+
+// Logical identity survives recovery of a moved recurring occurrence.
+const recurring={id:'r',title:'Repeat',date:'2026-11-01',estimatedMinutes:30,recurrence:{enabled:true,frequency:'daily',interval:1,mode:'flexible',startDate:'2026-11-01',endType:'never',exceptions:{'2026-11-02':{override:{date:'2026-11-07',startTime:'08:00',endTime:'08:30',durationMinutes:30},focusLoggedSeconds:90}}}};
+const rs={boards:[{id:'b',sections:[{id:'s',tasks:[recurring]}]}],scheduleEvents:[]};
+const rt={taskId:'r',occurrenceDate:'2026-11-02'};
+assert.ok(run({mode:'backlog',state:rs}).some(r=>r.target.occurrenceDate==='2026-11-02'&&r.reason==='schedule'));
+const rr=run({mode:'preview',state:rs,target:rt,settings,recovery:true});
+assert.deepEqual(rr.target,rt);
+assert.ok(rr.slots.length);
+const rc={...rr.slots[0],durationMinutes:30};
+const re=JSON.parse(kairosTouchScheduleRequest(JSON.stringify({mode:'planning',state:rs,target:rt,changes:rc})));
+const ra=JSON.parse(kairosTouchScheduleRequest(JSON.stringify({mode:'apply',state:rs,target:rt,changes:rc,expected:re})));
+assert.equal(ra.next.boards[0].sections[0].tasks[0].recurrence.exceptions['2026-11-02'].focusLoggedSeconds,90);
+console.log('Recurring recovery retains logical identity and focus metadata');
+
+task.schedulingPreference='evening';assert.equal(run({mode:'preview',target:{taskId:'t'},settings}).slots[0].startTime,'17:00');delete task.schedulingPreference;
+
+recurring.recurrence.exceptions['2026-11-02'].override.scheduleLocked=true;assert.throws(()=>run({mode:'preview',state:rs,target:rt,settings,recovery:true}));
