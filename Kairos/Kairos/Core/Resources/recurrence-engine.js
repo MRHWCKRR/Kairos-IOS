@@ -306,8 +306,11 @@ function kairosRecurringEditRequest(json){
  }
  const anchor=r.scope==='series'?task.recurrence.startDate:r.day;
  if(!validDateKey(anchor)||Number(anchor.slice(0,4))<1900||Number(anchor.slice(0,4))>2200)throw Error('Date exceeds native limits');
- const horizon=new Date(anchor+'T12:00:00');horizon.setFullYear(horizon.getFullYear()+5);const until=dateKey(horizon);
- const sample=tasks=>tasks.flatMap(t=>generateTaskOccurrences(t,anchor,until)).filter(o=>!['deleted','skipped'].includes(o.status)&&(r.scope!=='occurrence'||o.occurrenceDate===r.day)).sort((a,b)=>a.displayDate.localeCompare(b.displayDate)||a.occurrenceDate.localeCompare(b.occurrenceDate)).slice(0,4).map(o=>({date:o.displayDate,startTime:o.startTime,endTime:o.endTime}));
+ const sample=tasks=>{
+  const from=r.scope==='series'?tasks.map(t=>t.recurrence?.startDate).filter(validDateKey).sort()[0]||anchor:anchor;
+  const horizon=new Date(from+'T12:00:00');horizon.setFullYear(horizon.getFullYear()+5);const until=dateKey(horizon);
+  return tasks.flatMap(t=>generateTaskOccurrences(t,from,until)).filter(o=>!['deleted','skipped'].includes(o.status)&&(r.scope!=='occurrence'||o.occurrenceDate===r.day)).sort((a,b)=>a.displayDate.localeCompare(b.displayDate)||a.occurrenceDate.localeCompare(b.occurrenceDate)).slice(0,4).map(o=>({date:o.displayDate,startTime:o.startTime,endTime:o.endTime}));
+ };
  const preserved=r.scope==='occurrence'?0:Object.entries(task.recurrence?.exceptions||{}).filter(([k,e])=>preserveOccurrenceOnSeriesEdit(e)&&(r.scope!=='future'||k>=r.day)).length;
  const preview={description:r.scope==='create'?'Create a recurring series.':r.scope==='occurrence'?`Only the occurrence originally dated ${r.day}. The repeat rule stays unchanged.`:r.scope==='future'?`Logical dates from ${r.day} onward. Earlier dates stay unchanged.`:'Every logical date in this series, including earlier dates.',before:task.recurrence?.enabled?sample([task]):[],after:sample(next),preserved};
  return JSON.stringify(r.preview?{preview}:{tasks:next,preview});

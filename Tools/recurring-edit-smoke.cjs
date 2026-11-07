@@ -19,7 +19,7 @@ assert.equal(call({...request,preview:true}).tasks,undefined);assert.equal(JSON.
 assert.throws(()=>call({...request,rule:{...rule,interval:0}}));assert.throws(()=>call({...request,rule:{...rule,frequency:'weekly',weekdays:[]}}));
 assert.throws(()=>call({...request,task:{...task,scheduleLocked:true}}));
 assert.throws(()=>call({...request,changes:{startTime:'14:00',endTime:'13:00'}}));
-console.log('Recurring authoring: scopes, count, moved/completed/checklist/focus preservation, validation and preview purity passed');
+
 const resetTask={...task,recurrence:{...rule,exceptions:{'2026-11-05':{override:{title:'Custom'}}}}};
 assert.equal(call({task:resetTask,scope:'occurrence',day:'2026-11-05',changes:{title:'Study'}}).tasks[0].recurrence.exceptions['2026-11-05'].override,undefined);
 const lockedDay={...request,scope:'occurrence',day:'2026-11-02'};
@@ -32,3 +32,7 @@ assert.equal(call({task:weekly,rule:weekly.recurrence,day:'2026-11-07',scope:'se
 const first=call({...request,day:'2026-11-01'});assert.equal(first.tasks[0].recurrence.endDate,'2026-10-31');assert.equal(first.tasks[1].recurrence.count,10);
 const monthly=call({scope:'seed',task:{id:'m',recurrence:{enabled:true,frequency:'monthly',startDate:'2026-11-07'}}});assert.equal(monthly.rule.monthDay,7);
 const leapRule={...rule,frequency:'yearly',month:2,monthDay:29,startDate:'2026-01-01',endType:'never',count:null};const leap=call({scope:'create',task:{id:'l',title:'Leap'},day:'2026-01-01',rule:leapRule,changes:{title:'Leap'}});assert.equal(leap.preview.after[0].date,'2028-02-29');
+const shifting={id:'shift',title:'Shift',recurrence:{...rule,startDate:'2026-11-07',count:3}};
+assert.deepEqual(call({task:shifting,scope:'series',day:'2026-11-07',rule:{...shifting.recurrence,startDate:'2026-11-01'},changes:{}}).preview.after.map(x=>x.date),['2026-11-01','2026-11-02','2026-11-03']);
+
+console.log('Recurring authoring: scopes, count, moved/completed/checklist/focus preservation, validation and preview purity passed');
