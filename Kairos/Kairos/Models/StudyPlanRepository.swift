@@ -292,10 +292,10 @@ final class StudyPlanRepository {
         }
     }
 
-    func createRecurringTask(sectionID: String, title: String, rule: KairosRepeatRule, scope: String) async -> Bool {
+    func createRecurringTask(sectionID: String, title: String, rule: KairosRepeatRule, scope: String, startTime: String? = nil, endTime: String? = nil) async -> Bool {
         let newID = "task-\(UUID().uuidString)"
         return await mutateRecurring(scope: scope) { data, _ in
-            try KairosRecurringEdit.create(data, sectionID: sectionID, taskID: newID, title: title, rule: rule)
+            try KairosRecurringEdit.create(data, sectionID: sectionID, taskID: newID, title: title, rule: rule, startTime: startTime, endTime: endTime)
         }
     }
 

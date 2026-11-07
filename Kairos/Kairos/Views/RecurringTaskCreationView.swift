@@ -11,11 +11,13 @@ struct RecurringTaskCreationView: View {
     @State private var calendar = Calendar(identifier: .gregorian)
     @State private var ownerScope: String?
     @State private var initialized = false
+    @State private var startTime = Date()
+    @State private var endTime = Date()
     @State private var busy = false
     @State private var error: String?
     @State private var preview: KairosRecurringEditPreview?
     @State private var reviewed: KairosRecurringEditRequest?
-    private var request: KairosRecurringEditRequest { .init(scope: "create", day: rule.startDate, rule: rule, title: title, startTime: nil, endTime: nil) }
+    private var request: KairosRecurringEditRequest { .init(scope: "create", day: rule.startDate, rule: rule, title: title, startTime: rule.mode == "fixed" ? clock(startTime) : nil, endTime: rule.mode == "fixed" ? clock(endTime) : nil) }
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -24,7 +26,10 @@ struct RecurringTaskCreationView: View {
                     Toggle("Repeat", isOn: $repeats)
                     if repeats {
                         KairosRepeatFields(rule: $rule, calendar: calendar)
-                        Text("You can set the series time from task details after creation.").font(.caption).foregroundStyle(.secondary)
+                        if rule.mode == "fixed" {
+                            DatePicker("Start", selection: $startTime, displayedComponents: .hourAndMinute)
+                            DatePicker("End", selection: $endTime, displayedComponents: .hourAndMinute)
+                        }
                         Button("Preview dates") { review() }.buttonStyle(.bordered)
                         if let preview, reviewed == request {
                             Text("First dates (up to five years)").font(.headline)
@@ -47,9 +52,12 @@ struct RecurringTaskCreationView: View {
                 calendar.timeZone = TimeZone(identifier: profileRepo.profile?.timezone ?? "") ?? .current
                 let date = Date(); rule.startDate = KairosDate.dayKey(for: date, timeZone: calendar.timeZone)
                 rule.weekdays = [calendar.component(.weekday, from: date) - 1]; rule.month = calendar.component(.month, from: date); rule.monthDay = calendar.component(.day, from: date)
+                startTime = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: date) ?? date
+                endTime = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: date) ?? date
                 ownerScope = planRepo.searchScope
             }
     }
+    private func clock(_ date: Date) -> String { let p = calendar.dateComponents([.hour, .minute], from: date); return KairosScheduleProjection.clock((p.hour ?? 0) * 60 + (p.minute ?? 0)) }
     private func review() {
         guard !busy, ownerScope != nil, ownerScope == planRepo.searchScope else { return }
         do {
@@ -64,7 +72,7 @@ struct RecurringTaskCreationView: View {
         Task {
             defer { busy = false }
             guard ownerScope == planRepo.searchScope else { return }
-            let saved = repeats ? await planRepo.createRecurringTask(sectionID: sectionID, title: title, rule: rule, scope: ownerScope) : await planRepo.addTask(sectionID: sectionID, title: title)
+            let saved = repeats ? await planRepo.createRecurringTask(sectionID: sectionID, title: title, rule: rule, scope: ownerScope, startTime: request.startTime, endTime: request.endTime) : await planRepo.addTask(sectionID: sectionID, title: title)
             guard ownerScope == planRepo.searchScope else { return }
             if saved { dismiss() } else { error = planRepo.errorMessage ?? "Could not save. Your draft is still here." }
         }

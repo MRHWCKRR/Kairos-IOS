@@ -289,7 +289,7 @@ function kairosRecurringEditRequest(json){
   if(!validateRecurrence(oldRule)&&!(retired&&validateRecurrence({...oldRule,endType:'never',endDate:null})))throw Error('Review the saved repeat rule');
   for(const e of Object.values(oldRule.exceptions))if(e.status!=null&&!['pending','completed','skipped','deleted'].includes(e.status))throw Error('Unsupported occurrence status');
   if(Object.keys(task.recurrence.exceptions||{}).length>10000)throw Error('Too much occurrence history');
-  if(!projectStoredOccurrence(task,r.day)||!generateTaskOccurrences(task,r.day,r.day).some(o=>o.occurrenceDate===r.day&&o.status!=='deleted'))throw Error('The selected logical occurrence no longer exists');
+  if(r.scope!=='series'&&(!projectStoredOccurrence(task,r.day)||!generateTaskOccurrences(task,r.day,r.day).some(o=>o.occurrenceDate===r.day&&o.status!=='deleted')))throw Error('The selected logical occurrence no longer exists');
  }else if(r.scope!=='create')throw Error('This task is no longer recurring');
  let next;
  if(r.scope==='create'){

@@ -52,6 +52,21 @@ struct KairosRepeatFields: View {
             }
             if rule.endType == "date" { DatePicker("End date", selection: dateBinding(ending: true), displayedComponents: .date) }
             if rule.endType == "count" { Stepper("\(rule.count ?? 10) occurrences", value: Binding(get: { rule.count ?? 10 }, set: { rule.count = $0 }), in: 1...10000) }
+        }.onChange(of: rule.frequency) { _, value in
+            let date = KairosScheduleDates.parse(rule.startDate, calendar: calendar) ?? Date()
+            if value == "weekly", rule.weekdays.isEmpty { rule.weekdays = [calendar.component(.weekday, from: date) - 1] }
+            if value == "monthly" || value == "yearly" {
+                if rule.monthDay == nil { rule.monthDay = calendar.component(.day, from: date) }
+                if rule.month == nil { rule.month = calendar.component(.month, from: date) }
+                if rule.monthlyMode == nil { rule.monthlyMode = "date" }
+                if rule.weekdayPosition == nil { rule.weekdayPosition = "first" }
+                if rule.weekday == nil { rule.weekday = calendar.component(.weekday, from: date) - 1 }
+            }
+        }.onChange(of: rule.monthlyMode) { _, value in
+            if value == "weekdayPosition" {
+                if rule.weekdayPosition == nil { rule.weekdayPosition = "first" }
+                if rule.weekday == nil { rule.weekday = 1 }
+            }
         }.onChange(of: rule.endType) { _, value in
             if value == "date", rule.endDate == nil { rule.endDate = rule.startDate }
             if value == "count", rule.count == nil { rule.count = 10 }
@@ -152,7 +167,8 @@ struct RecurringTaskEditor: View {
     private func placements(_ rows: [KairosRecurringEditPreview.Placement]) -> String {
         let text = rows.map { row in
             let time = row.startTime.map { KairosTimeDisplay.time($0, format: profileRepo.accessibilitySettings?.timeFormat ?? "12") } ?? "Flexible"
-            return "\(row.date) \(time)"
+            let end = row.endTime.map { "–" + KairosTimeDisplay.time($0, format: profileRepo.accessibilitySettings?.timeFormat ?? "12") } ?? ""
+            return "\(row.date) \(time)\(end)"
         }.joined(separator: "; ")
         return text.isEmpty ? "None" : text
     }

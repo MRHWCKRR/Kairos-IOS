@@ -1,0 +1,13 @@
+# Recurring task creation and editing
+
+New task supports optional repeat rules: daily, weekdays, weekly, monthly by date or weekday position, yearly, and custom intervals; fixed/flexible time; start date and never/date/count endings. Task details can convert eligible unfinished standalone tasks and edit saved rules. Assignment/session tasks and nested tasks are blocked so recurrence cannot duplicate their relationships.
+
+Occurrence details open a repeat editor defaulting to This occurrence. Other scopes are This and future and Entire series. The original logical date identifies a moved occurrence. Only a series/future edit changes repeat rules; a single occurrence edits title/time. Existing occurrence details continue to edit checklist/status/date for that occurrence. Repeat sheets use saved values and preserve the parent editor's draft.
+
+Preview shows the scope, before/after date/time samples (up to four occurrences within five years), and the number of individually preserved occurrences. Apply is available only for that exact draft and account/task baseline. A changed/archived/moved target requires reopening; errors retain the draft. Native picker and notification interaction still require manual simulator/device checks.
+
+The engine uses the shared web applyRecurringEdit/splitRecurringSeries implementation. Completed/skipped/moved occurrences retain placements and identities. Native additionally pins pending occurrences with checklist, remaining-work or focus progress, preserving work at its original logical identity. Split series receive no copied top-level focus/remaining ledger. Counted series deduct earlier dates using shared semantics. Swift merges only known edited fields into raw documents; unknown task/rule/exception/checklist metadata remains intact. Legacy weekday presets and inferred month/date fields use shared normalization.
+
+Writes transactionally recheck unique active location, reviewed task fields and account ownership. Completed occurrence movement defaults to blocked and rechecks the current saved planning preference in the transaction. Scope changes and request changes invalidate the review. No new cloud listeners, migrations, focus-history writes or scoped destructive deletion are added.
+
+Checks: recurring Node smoke tests exercise scopes, rule validation, count boundaries, moved/completed/checklist/focus preservation, legacy presets, leap days and preview purity; Swift tests exercise raw metadata, stale locations/fields, duplicate destinations, seed normalization and resetting overrides. CI runs all core tests in three timezones and builds the native app/widget.

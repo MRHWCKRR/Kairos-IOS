@@ -195,7 +195,7 @@ enum KairosRecurringEdit {
         sections[si]["tasks"] = tasks; boards[bi]["sections"] = sections
         var updated = plan; updated["boards"] = boards; return updated
     }
-    nonisolated static func create(_ plan: [String: Any], sectionID: String, taskID: String, title: String, rule: KairosRepeatRule) throws -> [String: Any] {
+    nonisolated static func create(_ plan: [String: Any], sectionID: String, taskID: String, title: String, rule: KairosRepeatRule, startTime: String? = nil, endTime: String? = nil) throws -> [String: Any] {
         var boards = try KairosAIProposalEngine.maps(plan["boards"])
         var locations: [(Int, Int)] = []
         for bi in boards.indices {
@@ -209,7 +209,7 @@ enum KairosRecurringEdit {
         guard sections[si]["archived"] as? Bool != true else { throw KairosPlannerMerge.Conflict() }
         let source: [String: Any] = ["id": taskID, "title": title, "completed": false, "archived": false]
         let baseline = KairosSeriesBaseline(boardID: bid, sectionID: sectionID, taskID: taskID, taskJSON: try json(source))
-        let request = KairosRecurringEditRequest(scope: "create", day: rule.startDate, rule: rule, title: title, startTime: nil, endTime: nil)
+        let request = KairosRecurringEditRequest(scope: "create", day: rule.startDate, rule: rule, title: title, startTime: startTime, endTime: endTime)
         let result = try run(arguments(baseline, request: request, newTaskID: "unused", preview: false)), output = try KairosAIProposalEngine.maps(result["tasks"])
         guard let task = output.first else { throw KairosRecurrence.Unavailable() }
         var tasks = try KairosAIProposalEngine.maps(sections[si]["tasks"]); tasks.append(task); sections[si]["tasks"] = tasks; boards[bi]["sections"] = sections

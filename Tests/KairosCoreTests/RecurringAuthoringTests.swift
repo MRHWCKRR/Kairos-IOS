@@ -61,4 +61,13 @@ final class RecurringAuthoringTests: XCTestCase {
         XCTAssertNil(override["title"]); XCTAssertEqual(override["customOverride"] as? String, "keep")
     }
 
+    func testFutureSplitKeepsUnknownOverrideMetadataAndNoCopiedFocus() throws {
+        let rule: [String: Any] = ["enabled": true, "frequency": "daily", "startDate": "2026-11-01", "exceptions": ["2026-11-05": ["override": ["title": "Custom", "unknown": "keep"]]]]
+        let source = wrapping(["id": "t", "title": "Study", "focusLoggedSeconds": 900, "remainingMinutes": 30, "recurrence": rule]), baseline = try KairosRecurringEdit.capture(source, taskID: "t")
+        let request = KairosRecurringEditRequest(scope: "future", day: "2026-11-03", rule: try KairosRecurringEdit.seed(baseline).rule, title: "Study", startTime: nil, endTime: nil)
+        let result = try KairosRecurringEdit.apply(source, baseline: baseline, request: request, newTaskID: "new")
+        let b = result["boards"] as! [[String: Any]], sections = b[0]["sections"] as! [[String: Any]], tasks = sections[0]["tasks"] as! [[String: Any]], oldRule = tasks[0]["recurrence"] as! [String: Any], exceptions = oldRule["exceptions"] as! [String: Any], saved = exceptions["2026-11-05"] as! [String: Any], override = saved["override"] as! [String: Any]
+        XCTAssertEqual(override["unknown"] as? String, "keep"); XCTAssertNil(tasks[1]["focusLoggedSeconds"]); XCTAssertNil(tasks[1]["remainingMinutes"])
+    }
+
 }

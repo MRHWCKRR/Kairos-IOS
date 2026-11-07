@@ -365,7 +365,7 @@ struct TaskCreationSheet: View {
         if case .task(let sectionID) = target {
             RecurringTaskCreationView(sectionID: sectionID)
         } else {
-        KairosNameEditor(heading: titleForTarget, saveLabel: "Create", failureMessage: { planRepo.errorMessage }) { value in
+            KairosNameEditor(heading: titleForTarget, saveLabel: "Create", failureMessage: { planRepo.errorMessage }) { value in
             switch target {
             case .board: return await planRepo.addBoard(title: value)
             case .section(let boardID): return await planRepo.addSection(boardID: boardID, title: value)
@@ -373,9 +373,9 @@ struct TaskCreationSheet: View {
             case .subtask(let parentID, let sectionID): return await planRepo.addSubtask(parentTaskID: parentID, sectionID: sectionID, title: value)
             }
         }
+        }
     }
 
-        }
     private var titleForTarget: String {
         switch target { case .board: return "New board"; case .section: return "New section"; case .task: return "New task"; case .subtask: return "New subtask" }
     }

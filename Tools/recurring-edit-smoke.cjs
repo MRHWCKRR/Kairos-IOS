@@ -27,3 +27,8 @@ assert.throws(()=>call(lockedDay),/Completed schedules are locked/);
 assert.equal(call({...lockedDay,allowCompleted:true}).tasks[0].recurrence.exceptions['2026-11-02'].override.startTime,'11:00');
 const preset=call({scope:'seed',task:{recurrence:{enabled:true,preset:'weekdays',startDate:'2026-11-07'}}});assert.equal(preset.rule.frequency,'weekly');assert.deepEqual(preset.rule.weekdays,[1,2,3,4,5]);
 const exhausted=call({...request,day:'2026-11-10',rule:{...rule,endType:'date',endDate:'2026-11-04'}});assert.equal(exhausted.tasks.length,1);
+const weekly={id:'w',title:'Weekdays',recurrence:{...rule,frequency:'weekly',weekdays:[1,2,3,4,5],startDate:'2026-11-07'}};
+assert.equal(call({task:weekly,rule:weekly.recurrence,day:'2026-11-07',scope:'series',changes:{title:'Study'}}).tasks[0].title,'Study');
+const first=call({...request,day:'2026-11-01'});assert.equal(first.tasks[0].recurrence.endDate,'2026-10-31');assert.equal(first.tasks[1].recurrence.count,10);
+const monthly=call({scope:'seed',task:{id:'m',recurrence:{enabled:true,frequency:'monthly',startDate:'2026-11-07'}}});assert.equal(monthly.rule.monthDay,7);
+const leapRule={...rule,frequency:'yearly',month:2,monthDay:29,startDate:'2026-01-01',endType:'never',count:null};const leap=call({scope:'create',task:{id:'l',title:'Leap'},day:'2026-01-01',rule:leapRule,changes:{title:'Leap'}});assert.equal(leap.preview.after[0].date,'2028-02-29');
