@@ -64,7 +64,7 @@ struct RecurringTaskCreationView: View {
             let data = try JSONSerialization.data(withJSONObject: ["id": "new-preview", "title": title])
             let baseline = KairosSeriesBaseline(boardID: "preview", sectionID: sectionID, taskID: "new-preview", taskJSON: String(decoding: data, as: UTF8.self))
             preview = try KairosRecurringEdit.preview(baseline, request: request); reviewed = request; error = nil
-        } catch { error = error.localizedDescription; reviewed = nil }
+        } catch { self.error = error.localizedDescription; reviewed = nil }
     }
     private func save() {
         guard !busy, let ownerScope, ownerScope == planRepo.searchScope, !repeats || reviewed == request else { return }
