@@ -87,7 +87,13 @@ struct CalendarView: View {
             }
         }
     }
-    private var backlog: [ScheduleTaskEntry] { entries.filter { !$0.task.completed && ($0.task.date == nil || $0.task.startTime == nil || ($0.task.date ?? "") < key(Date())) } }
+    @State private var planningRows: [KairosPlanningRow] = []
+    @State private var planningError: String?
+    @State private var timeReview: KairosFindTimeReview?
+    @State private var chosenSlot: KairosSchedulePlacement?
+    @State private var planningSaving = false
+    @State private var planningAttempted = false
+
     private var dateRange: [Date] {
         var start = calendar.startOfDay(for: selectedDate)
         var count = mode == .day ? 1 : mode == .threeDays ? 3 : 7
@@ -122,6 +128,9 @@ struct CalendarView: View {
             .onPreferenceChange(ScheduleColumnFrames.self) { columnFrames = $0 }
             .onPreferenceChange(ScheduleViewportFrame.self) { viewportFrame = $0 }
             .onChange(of: loadID) { _, _ in interaction = nil }
+            .onChange(of: planRepo.searchScope) { _, _ in
+                planningRows = []; timeReview = nil; chosenSlot = nil; planningAttempted = false; planningError = nil; showingBacklog = false
+            }
             .onChange(of: showingDayDetails) { _, _ in interaction = nil }
             .onChange(of: isActive) { _, active in if !active { interaction = nil } }
             .onChange(of: scenePhase) { _, phase in if phase != .active { interaction = nil } }
@@ -275,12 +284,77 @@ struct CalendarView: View {
     private var backlogSheet: some View {
         NavigationStack {
             List {
-                Section("Unscheduled and overdue work") {
-                    if backlog.isEmpty { Text("Your backlog is clear.").foregroundStyle(.secondary) }
-                    ForEach(backlog) { entry in HStack { Text(entry.task.title).lineLimit(2); Spacer(); Button("Schedule") { backlogSelection = entry; showingBacklog = false } } }
+                if let review = timeReview {
+                    Section(review.draft.title) {
+                        Text("Current: \(review.previous)")
+                        Text("Choose an available time in the next 14 days. Review before applying.")
+                        if let deadline = review.afterDeadline { Text("Deadline passed: \(deadline). These suggestions are after the deadline.").foregroundStyle(.orange) }
+                        if let date = review.draft.target.occurrenceDate { Text("Only the occurrence originally dated \(date) will change.") }
+                        ForEach(Array(review.slots.enumerated()), id: \.offset) { _, slot in
+                            Button {
+                                chosenSlot = slot
+                            } label: {
+                                HStack {
+                                    Text("\(slot.date)  \(displayClock(slot.start))–\(displayClock(slot.end))")
+                                    Spacer()
+                                    if chosenSlot == slot { Text("Selected").font(.caption) }
+                                }
+                            }.disabled(planningAttempted)
+                        }
+                        Button(planningAttempted ? "Retry exact change" : "Apply selected time") { applySuggestedTime(review) }
+                            .disabled(chosenSlot == nil || planningSaving || planRepo.isSaving)
+                        Button("Discard preview") { timeReview = nil; chosenSlot = nil; planningAttempted = false; planningError = nil }
+                            .disabled(planningSaving)
+                    }
+                } else {
+                    Section("Unscheduled and overdue work") {
+                        if planningRows.isEmpty && planningError == nil { Text("Your backlog is clear.").foregroundStyle(.secondary) }
+                        ForEach(planningRows) { row in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(row.title)
+                                if let reason = row.reason { Text(reason == "deadline" ? "Past deadline" : "Scheduled time has passed").font(.caption).foregroundStyle(.secondary) }
+                                if row.locked { Text("Schedule locked").font(.caption).foregroundStyle(.secondary) }
+                                else {
+                                    Button("Find a time") {
+                                        Task {
+                                        do {
+                                            guard let settings = profileRepo.planningSettings else { throw KairosTouchSchedule.Failure(profileRepo.planningSettingsError ?? "Wait for planning settings to load.") }
+                                            timeReview = try await planRepo.findTime(row, settings: settings)
+                                            chosenSlot = timeReview?.slots.first; planningError = nil; planningAttempted = false
+                                        } catch { planningError = error.localizedDescription }
+                                        }
+                                    }
+                                }
+                                if row.target.occurrenceDate == nil, let entry = entries.first(where: { $0.id == row.target.taskId }) {
+                                    Button("Schedule manually") { backlogSelection = entry; showingBacklog = false }
+                                }
+                            }.padding(.vertical, 4)
+                        }
+                    }
                 }
+                if let planningError { Section { Text(planningError).foregroundStyle(.secondary) } }
+                if planningSaving { ProgressView("Saving schedule…") }
             }.navigationTitle("Backlog").navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showingBacklog = false } } }
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showingBacklog = false }.disabled(planningSaving || planningAttempted) } }
+                .task(id: "\(planRepo.plannerRevision)-\(calendar.timeZone.identifier)") { await reloadBacklog() }
+                .interactiveDismissDisabled(planningSaving || planningAttempted)
+        }
+    }
+    private func reloadBacklog() async {
+        do { planningRows = try await planRepo.planningBacklog(timezone: calendar.timeZone.identifier); planningError = nil }
+        catch { planningRows = []; planningError = error.localizedDescription }
+    }
+    private func applySuggestedTime(_ review: KairosFindTimeReview) {
+        guard let slot = chosenSlot, !planningSaving else { return }
+        planningSaving = true; planningAttempted = true
+        Task {
+            let undo = await planRepo.saveTouchEdit(review.draft, placement: slot)
+            planningSaving = false
+            if let undo {
+                touchUndo = undo; touchMessage = "Scheduled \(review.draft.title)"
+                timeReview = nil; chosenSlot = nil; planningAttempted = false; showingBacklog = false
+                await loadDays()
+            } else { planningError = planRepo.errorMessage ?? "Could not confirm the change. Retry the same change to check its saved receipt." }
         }
     }
     private func navigate(_ direction: Int) {
@@ -447,4 +521,5 @@ struct CalendarView: View {
         }
     }
 }
+
 

@@ -23,6 +23,7 @@ struct KairosTouchDraft: Sendable, Identifiable {
     let title: String
     let original: KairosSchedulePlacement
     let createdAt: Double
+    var planningReviewJSON: String? = nil
     nonisolated init(id: String, ownerID: String, planID: String, timezone: String, target: KairosTouchTarget, expectedJSON: String, title: String, original: KairosSchedulePlacement, createdAt: Double) {
         self.id = id; self.ownerID = ownerID; self.planID = planID; self.timezone = timezone; self.target = target; self.expectedJSON = expectedJSON; self.title = title; self.original = original; self.createdAt = createdAt
     }
@@ -69,7 +70,7 @@ enum KairosTouchSchedule {
         guard let data = json.data(using: .utf8), let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw Failure("This schedule change cannot be read safely.") }
         return value
     }
-    nonisolated private static func run(_ arguments: [String: Any]) throws -> [String: Any] {
+    nonisolated static func run(_ arguments: [String: Any]) throws -> [String: Any] {
         #if SWIFT_PACKAGE
         let bundle = Bundle.module
         #else
@@ -148,3 +149,4 @@ enum KairosTouchSchedule {
         var result = source; result["boards"] = boards; return result
     }
 }
+
