@@ -523,7 +523,10 @@ struct TaskDetailView: View {
                     DatePicker("Start", selection: $scheduledStart, displayedComponents: .hourAndMinute)
                     DatePicker("End", selection: $scheduledEnd, displayedComponents: .hourAndMinute)
                 }
-            }.disabled(scheduleLocked)
+            }.disabled(scheduleLocked || task?.recurrence?.enabled == true)
+            if task?.recurrence?.enabled == true {
+                Text("Use Edit repeat rule to review dates and choose an occurrence or series scope.").font(.caption).foregroundStyle(.secondary)
+            }
             Toggle("Deadline", isOn: $hasDeadline)
             if hasDeadline { DatePicker("Due date", selection: $deadline, displayedComponents: .date) }
             Toggle("Due time", isOn: $hasDueTime)

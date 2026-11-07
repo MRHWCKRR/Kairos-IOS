@@ -83,6 +83,7 @@ struct KairosTaskEditGuard: Sendable {
                     guard let boardID = board["id"] as? String, let sectionID = section["id"] as? String,
                           board["archived"] as? Bool != true, section["archived"] as? Bool != true, task["archived"] as? Bool != true else { throw KairosPlannerMerge.Conflict() }
                     let locked = task["scheduleLocked"] as? Bool == true
+                    if changesSchedule && (task["recurrence"] as? [String: Any])?["enabled"] as? Bool == true { throw KairosPlannerMerge.Conflict() }
                     if changesSchedule && locked && !unlocking { throw KairosPlannerMerge.Conflict() }
                     found.append((boardID, sectionID, locked))
                 }

@@ -90,6 +90,7 @@ enum KairosTaskMutation {
                 if case .set(let reminder) = patch.reminderMinutes, let reminder, !(1...10080).contains(reminder) { throw Invalid() }
                 if case .set(let preference) = patch.schedulingPreference, let preference, !["morning", "afternoon", "evening"].contains(preference) { throw Invalid() }
                 if case .set(nil) = patch.scheduleLocked { throw Invalid() }
+                if tasks[ti].recurrence?.enabled == true && patch.changesScheduledTime { throw Invalid() }
                 if tasks[ti].scheduleLocked == true && patch.changesScheduledTime && !patch.unlocksSchedule { throw Invalid() }
                 if case .set(let date) = patch.date, let date, !KairosScheduleProjection.validDay(date) { throw Invalid() }
                 if case .set(let date) = patch.dueDate, let date, !KairosScheduleProjection.validDay(date) { throw Invalid() }

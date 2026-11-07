@@ -70,4 +70,14 @@ final class RecurringAuthoringTests: XCTestCase {
         XCTAssertEqual(override["unknown"] as? String, "keep"); XCTAssertNil(tasks[1]["focusLoggedSeconds"]); XCTAssertNil(tasks[1]["remainingMinutes"])
     }
 
+    func testOrdinaryTaskEditorCannotBypassRecurringScheduleReview() throws {
+        let source = plan()
+        XCTAssertThrowsError(try KairosTaskEditGuard.capture(plan: source, taskID: "t", changesSchedule: true, unlocking: false))
+        XCTAssertNoThrow(try KairosTaskEditGuard.capture(plan: source, taskID: "t", changesSchedule: false, unlocking: false))
+        let task = try JSONDecoder().decode(KairosTask.self, from: Data(#"{"id":"t","title":"Study","recurrence":{"enabled":true}}"#.utf8))
+        var patch = KairosTaskPatch(); patch.startTime = .set("11:00")
+        let boards = [KairosBoard(id: "b", title: "Board", archived: false, sections: [KairosSection(id: "s", title: "Section", archived: false, tasks: [task])])]
+        XCTAssertThrowsError(try KairosTaskMutation.apply(.update(taskID: "t", patch: patch, expected: task), to: boards))
+    }
+
 }
