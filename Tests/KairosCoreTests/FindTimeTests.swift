@@ -24,6 +24,9 @@ final class FindTimeTests: XCTestCase {
         let review = try KairosFindTime.preview(state: KairosFindTime.state(plan), target: .init(taskId: "t"), recovery: false, settings: settings, ownerID: "u", planID: "p", now: 1794132000000)
         let placement = try XCTUnwrap(review.slots.first)
         try KairosFindTime.validate(plan: plan, profile: [:], draft: review.draft, placement: placement, review: try XCTUnwrap(review.draft.planningReviewJSON), now: 1794132000000)
+        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.timeZone = TimeZone(secondsFromGMT: 0); formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        let expiredAt = try XCTUnwrap(formatter.date(from: "\(placement.date) \(KairosScheduleProjection.clock(placement.start))")).timeIntervalSince1970 * 1000
+        XCTAssertThrowsError(try KairosFindTime.validate(plan: plan, profile: [:], draft: review.draft, placement: placement, review: try XCTUnwrap(review.draft.planningReviewJSON), now: expiredAt))
         let applied = try KairosTouchSchedule.apply(plan: plan, draft: review.draft, placement: placement, allowCompleted: false)
         let tasks = try KairosAIProposalEngine.maps(applied.plan["boards"]).flatMap { try KairosAIProposalEngine.maps($0["sections"]) }.flatMap { try KairosAIProposalEngine.maps($0["tasks"]) }
         XCTAssertEqual((tasks[0]["webOnly"] as? [String: Bool])?["keep"], true)

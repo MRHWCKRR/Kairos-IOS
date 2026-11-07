@@ -52,7 +52,13 @@ task.schedulingPreference='evening';assert.equal(run({mode:'preview',target:{tas
 
 recurring.recurrence.exceptions['2026-11-02'].override.scheduleLocked=true;assert.throws(()=>run({mode:'preview',state:rs,target:rt,settings,recovery:true}));
 
-assert.throws(()=>run({mode:'validate',now:Date.parse('2026-11-08T10:05:00Z'),target:{taskId:'t'},changes,review,profile}));
+const expiryState={boards:[{id:'b',sections:[{id:'s',tasks:[{id:'expiry',estimatedMinutes:30}]}]}],scheduleEvents:[]};
+const expiryTarget={taskId:'expiry'},expiryReview=run({mode:'preview',state:expiryState,target:expiryTarget,settings:{gapMinutes:0,dailyLimitMinutes:0,weeklyAvailability:null}});
+const expiryChanges={...expiryReview.slots[0],lastScheduledMinutes:expiryReview.duration};
+const expiryProfile={settings:{planning:{gapMinutes:0,dailyLimitMinutes:0},profile:{timezone}}};
+const expiryRun=(now)=>JSON.parse(kairosPlanningRequest(JSON.stringify({mode:'validate',now,timezone,state:expiryState,target:expiryTarget,changes:expiryChanges,review:expiryReview,profile:expiryProfile})));
+assert.doesNotThrow(()=>expiryRun(now));
+assert.throws(()=>expiryRun(Date.parse(expiryChanges.date+'T'+expiryChanges.startTime+':00Z')));
 const dstWeek=Object.fromEntries(Array.from({length:7},(_,i)=>[i,i===0?[{start:'01:00',end:'04:00'}]:[]]));
 const dstState={boards:[{id:'b',sections:[{id:'s',tasks:[{id:'dst',estimatedMinutes:120}]}]}]};
 const dst=run({mode:'preview',state:dstState,target:{taskId:'dst'},timezone:'America/New_York',now:Date.parse('2027-03-13T12:00:00Z'),settings:{gapMinutes:0,dailyLimitMinutes:0,weeklyAvailability:dstWeek}});
