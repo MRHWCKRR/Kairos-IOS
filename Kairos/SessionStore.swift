@@ -39,7 +39,7 @@ final class SessionStore {
 
     private func apply(_ user: User?) {
         if userID != user?.uid {
-            _ = FocusTimerCoordinator.shared.stopAndReset()
+            FocusTimerCoordinator.shared.accountChanged(to: user?.uid)
             lastErrorMessage = nil
             verificationMessage = nil
         }

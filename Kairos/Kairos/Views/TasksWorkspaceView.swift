@@ -449,6 +449,7 @@ struct TaskDetailView: View {
                         Text("Repeat settings use saved task values. Save other draft changes first.").font(.caption).foregroundStyle(.secondary)
                     }.padding(18).kairosCard(cornerRadius: 22)
                     AssignmentProgressCard(taskID: context.taskID, open: openLinkedTask)
+                    TaskFocusView(taskID: context.taskID)
                     childrenCard
                     if initialized && !contextAvailable { Text("This task moved or became unavailable. Your draft is still here; reopen its current details before saving.").font(.footnote).foregroundStyle(.secondary) }
                     if let saveError { Text(saveError).font(.footnote).foregroundStyle(.red) }
@@ -661,4 +662,5 @@ struct TaskDetailView: View {
 #Preview {
     TasksWorkspaceView().environment(StudyPlanRepository()).environment(UserProfileRepository())
 }
+
 

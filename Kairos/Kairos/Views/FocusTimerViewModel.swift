@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// Dashboard-facing adapter for the shared focus timer.
-/// The coordinator keeps the timer accurate while the app is backgrounded or suspended.
+/// The coordinator preserves background timing and recovers paused after relaunch.
 @Observable
 @MainActor
 final class FocusTimerViewModel {
@@ -24,11 +24,9 @@ final class FocusTimerViewModel {
         coordinator.pause()
     }
 
-    /// Logs the session if it is at least 1 second, then resets the display.
+    /// Retains the session until its idempotent log is confirmed.
     func stopAndLog() {
-        let seconds = coordinator.stopAndReset()
-        guard seconds >= 1 else { return }
-        Task { await profileRepo.logFocusSession(seconds: seconds) }
+        coordinator.log()
     }
 
     static func formatHMS(_ totalSeconds: Int64) -> String {

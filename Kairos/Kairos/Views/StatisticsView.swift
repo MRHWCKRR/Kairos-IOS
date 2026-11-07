@@ -18,6 +18,7 @@ struct StatisticsView: View {
                     chartCard(title: "Focus Time", subtitle: "Minutes logged", isFocusTime: true)
                     chartCard(title: "Tasks Completed", subtitle: "Completed each period", isFocusTime: false)
                     lifetimeCard
+                    FocusBreakdownView()
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 16)
@@ -112,4 +113,5 @@ struct StatisticsView: View {
     StatisticsView()
         .environment(UserProfileRepository())
 }
+
 

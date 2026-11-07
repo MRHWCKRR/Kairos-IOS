@@ -28,6 +28,8 @@ jobs:
         run: node Tools/assignment-progress-smoke.cjs
       - name: Check recurring authoring
         run: node Tools/recurring-edit-smoke.cjs
+      - name: Check task-linked focus
+        run: node Tools/focus-smoke.cjs
       - run: swift test
   app-build:
     runs-on: macos-latest
@@ -48,6 +50,7 @@ jobs:
           test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/today-engine.js
           test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/planning-settings-engine.js
           test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/assignment-progress-engine.js
+          test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/focus-engine.js
 
   toolbar-layout:
     runs-on: macos-latest
@@ -62,4 +65,5 @@ jobs:
         with:
           name: ios-toolbar-regression
           path: /tmp/kairos-toolbar-artifacts
+
 

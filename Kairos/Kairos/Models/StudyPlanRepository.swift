@@ -330,6 +330,51 @@ final class StudyPlanRepository {
         }
     }
 
+    var focusIdentity: (owner: String, plan: String?)? {
+        guard searchScope != nil, let owner = listeningUserID else { return nil }
+        return (owner, currentPlan?.id)
+    }
+    func focusTarget(taskID: String, occurrenceDate: String? = nil) throws -> (KairosFocusTarget?, KairosFocusSummary?) {
+        guard searchScope != nil else { throw KairosPlannerMerge.Conflict() }
+        return try KairosFocus.target(plan: rawPlan, taskID: taskID, occurrenceDate: occurrenceDate)
+    }
+    func focusBreakdown() async throws -> KairosFocusBreakdown {
+        guard let scope = searchScope else { throw KairosPlannerMerge.Conflict() }
+        let revision = plannerRevision
+        let input = try KairosFocus.json(KairosFocus.planInput(rawPlan))
+        let work = Task.detached { try Task.checkCancellation(); return try KairosFocus.breakdown(inputJSON: input) }
+        let result = try await withTaskCancellationHandler(operation: { try await work.value }, onCancel: { work.cancel() })
+        guard scope == searchScope, revision == plannerRevision else { throw CancellationError() }
+        return result
+    }
+    func logFocus(_ entry: KairosFocusLog) async throws -> KairosFocusResult {
+        guard !isSaving, let identity = focusIdentity, identity.owner == entry.ownerId, identity.plan == entry.planId,
+              Auth.auth().currentUser?.isEmailVerified == true else {
+            throw KairosFocus.Failure(code: "", message: "Wait for the captured planner and verified account to load before retrying. Your focus session is retained.")
+        }
+        let uid = identity.owner, token = generation
+        let userReference = db.collection("users").document(uid)
+        let planReference = entry.planId.map { db.collection("study_plans").document($0) }
+        let timestamp = Date().timeIntervalSince1970 * 1000
+        isSaving = true
+        defer { if generation == token { isSaving = false } }
+        let response = try await db.runTransaction { transaction, pointer in
+            do {
+                guard let active = Auth.auth().currentUser, active.uid == uid, active.isEmailVerified else { throw CancellationError() }
+                let user = try transaction.getDocument(userReference).data() ?? [:]
+                let plan = try planReference.map { try transaction.getDocument($0).data() } ?? nil
+                let applied = try KairosFocus.apply(user: user, plan: plan, entry: entry, now: timestamp)
+                if let patch = applied.userPatch { transaction.setData(patch, forDocument: userReference, merge: true) }
+                if let boards = applied.planBoards, let planReference { transaction.updateData(["boards": boards], forDocument: planReference) }
+                return ["seconds": applied.result.seconds, "attributed": applied.result.attributed, "taskId": applied.result.taskId as Any? ?? NSNull()] as [String: Any]
+            } catch { pointer?.pointee = error as NSError; return nil }
+        }
+        guard generation == token, focusIdentity?.owner == uid, focusIdentity?.plan == entry.planId else { throw CancellationError() }
+        guard let value = response as? [String: Any] else { throw KairosPlannerMerge.Conflict() }
+        return try JSONDecoder().decode(KairosFocusResult.self, from: JSONSerialization.data(withJSONObject: value))
+    }
+
+
     // MARK: - Recurring occurrences
     func beginTouchEdit(target: KairosTouchTarget, timezone: String, allowCompleted: Bool) throws -> KairosTouchDraft {
         guard hasLoadedSnapshot, !isLoading, !isSaving, let user = Auth.auth().currentUser, user.isEmailVerified, user.uid == listeningUserID, let planID = currentPlan?.id else { throw KairosTouchSchedule.Failure("Wait for your verified account’s planner to load.") }
@@ -853,4 +898,5 @@ final class StudyPlanRepository {
         return await persist(before: before, after: plan, includeEvents: true)
     }
 }
+
 
