@@ -16,6 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: swift --version
+      - name: Check assignment session planning
+        run: node Tools/session-planning-smoke.cjs
       - name: Check find-time planning
         run: node Tools/find-time-smoke.cjs
       - name: Check touch scheduling engine

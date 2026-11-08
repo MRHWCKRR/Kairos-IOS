@@ -400,6 +400,79 @@ final class StudyPlanRepository {
         return result
     }
 
+    func previewSessions(taskID: String, total: Int, size: Int, ordered: Bool, labels: [String], settings: KairosPlanningSettings) async throws -> KairosSessionReview {
+        guard hasLoadedSnapshot, !isLoading, !isSaving, let user = Auth.auth().currentUser, user.isEmailVerified, user.uid == listeningUserID, let planID = currentPlan?.id, let scope = searchScope else { throw KairosTouchSchedule.Failure("Wait for your verified planner to load.") }
+        let revision = plannerRevision, ownerID = user.uid
+        let stateJSON = try KairosTouchSchedule.json(KairosFindTime.state(rawPlan))
+        let review = try await Task.detached {
+            try KairosSessionPlanning.preview(state: KairosTouchSchedule.object(stateJSON), taskID: taskID, total: total, size: size, ordered: ordered, labels: labels, settings: settings, ownerID: ownerID, planID: planID)
+        }.value
+        guard searchScope == scope, plannerRevision == revision else { throw KairosTouchSchedule.Failure("Your planner changed. Review these sessions again.") }
+        return review
+    }
+
+    func saveSessionReview(_ review: KairosSessionReview) async -> KairosSessionUndo? {
+        guard hasLoadedSnapshot, !isLoading, !isSaving, let user = Auth.auth().currentUser, user.isEmailVerified, user.uid == listeningUserID, user.uid == review.ownerID, currentPlan?.id == review.planID else { errorMessage = "Your account or planner changed. Reopen the assignment."; return nil }
+        let uid = user.uid, token = generation, reference = db.collection("study_plans").document(review.planID), userRef = db.collection("users").document(uid)
+        isSaving = true
+        defer { if generation == token { isSaving = false } }
+        do {
+            let fingerprint = try KairosAIProposalEngine.digest(["id": review.id, "command": review.commandJSON, "expected": review.expectedJSON, "source": review.sourceJSON, "owner": uid, "plan": review.planID])
+            let result = try await db.runTransaction { transaction, pointer in
+                do {
+                    guard let user = Auth.auth().currentUser, user.uid == uid, user.isEmailVerified else { throw CancellationError() }
+                    let snapshot = try transaction.getDocument(reference), profile = try transaction.getDocument(userRef).data() ?? [:]
+                    guard let raw = snapshot.data(), raw["userID"] as? String == uid else { throw KairosPlannerMerge.Conflict() }
+                    var receipts = try KairosAIProposalEngine.maps(raw["nativeSessionReceipts"])
+                    if let receipt = receipts.first(where: { $0["id"] as? String == review.id }) {
+                        guard receipt["fingerprint"] as? String == fingerprint, receipt["undone"] as? Bool != true, let undo = receipt["undoJSON"] as? String else { throw KairosTouchSchedule.Failure("This session request changed or was already undone.") }
+                        return undo
+                    }
+                    guard review.createdAt > (raw["nativeSessionReceiptFloor"] as? Double ?? 0) else { throw KairosTouchSchedule.Failure("This retry is too old to confirm safely. Review the assignment.") }
+                    let applied = try KairosSessionPlanning.apply(plan: raw, profile: profile, review: review)
+                    let undo = try KairosTouchSchedule.encode(applied.undo)
+                    receipts.append(["id": review.id, "createdAt": review.createdAt, "fingerprint": fingerprint, "undoJSON": undo, "undone": false])
+                    var floor = raw["nativeSessionReceiptFloor"] as? Double ?? 0
+                    while try JSONSerialization.data(withJSONObject: receipts).count > 64_000 || receipts.count > 100 {
+                        guard receipts.count > 1 else { throw KairosTouchSchedule.Failure("This session receipt is too large.") }
+                        floor = max(floor, receipts.removeFirst()["createdAt"] as? Double ?? 0)
+                    }
+                    transaction.updateData(["boards": applied.plan["boards"] ?? [], "nativeSessionReceipts": receipts, "nativeSessionReceiptFloor": floor], forDocument: reference)
+                    return undo
+                } catch { pointer?.pointee = error as NSError; return nil }
+            }
+            guard generation == token, Auth.auth().currentUser?.uid == uid, let json = result as? String else { return nil }
+            errorMessage = nil
+            return try JSONDecoder().decode(KairosSessionUndo.self, from: Data(json.utf8))
+        } catch { if generation == token { errorMessage = error.localizedDescription }; return nil }
+    }
+
+    func undoSessionReview(_ undo: KairosSessionUndo) async -> Bool {
+        guard hasLoadedSnapshot, !isLoading, !isSaving, let user = Auth.auth().currentUser, user.isEmailVerified, user.uid == listeningUserID, user.uid == undo.ownerID, currentPlan?.id == undo.planID else { errorMessage = "Your account or planner changed. Reopen the assignment."; return false }
+        let uid = user.uid, token = generation, reference = db.collection("study_plans").document(undo.planID)
+        isSaving = true
+        defer { if generation == token { isSaving = false } }
+        do {
+            let expected = try KairosTouchSchedule.encode(undo)
+            _ = try await db.runTransaction { transaction, pointer in
+                do {
+                    guard let user = Auth.auth().currentUser, user.uid == uid, user.isEmailVerified else { throw CancellationError() }
+                    let snapshot = try transaction.getDocument(reference)
+                    guard let raw = snapshot.data(), raw["userID"] as? String == uid else { throw KairosPlannerMerge.Conflict() }
+                    var receipts = try KairosAIProposalEngine.maps(raw["nativeSessionReceipts"])
+                    guard let index = receipts.firstIndex(where: { $0["id"] as? String == undo.id }), receipts[index]["undoJSON"] as? String == expected else { throw KairosTouchSchedule.Failure("This Undo is no longer available.") }
+                    if receipts[index]["undone"] as? Bool == true { return true }
+                    let restored = try KairosSessionPlanning.undo(plan: raw, saved: undo)
+                    receipts[index]["undone"] = true
+                    transaction.updateData(["boards": restored["boards"] ?? [], "nativeSessionReceipts": receipts], forDocument: reference)
+                    return true
+                } catch { pointer?.pointee = error as NSError; return nil }
+            }
+            guard generation == token, Auth.auth().currentUser?.uid == uid else { return false }
+            errorMessage = nil; return true
+        } catch { if generation == token { errorMessage = error.localizedDescription }; return false }
+    }
+
     func beginTouchEdit(target: KairosTouchTarget, timezone: String, allowCompleted: Bool) throws -> KairosTouchDraft {
         guard hasLoadedSnapshot, !isLoading, !isSaving, let user = Auth.auth().currentUser, user.isEmailVerified, user.uid == listeningUserID, let planID = currentPlan?.id else { throw KairosTouchSchedule.Failure("Wait for your verified account’s planner to load.") }
         return try KairosTouchSchedule.begin(plan: rawPlan, target: target, ownerID: user.uid, planID: planID, timezone: timezone, allowCompleted: allowCompleted)
@@ -925,6 +998,7 @@ final class StudyPlanRepository {
         return await persist(before: before, after: plan, includeEvents: true)
     }
 }
+
 
 
 

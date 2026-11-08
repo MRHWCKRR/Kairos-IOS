@@ -32,6 +32,10 @@ Task details and dated recurring occurrences now start a shared native focus ses
 
 Schedule > Backlog now reaches web-compatible slot suggestions with preview, guarded Apply/exact retry and Undo. Backlog includes recurring and elapsed-today work; suggestions respect saved availability, conflicts, gaps, deadlines, locks and assignment daily limits. See [find-time-planning.md](find-time-planning.md).
 
+## Assignment sessions follow-up (8 November 2026)
+
+Unfinished, unscheduled tasks can now be split into linked scheduled sessions from Task details. Preview uses the shared web planning rules and saved settings. Atomic reviewed Apply retains stable session IDs across uncertain retries; guarded Undo archives the created sessions. Existing assignment progress and task editors show the results. See [assignment-sessions.md](assignment-sessions.md).
+
 ## Verified native equivalents already present
 
 - Task/board/section creation; task notes, priority, estimates, checklists, scheduled times and deadlines; native subtasks.
@@ -45,7 +49,7 @@ Schedule > Backlog now reaches web-compatible slot suggestions with preview, gua
 
 | Priority | Capability gap | Evidence / implementation scope |
 | --- | --- | --- |
-| 1 | Remaining task properties and assignment authoring | Web `task-detail-pane.js`, `task-actions.js`; native still lacks assignment/session creation, color/deadline-impact controls and move/reorder/duplicate/multiselect/bulk. Assignment/session progress is now readable; native parentTaskID subtasks remain distinct from web assignmentId sessions. |
+| 1 | Remaining task properties and assignment authoring | Web `task-detail-pane.js`, `task-actions.js`; native now creates linked assignment sessions; color/deadline-impact controls and move/reorder/duplicate/multiselect/bulk. Assignment/session progress is now readable; native parentTaskID subtasks remain distinct from web assignmentId sessions. |
 | 2 | Remaining recurring workflows | Native now authors daily/weekly/monthly/yearly/custom rules and reviews occurrence/future/series edits. Destructive scoped deletion and disabling existing series remain separate follow-ups. |
 | 2 | Remaining focus workflows | Native supports attribution, recovery, exact retries and lifetime reporting using web-compatible ledgers/history. Remaining work: recent-history corrections/removal, manual entries, explicit Log and complete, and remaining-work check-ins. |
 | 1 | Planning hub / schedule AI | Web `planning-hub.js`, `schedule-ai.js`, `schedule-day-change-ui.js`; native lacks deadline/assignment/session/combined/conflict/review workflows, Plan schedule and My day changed proposals. Basic chat plan creation is distinct. |
