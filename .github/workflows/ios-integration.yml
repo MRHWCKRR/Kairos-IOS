@@ -72,6 +72,23 @@ jobs:
           test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/assignment-progress-engine.js
           test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/focus-engine.js
           test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/planning-engine.js
+      - name: Verify Firebase Firestore security floor
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('Kairos/Kairos.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved')
+          pins = json.loads(path.read_text())['pins']
+          firebase = next(pin for pin in pins if pin['identity'] == 'firebase-ios-sdk')
+          version = tuple(map(int, firebase['state']['version'].split('.')))
+          assert (12, 19, 3) <= version < (13, 0, 0), 'Firebase 12.19.3+ is required for the Firestore trust-store security fix'
+          print('Firebase security floor passed:', firebase['state']['version'])
+          PY
+      - name: Upload Xcode-resolved dependency pins
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-resolved-packages
+          path: Kairos/Kairos.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
   toolbar-layout:
     runs-on: macos-latest
