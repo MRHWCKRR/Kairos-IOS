@@ -27,4 +27,4 @@ Reference: https://firebase.google.com/docs/app-check/ios/app-attest-provider an
 
 ## Existing build warnings
 
-The unsigned simulator build succeeds. It still reports existing warnings for deprecated Text concatenation in LoginView, a Swift 6 concurrency capture in KairosNotificationManager, unused animation/task results in DashboardView, and a missing widget CFBundleShortVersionString. The widget version must match the containing app before archiving for distribution; these warnings are outside this integration pass.
+The unsigned simulator build succeeds. It still reports existing warnings for deprecated Text concatenation in LoginView, a Swift 6 concurrency capture in KairosNotificationManager, and unused animation/task results in DashboardView. The widget uses the canonical bundle metadata keys; CI validates its built package type and version agreement with the containing app before distribution.

@@ -45,6 +45,22 @@ jobs:
         run: node Tools/check-icons.cjs
       - name: Build the existing iOS app without signing
         run: xcodebuild -project Kairos/Kairos.xcodeproj -scheme Kairos -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/kairos-build CODE_SIGNING_ALLOWED=NO ARCHS=arm64 build
+      - name: Verify built widget bundle metadata
+        run: |
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+          app = Path('/tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app')
+          parent = plistlib.loads((app / 'Info.plist').read_bytes())
+          widgets = list((app / 'PlugIns').glob('*.appex/Info.plist'))
+          assert widgets, 'The built app must contain its widget extension'
+          for path in widgets:
+              widget = plistlib.loads(path.read_bytes())
+              assert widget.get('CFBundlePackageType') == 'XPC!', f'{path}: invalid extension package type'
+              for key in ('CFBundleShortVersionString', 'CFBundleVersion'):
+                  assert parent.get(key) and widget.get(key) == parent[key], f'{path}: {key} must match the app'
+          print('Built widget package type and app/version agreement passed')
+          PY
       - name: Verify bundled schedule engines
         run: |
           test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/recurrence-engine.js
