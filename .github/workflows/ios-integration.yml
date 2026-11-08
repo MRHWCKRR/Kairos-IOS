@@ -16,6 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: swift --version
+      - name: Check find-time planning
+        run: node Tools/find-time-smoke.cjs
       - name: Check touch scheduling engine
         run: node Tools/schedule-touch-smoke.cjs
       - name: Check planner search
@@ -51,6 +53,7 @@ jobs:
           test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/planning-settings-engine.js
           test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/assignment-progress-engine.js
           test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/focus-engine.js
+          test -s /tmp/kairos-build/Build/Products/Debug-iphonesimulator/Kairos.app/planning-engine.js
 
   toolbar-layout:
     runs-on: macos-latest
@@ -65,5 +68,6 @@ jobs:
         with:
           name: ios-toolbar-regression
           path: /tmp/kairos-toolbar-artifacts
+
 
 

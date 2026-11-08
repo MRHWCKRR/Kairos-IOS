@@ -107,6 +107,10 @@ function nativeEntry(state,target,options){
 }
 globalThis.kairosTouchScheduleRequest=function(json){
  const request=JSON.parse(json),state=request.state,options={allowCompleted:request.options?.allowCompleted===true};
+ if(request.mode==='planning'){
+  nativeEntry(state,request.target,options);
+  return JSON.stringify(buildScheduleChange(state,request.target,request.changes,options).expected);
+ }
  if(request.mode==='begin'){
   const entry=nativeEntry(state,request.target,options),effective=entry.occurrence?.task||entry.task;
   const start=parseTime(effective.startTime),duration=entry.occurrence?.durationMinutes||taskDurationMinutes(effective);
@@ -128,3 +132,4 @@ globalThis.kairosTouchScheduleRequest=function(json){
 };
 function clock(value){return String(Math.floor(value/60)%24).padStart(2,'0')+':'+String(value%60).padStart(2,'0')}
 })();
+
