@@ -1,0 +1,17 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+for(const name of ['recurrence-engine','planning-engine'])vm.runInThisContext(fs.readFileSync(`${__dirname}/../Kairos/Kairos/Core/Resources/${name}.js`,'utf8'));
+const now=Date.parse('2026-11-08T08:00:00Z'),timezone='UTC';
+const parent={id:'essay',title:'Essay',dueDate:'2026-11-14',unknown:{keep:true}};
+const state={boards:[{id:'b',sections:[{id:'s',tasks:[parent]}]}],scheduleEvents:[]};
+const input={taskId:'essay',totalMinutes:60,sessionMinutes:30,ordered:true,from:'2026-11-08',to:'2026-11-20',timezone,dayStart:'07:00',dayEnd:'22:00',gapMinutes:5,dailyLimitMinutes:120};
+const ids=Array.from({length:40},(_,i)=>`session-${i}`),profile={settings:{profile:{timezone},planning:{gapMinutes:5,dailyLimitMinutes:120}}};
+const run=r=>JSON.parse(kairosSessionRequest(JSON.stringify({now,timezone,state,...r})));
+const review=run({mode:'preview',input,ids});assert.equal(review.rows.length,2);assert.equal(review.rows[0].taskId,'session-0');
+const applied=run({mode:'apply',command:review.command,expected:review.expected,profile});
+const tasks=applied.next.boards[0].sections[0].tasks;assert.equal(tasks[0].unknown.keep,true);assert.equal(tasks[0].sessionOrder,'sequential');assert.equal(tasks[1].assignmentId,'essay');assert.equal(tasks[2].sessionIndex,2);
+const undone=run({mode:'undo',state:applied.next,record:applied.result.planningUndo});assert.equal(undone.next.boards[0].sections[0].tasks[1].archived,true);
+const completed=structuredClone(applied.next);completed.boards[0].sections[0].tasks[1].completed=true;assert.throws(()=>run({mode:'undo',state:completed,record:applied.result.planningUndo}));
+assert.throws(()=>run({mode:'apply',state:{...state,scheduleEvents:[{id:'busy',date:'2026-11-08',start:'08:00',end:'09:00'}]},command:review.command,expected:review.expected,profile}));
+assert.throws(()=>run({mode:'apply',command:review.command,expected:review.expected,profile:{settings:{profile:{timezone},planning:{gapMinutes:10,dailyLimitMinutes:120}}}}));
+assert.throws(()=>run({mode:'preview',input:{...input,totalMinutes:2500},ids}));
+console.log('Session preview, guarded apply, metadata, settings, conflicts and Undo passed');

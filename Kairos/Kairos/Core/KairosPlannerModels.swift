@@ -24,6 +24,9 @@ struct KairosTask: Codable, Identifiable, Equatable, Sendable {
     var taskDescription: String? = nil
     var dueTime: String? = nil
     var parentTaskID: String? = nil
+    var assignmentId: String? = nil
+    var sessionIndex: Int? = nil
+    var sessionOrder: String? = nil
     var notes: String? = nil
     var priority: String? = nil
     var estimatedMinutes: Int? = nil
@@ -94,6 +97,9 @@ extension KairosTask {
         taskDescription = try c.decodeIfPresent(String.self, forKey: .taskDescription)
         dueTime = try c.decodeIfPresent(String.self, forKey: .dueTime)
         parentTaskID = try c.decodeIfPresent(String.self, forKey: .parentTaskID)
+        assignmentId = try c.decodeIfPresent(String.self, forKey: .assignmentId)
+        sessionIndex = try c.decodeIfPresent(Int.self, forKey: .sessionIndex)
+        sessionOrder = try c.decodeIfPresent(String.self, forKey: .sessionOrder)
         notes = try c.decodeIfPresent(String.self, forKey: .notes)
         priority = try c.decodeIfPresent(String.self, forKey: .priority)
         estimatedMinutes = try c.decodeIfPresent(Int.self, forKey: .estimatedMinutes)
@@ -124,3 +130,4 @@ struct KairosRecurrenceMarker: Codable, Equatable, Sendable {
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
     }
 }
+

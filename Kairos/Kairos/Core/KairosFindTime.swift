@@ -27,7 +27,7 @@ enum KairosFindTime {
                 let rawTasks = try KairosAIProposalEngine.maps(rawSections[si]["tasks"])
                 var tasks = try KairosAIProposalEngine.maps(sections[si]["tasks"])
                 for ti in tasks.indices {
-                    tasks[ti]["assignmentId"] = rawTasks[ti]["assignmentId"]
+                    for key in ["assignmentId", "remainingMinutes", "sessionIndex", "sessionOrder"] { tasks[ti][key] = rawTasks[ti][key] }
                     if var rule = tasks[ti]["recurrence"] as? [String: Any], let rawRule = rawTasks[ti]["recurrence"] as? [String: Any] {
                         var exceptions = rule["exceptions"] as? [String: Any] ?? [:]
                         for (date, value) in rawRule["exceptions"] as? [String: Any] ?? [:] {
@@ -47,7 +47,7 @@ enum KairosFindTime {
         state["boards"] = boards
         return state
     }
-    nonisolated static func run(_ request: [String: Any]) throws -> String {
+    nonisolated static func run(_ request: [String: Any], entry: String = "kairosPlanningRequest") throws -> String {
         #if SWIFT_PACKAGE
         let bundle = Bundle.module
         #else
@@ -59,7 +59,7 @@ enum KairosFindTime {
             context.evaluateScript(try String(contentsOf: url, encoding: .utf8))
             if let error = context.exception { throw KairosTouchSchedule.Failure(error.toString() ?? "Planning could not load.") }
         }
-        let result = context.objectForKeyedSubscript("kairosPlanningRequest")?.call(withArguments: [try KairosTouchSchedule.json(request)])?.toString()
+        let result = context.objectForKeyedSubscript(entry)?.call(withArguments: [try KairosTouchSchedule.json(request)])?.toString()
         if let error = context.exception { throw KairosTouchSchedule.Failure(error.toString() ?? "Review a new preview.") }
         guard let result else { throw KairosTouchSchedule.Failure("Planning could not finish.") }
         return result
@@ -88,3 +88,4 @@ enum KairosFindTime {
         _ = try run(["mode": "validate", "now": now, "state": state(plan), "profile": ["settings": profile["settings"] ?? [:]], "timezone": draft.timezone, "target": KairosTouchSchedule.object(KairosTouchSchedule.encode(draft.target)), "changes": changes(target: draft.target, placement: placement), "review": KairosTouchSchedule.object(review)])
     }
 }
+

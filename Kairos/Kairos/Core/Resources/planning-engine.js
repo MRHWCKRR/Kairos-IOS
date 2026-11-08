@@ -1,4 +1,4 @@
-// Vendored web planning models from MRHWCKRR/Kairos at bab63839209f2120ef2d9559c612c9d6105a6c1a.
+// Vendored web planning models: slot finding at bab6383; session commands, Undo, remaining work and order at e554ac6.
 (function(){
 const modules={},cache={};
 function require(name){if(cache[name])return cache[name];const exports={};cache[name]=exports;modules[name](exports,require);return exports;}
@@ -1070,6 +1070,345 @@ function eventOccurrencesForDate(event,date){
 Object.assign(exports,{validEventDate,isWeeklyNativeEvent,withinEventDates,isEventOccurrenceDate,eventOccurrence,eventOccurrencesForDate});
 };
 
+modules['planning-commands.js']=function(exports,require){
+const {taskRemainingMinutes}=require('remaining-work.js');
+const {capturePlanningUndo}=require('planning-undo.js');
+const {normaliseWeeklyAvailability}=require('weekly-availability.js');
+const {planningTasks,planningClock,validPlanningDate}=require('planning-model.js');
+const {findPlanningSlot,planningAvailability,planningWindows,planningBlockValid,planningPlacementOccupancy,planningIntervalsConflict,planningDailyWork,planningDailyRemaining,addPlanningDailyWork,planningDailyLimitText}=require('planning-slots.js');
+const {parseTime,taskDurationMinutes}=require('schedule-utils.js');
+const {zonedTaskStart}=require('task-reminders.js');
+const {stableStringify}=require('plan-merge.js');
+const {orderedSessionGroup,orderedPlacementClock,clockAfterSession,expandOrderedTaskIds,assertAssignmentOrder,validateAssignmentOrderChanges}=require('assignment-order.js');
+
+const allTasks=state=>(state.boards||[]).flatMap(board=>(board.sections||[]).flatMap(section=>section.tasks||[]));
+function locate(state,id){const entries=planningTasks(state).filter(entry=>entry.task.id===id);if(entries.length!==1||allTasks(state).filter(task=>task.id===id).length!==1)throw Error('A task is missing, archived, or has duplicate IDs.');return entries[0]}
+function eligible(state,id){const entry=locate(state,id),task=entry.task;if(task.completed||task.recurrence?.enabled||task.scheduleLocked)throw Error('Completed, recurring, or locked tasks cannot be moved by this planner.');return entry}
+const idValid=id=>typeof id==='string'&&id.length>0&&id.length<=160;
+function recurrenceSnapshot(rule){if(!rule?.enabled)return null;return {...rule,exceptions:Object.fromEntries(Object.entries(rule.exceptions||{}).map(([date,value])=>[date,{status:value.status||'pending',override:Object.fromEntries(['date','startTime','endTime','durationMinutes'].filter(key=>value.override?.[key]!==undefined).map(key=>[key,value.override[key]]))}]))}}
+// Schedule fills missing legacy locks with false; both mean unlocked.
+function planningSignature(state){return stableStringify({tasks:planningTasks(state).map(({board,section,task})=>({board:board.id,section:section.id,...Object.fromEntries(['id','date','startTime','endTime','dueDate','estimatedMinutes','remainingMinutes','lastScheduledMinutes','completed','scheduleLocked','schedulingPreference','assignmentId','sessionIndex','sessionOrder'].map(key=>[key,task[key]??(key==='scheduleLocked'?false:null)])),recurrence:recurrenceSnapshot(task.recurrence)})),events:(state.scheduleEvents||[]).map(event=>Object.fromEntries(['id','day','date','start','end','archived','transparent','allDay','exceptions','startDate','endDate','intervalWeeks','anchorDate'].map(key=>[key,event[key]??null])))})}
+const options=input=>({...(input.dailyLimitMinutes!==undefined?{dailyLimitMinutes:input.dailyLimitMinutes}:{}),from:input.from,to:input.to,...(input.dayStart!==undefined?{dayStart:input.dayStart}:{}),...(input.dayEnd!==undefined?{dayEnd:input.dayEnd}:{}),timezone:input.timezone||'UTC',...(input.gapMinutes!==undefined?{gapMinutes:input.gapMinutes}:{}),...(input.weeklyAvailability!=null?{weeklyAvailability:normaliseWeeklyAvailability(input.weeklyAvailability)}:{}),...(input.availabilitySource?{availabilitySource:input.availabilitySource}:{})});
+const interval=row=>({date:row.date,startMin:parseTime(row.startTime),endMin:parseTime(row.startTime)+row.minutes});
+function effectiveDeadline(state,task){
+ const parent=task.assignmentId?planningTasks(state).find(entry=>entry.task.id===task.assignmentId)?.task:null;
+ const dates=[task.dueDate,parent?.dueDate].filter(Boolean);if(dates.some(date=>!validPlanningDate(date)))throw Error('Review the task or assignment deadline.');
+ return dates.sort()[0]||null;
+}
+function ensureSessionSource(state,parentId){const entry=eligible(state,parentId);if(entry.task.startTime)throw Error('This assignment is already scheduled. Unscheduled assignments can be split into work sessions.');if(allTasks(state).some(task=>task.assignmentId===parentId))throw Error('This assignment already has work sessions. Manage those tasks instead.');return entry}
+
+function previewSessions(state,input,clock,spacingCache=new Map()){
+ if(input.ordered!==undefined&&typeof input.ordered!=='boolean')throw Error('Choose a valid session ordering setting.');
+ let placementClock=clock;
+ const parent=ensureSessionSource(state,input.taskId).task,total=Number(input.totalMinutes),size=Number(input.sessionMinutes),opts=options(input);planningAvailability(opts);
+ if(!Number.isInteger(total)||total<15||total>2400||!Number.isInteger(size)||size<15||size>120)throw Error('Choose 15–2400 total minutes and 15–120 minutes per session.');
+ const count=Math.ceil(total/size);if(count>40)throw Error('Use at most 40 work sessions in one assignment plan.');
+ const labels=input.labels||[];if(!Array.isArray(labels)||labels.length&&labels.length!==count||labels.some(title=>typeof title!=='string'||!title.trim()||title.trim().length>180))throw Error(`Enter exactly ${count} session titles, or leave titles blank.`);
+ const used=new Set(allTasks(state).map(task=>task.id)),busy=planningPlacementOccupancy(state,opts),dailyWork=planningDailyWork(state,opts),rows=[];
+ for(let index=0;index<count;index++){
+  const minutes=Math.min(size,total-index*size),taskId=input.idFactory?.()||'session-'+globalThis.crypto.randomUUID();
+  if(!idValid(taskId)||used.has(taskId))throw Error('Work session IDs must be unique.');used.add(taskId);
+  const placement=findPlanningSlot(minutes,{...opts,dailyWork,dueDate:parent.dueDate||null,preference:parent.schedulingPreference},busy,placementClock,spacingCache);
+  if(!placement)throw Error('Not enough room to fit every session before the deadline'+(opts.gapMinutes?' with '+opts.gapMinutes+'-minute gaps':'')+'. '+planningDailyLimitText(opts)+' Extend availability or reduce the effort; no sessions were created.');
+  const row={taskId,title:labels[index]?.trim()||String(parent.title||'Assignment').slice(0,160)+` · ${index+1}/${count}`,minutes,...placement};rows.push(row);busy.push(interval(row));addPlanningDailyWork(dailyWork,row.date,minutes);
+  if(input.ordered)placementClock=clockAfterSession(row,clock);
+ }
+ return {command:{type:'planning_batch',version:1,mode:'sessions',parentId:parent.id,totalMinutes:total,sessionMinutes:size,ordered:input.ordered===true,options:opts,rows},expected:{signature:planningSignature(state)},rows};
+}
+
+function previewCarryover(state,input,clock,spacingCache=new Map()){
+ const requested=input.taskIds,opts=options(input);planningAvailability(opts);
+ if(!Array.isArray(requested)||!requested.length||requested.length>40||new Set(requested).size!==requested.length)throw Error('Choose between 1 and 40 distinct tasks.');
+ requested.forEach(id=>eligible(state,id));const ids=expandOrderedTaskIds(state,requested);if(ids.length>40)throw Error('This order requires more than 40 tasks. Review the assignment in a smaller plan.');
+ const sources=ids.map(id=>eligible(state,id)).sort((a,b)=>String(effectiveDeadline(state,a.task)||'9999').localeCompare(String(effectiveDeadline(state,b.task)||'9999'))),selected=new Set(ids),working=structuredClone(state);
+ const busy=planningPlacementOccupancy(state,opts).filter(item=>item.kind!=='task'||!selected.has(item.taskId)),rows=[],dailyWork=planningDailyWork(state,opts,selected);
+ while(sources.length){
+  const ready=sources.findIndex(({task})=>{const group=task.assignmentId?orderedSessionGroup(working,task.assignmentId):null;return !group||!group.sessions.some(prior=>!prior.completed&&prior.sessionIndex<task.sessionIndex&&sources.some(entry=>entry.task.id===prior.id))});
+  if(ready<0)throw Error('Review the prerequisite session order.');const {task}=sources.splice(ready,1)[0];
+  const minutes=taskRemainingMinutes(task),placement=findPlanningSlot(minutes,{...opts,dailyWork,assignmentWork:!!task.assignmentId,dueDate:effectiveDeadline(state,task),preference:task.schedulingPreference},busy,orderedPlacementClock(working,task,clock),spacingCache);
+  if(!placement)throw Error(`No safe time fits before the deadline for “${String(task.title||'Task')}”. Adjust the range or availability. ${planningDailyLimitText(opts)}${opts.gapMinutes?' This check includes '+opts.gapMinutes+'-minute gaps.':''}`);
+  const row={taskId:task.id,title:String(task.title||'Task'),minutes,...placement};rows.push(row);busy.push(interval(row));if(task.assignmentId)addPlanningDailyWork(dailyWork,row.date,minutes);
+  Object.assign(locate(working,task.id).task,placement);
+ }
+ assertAssignmentOrder(working,new Set(rows.map(row=>locate(working,row.taskId).task.assignmentId).filter(Boolean)));
+ return {command:{type:'planning_batch',version:1,mode:'move',options:opts,rows},expected:{signature:planningSignature(state)},rows,notice:ids.length>requested.length?'Includes '+(ids.length-requested.length)+' later sessions to preserve assignment order.':''};
+}
+
+function revisionSources(state,parentId){
+ const parent=eligible(state,parentId).task;
+ if(parent.assignmentId)throw Error('Choose the parent assignment.');
+ const sessions=planningTasks(state).map(entry=>entry.task).filter(task=>task.assignmentId===parentId);
+ const pending=sessions.filter(task=>!task.completed).sort((a,b)=>(a.sessionIndex||0)-(b.sessionIndex||0)||String(a.id).localeCompare(String(b.id)));
+ for(const task of pending)eligible(state,task.id);
+ return {parent,pending,completed:sessions.filter(task=>task.completed)};
+}
+function previewSessionRevision(state,input,clock,spacingCache=new Map()){
+ if(!['number','string'].includes(typeof input.remainingMinutes)||typeof input.remainingMinutes==='string'&&!input.remainingMinutes.trim())throw Error('Enter remaining effort, including 0 only when you intend to archive unfinished sessions.');
+ const {parent,pending,completed}=revisionSources(state,input.taskId),total=Number(input.remainingMinutes),size=Number(input.sessionMinutes),opts=options(input);planningAvailability(opts);
+ if(input.ordered!==undefined&&typeof input.ordered!=='boolean')throw Error('Choose a valid session ordering setting.');
+ const ordered=input.ordered??(parent.sessionOrder==='sequential');let placementClock=clock;
+ if(!Number.isInteger(total)||total<0||total>2400||!Number.isInteger(size)||size<15||size>120)throw Error('Choose 0-2400 remaining minutes and 15-120 minutes per session.');
+ const count=Math.ceil(total/size);if(count+completed.length>40)throw Error('Keep at most 40 active sessions in one assignment plan.');
+ if(!count&&!pending.length)throw Error('There are no unfinished sessions to change.');
+ const selected=new Set(pending.map(task=>task.id)),busy=planningPlacementOccupancy(state,opts).filter(item=>item.kind!=='task'||!selected.has(item.taskId)),used=new Set(allTasks(state).map(task=>task.id)),rows=[],dailyWork=planningDailyWork(state,opts,selected);
+ for(let index=0;index<count;index++){
+  const existing=pending[index],minutes=Math.min(size,total-index*size),taskId=existing?.id||input.idFactory?.()||'session-'+globalThis.crypto.randomUUID();
+  if(!idValid(taskId)||!existing&&used.has(taskId))throw Error('Work session IDs must be unique.');used.add(taskId);
+  const dueDate=[parent.dueDate,existing?.dueDate].filter(Boolean).sort()[0]||null;
+  const placement=findPlanningSlot(minutes,{...opts,dailyWork,dueDate,preference:existing?.schedulingPreference||parent.schedulingPreference},busy,placementClock,spacingCache);
+  if(!placement)throw Error('Not enough room to fit the remaining effort before its deadlines. '+planningDailyLimitText(opts)+' No sessions were changed.');
+  const row={taskId,title:existing?.title||String(parent.title||'Assignment').slice(0,160)+' · New session '+(index+1),minutes,...placement};rows.push(row);busy.push(interval(row));addPlanningDailyWork(dailyWork,row.date,minutes);
+  if(ordered)placementClock=clockAfterSession(row,clock);
+ }
+ return {command:{type:'planning_batch',version:1,mode:'revise-sessions',parentId:parent.id,totalMinutes:total,sessionMinutes:size,ordered,options:opts,rows,archiveIds:pending.slice(count).map(task=>task.id)},expected:{signature:planningSignature(state)},rows};
+}
+
+function applyPlanningCommand(state,command,expected,{now=Date.now()}={}){
+ if(command?.ordered!==undefined&&typeof command.ordered!=='boolean')throw Error('Invalid session ordering setting.');
+ const revising=command?.mode==='revise-sessions';
+ if(command?.type!=='planning_batch'||command.version!==1||!['sessions','move','revise-sessions'].includes(command.mode)||!Array.isArray(command.rows)||!command.rows.length&&!(revising&&command.archiveIds?.length)||command.rows.length>40)throw Error('Invalid planning command.');
+ if(typeof expected?.signature!=='string'||expected.signature!==planningSignature(state))throw Error('The schedule, deadline, or task status changed. Refresh this preview before applying it.');
+ const opts=command.options||{};planningAvailability(opts);const clock=planningClock(now,opts.timezone||'UTC'),rows=command.rows,ids=rows.map(row=>row.taskId),spacingCache=new Map();
+ if(ids.some(id=>!idValid(id))||new Set(ids).size!==ids.length)throw Error('Invalid or duplicate work session IDs.');
+ let parent=null;
+ let archiveIds=[],existingIds=new Set();
+ if(revising){
+  const source=revisionSources(state,command.parentId);parent=source.parent;
+  const total=command.totalMinutes,size=command.sessionMinutes;archiveIds=command.archiveIds;
+  if(!Number.isInteger(total)||total<0||total>2400||!Number.isInteger(size)||size<15||size>120||rows.length!==Math.ceil(total/size)||rows.length+source.completed.length>40||rows.some((row,index)=>row.minutes!==Math.min(size,total-index*size))||!Array.isArray(archiveIds)||archiveIds.length>40||new Set(archiveIds).size!==archiveIds.length)throw Error('Invalid session revision.');
+  existingIds=new Set(source.pending.map(task=>task.id));
+  if(archiveIds.some(id=>!existingIds.has(id)||ids.includes(id))||[...existingIds].some(id=>!ids.includes(id)&&!archiveIds.includes(id))||ids.some(id=>!existingIds.has(id)&&allTasks(state).some(task=>task.id===id)))throw Error('Invalid session targets. Only this assignment’s unfinished sessions may change.');
+ }
+ if(command.mode==='sessions'){
+  parent=ensureSessionSource(state,command.parentId).task;const {totalMinutes:total,sessionMinutes:size}=command;
+  if(!Number.isInteger(total)||total<15||total>2400||!Number.isInteger(size)||size<15||size>120||rows.length!==Math.ceil(total/size)||rows.some((row,index)=>row.minutes!==Math.min(size,total-index*size)))throw Error('Invalid session effort or duration.');
+  if(allTasks(state).some(task=>ids.includes(task.id)))throw Error('A session ID already exists. Retry the original operation to reconcile its save.');
+ }
+ const selected=new Set(revising?[...existingIds]:command.mode==='move'?ids:[]),busy=planningPlacementOccupancy(state,opts).filter(item=>item.kind!=='task'||!selected.has(item.taskId)),dailyWork=planningDailyWork(state,opts,selected);
+ for(const row of rows){
+  const task=revising&&existingIds.has(row.taskId)?eligible(state,row.taskId).task:parent||eligible(state,row.taskId).task,start=parseTime(row.startTime),end=parseTime(row.endTime),windows=planningWindows({...opts,preference:task.schedulingPreference||parent?.schedulingPreference},row.date);
+  if(!Number.isInteger(row.minutes)||row.minutes<1||row.minutes>=1440||start===null||end===null||(end-start+1440)%1440!==row.minutes||start%5!==0||!windows.some(window=>start>=window.start&&start+row.minutes<=window.end)||!validPlanningDate(row.date)||row.date<opts.from||row.date>opts.to)throw Error('Invalid session schedule, time, or duration.');
+  if(!parent&&row.minutes!==taskRemainingMinutes(task))throw Error('This task duration changed. Refresh the preview.');
+  if(task.dueDate&&(!validPlanningDate(task.dueDate)||row.date>task.dueDate))throw Error('This placement would miss its deadline.');
+  const deadline=effectiveDeadline(state,task);if(deadline&&row.date>deadline)throw Error('This placement would miss the task or assignment deadline.');
+  if(parent?.dueDate&&(!validPlanningDate(parent.dueDate)||row.date>parent.dueDate))throw Error('This placement would miss the assignment deadline.');
+  if(row.date<clock.date||zonedTaskStart(row.date,row.startTime,opts.timezone||'UTC')<now||!planningBlockValid(row.date,start,row.minutes,opts.timezone||'UTC'))throw Error('This preview time is in the past or crosses a timezone transition. Refresh it.');
+  if(parent||task.assignmentId){if(row.minutes>planningDailyRemaining(dailyWork,row.date,opts))throw Error('This placement exceeds the daily assignment-work limit. Review a new preview.');addPlanningDailyWork(dailyWork,row.date,row.minutes)}
+  const nextInterval=interval(row);if(busy.some(item=>planningIntervalsConflict(item,nextInterval,opts,spacingCache)))throw Error('This proposed time conflicts with another commitment. Refresh the preview.');busy.push(nextInterval);
+  if(parent&&(typeof row.title!=='string'||!row.title.trim()||row.title.trim().length>180))throw Error('Use a session title up to 180 characters.');
+ }
+ const next=structuredClone(state);
+ if(parent){
+  const destination=locate(next,parent.id).section;
+  if(command.ordered!==undefined&&(command.ordered||parent.sessionOrder!==undefined))locate(next,parent.id).task.sessionOrder=command.ordered?'sequential':'independent';
+  let sequence=Math.max(0,...allTasks(state).filter(task=>task.assignmentId===parent.id).map(task=>Number(task.sessionIndex)||0));
+  for(const row of rows){
+   if(revising&&existingIds.has(row.taskId)){Object.assign(locate(next,row.taskId).task,{date:row.date,startTime:row.startTime,endTime:row.endTime,estimatedMinutes:row.minutes,lastScheduledMinutes:row.minutes,...(locate(next,row.taskId).task.remainingMinutes!==undefined?{remainingMinutes:row.minutes}:{})});continue}
+   destination.tasks.push({id:row.taskId,title:row.title.trim(),completed:false,archived:false,assignmentId:parent.id,sessionIndex:++sequence,date:row.date,startTime:row.startTime,endTime:row.endTime,dueDate:parent.dueDate||null,estimatedMinutes:row.minutes,lastScheduledMinutes:row.minutes,priority:parent.priority||null,schedulingPreference:parent.schedulingPreference||null,scheduleLocked:false,notes:'',checklist:[]});
+  }
+  for(const id of archiveIds)locate(next,id).task.archived=true;
+ }else for(const row of rows){const task=locate(next,row.taskId).task;Object.assign(task,{date:row.date,startTime:row.startTime,endTime:row.endTime,lastScheduledMinutes:row.minutes})}
+ validateAssignmentOrderChanges(state,next);
+ const planningUndo=capturePlanningUndo(state,next,command);
+ return {next,result:{type:'planning_batch',action:command.mode,taskIds:[...ids,...archiveIds],completedTaskIds:[],affectedCount:rows.length+archiveIds.length,...(planningUndo?{planningUndo}:{planningUndoUnavailable:true})}};
+}
+
+
+Object.assign(exports,{planningSignature,previewSessions,previewCarryover,previewSessionRevision,applyPlanningCommand});
+};
+modules['planning-undo.js']=function(exports,require){
+const {stableStringify}=require('plan-merge.js');
+const {planningTasks,validPlanningDate,shiftPlanningDate}=require('planning-model.js');
+const {planningOccupancy,intervalsOverlap}=require('planning-slots.js');
+const {parseTime,formatTime,taskDurationMinutes}=require('schedule-utils.js');
+const {zonedTaskStart}=require('task-reminders.js');
+const {validateAssignmentOrderChanges}=require('assignment-order.js');
+
+const FIELDS=['date','startTime','endTime','lastScheduledMinutes','estimatedMinutes','remainingMinutes','archived','sessionOrder'];
+const GUARDS=[...FIELDS,'dueDate','assignmentId','sessionIndex','scheduleLocked','schedulingPreference'];
+const all=state=>(state.boards||[]).flatMap(board=>(board.sections||[]).flatMap(section=>(section.tasks||[]).map(task=>({board,section,task}))));
+const guard=task=>stableStringify({...Object.fromEntries(GUARDS.filter(key=>task[key]!==undefined).map(key=>[key,task[key]])),archived:task.archived===true,recurring:task.recurrence?.enabled===true});
+function locate(state,id){const found=all(state).filter(entry=>entry.task.id===id);if(found.length!==1||found[0].board.archived||found[0].section.archived)throw Error('An Undo target is missing, moved, archived or ambiguous.');return found[0]}
+const location=entry=>({boardId:entry.board.id,sectionId:entry.section.id});
+const members=(state,id)=>planningTasks(state).filter(entry=>entry.task.assignmentId===id).map(entry=>entry.task.id).sort();
+const values=task=>({date:task.date||null,startTime:task.startTime||null,endTime:task.endTime||null,minutes:taskDurationMinutes(task),archived:task.archived===true,sessionOrder:task.sessionOrder||null});
+
+// Store only the fields the planner changed. Content/completion never enters
+// the inverse, and absence is retained separately from an explicit null.
+function capturePlanningUndo(before,after,command){
+ try{
+  const entries=[],parents=new Set(command.parentId?[command.parentId]:[]),ids=new Set([...command.rows.map(row=>row.taskId),...(command.archiveIds||[])]);
+  if(command.parentId)ids.add(command.parentId);
+  for(const id of ids){
+   const current=locate(after,id),previous=all(before).find(entry=>entry.task.id===id),keys=previous?FIELDS.filter(key=>stableStringify(previous.task[key])!==stableStringify(current.task[key])):[];
+   if(current.task.assignmentId)parents.add(current.task.assignmentId);
+   if(!previous||keys.length)entries.push({id,...location(current),created:!previous,keys,before:previous?Object.fromEntries(keys.filter(key=>previous.task[key]!==undefined).map(key=>[key,structuredClone(previous.task[key])])):{},guard:guard(current.task)});
+  }
+  if(!entries.length)return null;
+  const families=[...parents].filter(id=>all(after).some(entry=>entry.task.id===id)).map(id=>{const parent=locate(after,id);return {id,...location(parent),guard:guard(parent.task),members:members(after,id)}});
+  const record={version:1,timezone:command.options.timezone||'UTC',entries,families};
+  return entries.length<=81&&JSON.stringify(record).length<=48000?record:null;
+ }catch{return null}
+}
+function checkEntry(state,entry){
+ if(!entry||typeof entry.id!=='string'||typeof entry.guard!=='string')throw Error('Invalid saved planning Undo record.');
+ const found=locate(state,entry.id);if(found.board.id!==entry.boardId||found.section.id!==entry.sectionId||guard(found.task)!==entry.guard)throw Error('Scheduling, locks, deadlines or task identity changed after this plan. Undo needs manual review.');return found;
+}
+function validateRestored(state,task,timezone){
+ if(task.archived)return;
+ if(!task.date){if(task.startTime)throw Error('The previous task time has no valid date. Review it manually.');return}
+ if(!validPlanningDate(task.date))throw Error('The previous date needs manual review.');
+ const parent=task.assignmentId?planningTasks(state).find(entry=>entry.task.id===task.assignmentId)?.task:null;
+ for(const deadline of [task.dueDate,parent?.dueDate].filter(Boolean))if(!validPlanningDate(deadline)||task.date>deadline)throw Error('The previous placement would miss its current deadline.');
+ if(!task.startTime)return;
+ const start=parseTime(task.startTime),minutes=taskDurationMinutes(task);if(start===null||minutes>1440)throw Error('The previous time or duration needs manual review.');
+ const end=start+minutes,endDate=shiftPlanningDate(task.date,Math.floor(end/1440)),first=zonedTaskStart(task.date,formatTime(start,false),timezone),last=zonedTaskStart(endDate,formatTime(end%1440,false),timezone);
+ if(first===null||last===null||last-first!==minutes*60000)throw Error('The previous placement crosses an invalid timezone transition.');
+ const parts=[{date:task.date,startMin:start,endMin:Math.min(1440,end)}];if(end>1440)parts.push({date:shiftPlanningDate(task.date,1),startMin:0,endMin:end-1440});
+ for(const part of parts)if(planningOccupancy(state,part.date,part.date).some(item=>!(item.kind==='task'&&item.taskId===task.id)&&intervalsOverlap(item,part)))throw Error('The previous time conflicts with a current commitment. Review it manually.');
+}
+function applyPlanningUndo(state,record){
+ if(record?.version!==1||typeof record.timezone!=='string'||!Array.isArray(record.entries)||!record.entries.length||record.entries.length>81||!Array.isArray(record.families)||record.families.length>41||new Set(record.entries.map(entry=>entry?.id)).size!==record.entries.length)throw Error('This saved planning Undo record is unavailable or invalid.');
+ new Intl.DateTimeFormat('en',{timeZone:record.timezone});
+ for(const family of record.families){checkEntry(state,family);if(stableStringify(members(state,family.id))!==stableStringify(family.members))throw Error('Assignment session membership changed after this plan. Review it manually.');}
+ for(const entry of record.entries){const found=checkEntry(state,entry);if(typeof entry.created!=='boolean'||!Array.isArray(entry.keys)||entry.keys.length>FIELDS.length||new Set(entry.keys).size!==entry.keys.length||entry.keys.some(key=>!FIELDS.includes(key))||!entry.before||typeof entry.before!=='object'||Array.isArray(entry.before)||Object.keys(entry.before).some(key=>!entry.keys.includes(key)))throw Error('Invalid scheduling fields in the saved Undo record.');if(entry.created&&found.task.completed)throw Error('A newly created session has since been completed. Review it manually instead of archiving it with Undo.');}
+ const next=structuredClone(state),rows=[];
+ for(const entry of record.entries){
+  const task=locate(next,entry.id).task,from=values(task);
+  if(entry.created)task.archived=true;
+  else for(const key of entry.keys){if(Object.hasOwn(entry.before,key))task[key]=structuredClone(entry.before[key]);else delete task[key]}
+  rows.push({taskId:entry.id,title:String(task.title||'Task'),action:entry.created?'Archive created session':entry.keys.every(key=>key==='sessionOrder')?'Restore assignment ordering':'Restore previous scheduling fields',from,to:values(task)});
+ }
+ for(const entry of record.entries)if(!entry.created)validateRestored(next,locate(next,entry.id).task,record.timezone);
+ validateAssignmentOrderChanges(state,next);
+ return {next,result:{type:'planning_undo',taskIds:record.entries.map(entry=>entry.id),completedTaskIds:[],affectedCount:record.entries.length},rows};
+}
+function planningUndoSource(data,sourceOperationId=null){
+ const receipts=Array.isArray(data.aiActionReceipts)?data.aiActionReceipts:[],latest=[...receipts].reverse().find(receipt=>receipt.result?.type==='planning_batch');
+ if(!latest||sourceOperationId&&!receipts.some(receipt=>receipt.id===sourceOperationId))throw Error('Planning Undo history is no longer available. Older saved changes cannot be reconstructed safely.');
+ if(sourceOperationId&&latest.id!==sourceOperationId)throw Error('A newer planning change exists. Review Undo for the latest change.');
+ if(latest.planningUndoUsedBy)throw Error('The last planning change was already undone.');
+ if(!latest.result.planningUndo)throw Error('Undo is not available for this saved planning change.');return latest;
+}
+function planningUndoPreview(data,sourceOperationId=null,timezone){
+ const source=planningUndoSource(data,sourceOperationId),record=source.result.planningUndo;
+ if(timezone&&record.timezone!==timezone)throw Error('Your timezone changed after this plan. Review the previous placements manually.');
+ const checked=applyPlanningUndo(data,record);
+ return {command:{type:'planning_undo',sourceOperationId:source.id,options:{timezone:record.timezone}},expected:{sourceOperationId:source.id},rows:checked.rows,notice:'Undo restores only this plan\'s scheduling changes. Newly created sessions go to Archive. Notes, checklists, reminders and completion changes are preserved. Original dates, including past dates, are restored only when the current schedule is safe.'};
+}
+
+
+Object.assign(exports,{capturePlanningUndo,applyPlanningUndo,planningUndoSource,planningUndoPreview});
+};
+modules['remaining-work.js']=function(exports,require){
+const {focusOccurrence}=require('occurrence-focus.js');
+const {taskDurationMinutes}=require('schedule-utils.js');
+const {stableStringify}=require('plan-merge.js');
+
+function taskRemainingMinutes(task){
+ return Number.isInteger(task?.remainingMinutes)&&task.remainingMinutes>=1&&task.remainingMinutes<=1440?task.remainingMinutes:taskDurationMinutes(task);
+}
+
+// A check-in must not overwrite an estimate or status edited while it was open.
+function remainingWorkSnapshot(task){
+ return stableStringify(Object.fromEntries(['remainingMinutes','estimatedMinutes','lastScheduledMinutes','date','startTime','endTime','completed','assignmentId'].map(key=>[key,task[key]??null])));
+}
+
+function taskWorkCheckin(state,taskId,occurrenceDate=null){
+ const all=(state.boards||[]).flatMap(board=>(board.sections||[]).flatMap(section=>(section.tasks||[]).map(task=>({board,section,task})))),matches=all.filter(e=>e.task.id===taskId),found=matches[0];
+ if(occurrenceDate){if(matches.length!==1||found.board.archived||found.section.archived||found.task.archived)return null;const occurrence=focusOccurrence(found.task,occurrenceDate);if(!occurrence||occurrence.status!=='pending')return null;return {title:String(occurrence.task.title||'Task').slice(0,160)+' · '+occurrenceDate,remainingMinutes:taskRemainingMinutes(occurrence.task),workExpected:remainingWorkSnapshot(occurrence.task)}}
+ if(matches.length!==1||found.board.archived||found.section.archived||found.task.archived||found.task.completed||found.task.recurrence?.enabled||all.some(e=>e.task.assignmentId===taskId))return null;
+ return {title:String(found.task.title||'Task').slice(0,180),remainingMinutes:taskRemainingMinutes(found.task),workExpected:remainingWorkSnapshot(found.task)};
+}
+
+
+Object.assign(exports,{taskRemainingMinutes,remainingWorkSnapshot,taskWorkCheckin});
+};
+modules['assignment-order.js']=function(exports,require){
+const {planningTasks,validPlanningDate}=require('planning-model.js');
+const {parseTime,taskDurationMinutes}=require('schedule-utils.js');
+
+const active=state=>planningTasks(state).map(entry=>entry.task);
+const ordered=task=>task?.sessionOrder==='sequential';
+function orderedSessionGroup(state,parentId){
+ const tasks=active(state),parents=tasks.filter(task=>task.id===parentId);if(!parents.some(ordered))return null;
+ const sessions=tasks.filter(task=>task.assignmentId===parentId).sort((a,b)=>a.sessionIndex-b.sessionIndex);
+ const all=(state.boards||[]).flatMap(board=>(board.sections||[]).flatMap(section=>section.tasks||[])),ids=new Set(),indexes=new Set();
+ if(parents.length!==1||parents[0].assignmentId||parents[0].recurrence?.enabled)throw Error('Review the assignment session order: the parent is ambiguous or recurring.');
+ for(const task of sessions){
+  if(!Number.isSafeInteger(task.sessionIndex)||task.sessionIndex<1||indexes.has(task.sessionIndex)||ids.has(task.id)||all.filter(item=>item.id===task.id).length!==1||task.recurrence?.enabled)throw Error('Review session order: use unique positive session numbers and ordinary tasks.');
+  ids.add(task.id);indexes.add(task.sessionIndex);
+ }
+ return {parent:parents[0],sessions};
+}
+function assignmentReadiness(state){
+ const tasks=active(state),result=new Map();
+ for(const parent of tasks.filter(ordered)){
+  let group;try{group=orderedSessionGroup(state,parent.id)}catch{for(const task of tasks.filter(task=>task.assignmentId===parent.id))result.set(task.id,{state:'review'});continue}
+  let needsReschedule=false;try{assertAssignmentOrder(state,new Set([parent.id]))}catch{needsReschedule=true}
+  let waiting=null;for(const task of group.sessions){result.set(task.id,{state:task.completed?'completed':waiting?'waiting':'ready',needsReschedule,...(waiting?{waitingFor:waiting.id,waitingTitle:String(waiting.title||'Earlier session')}:{} )});if(!task.completed&&!waiting)waiting=task}
+ }
+ return result;
+}
+// Wall-clock values compare sessions within the same profile timezone. Slot
+// generation separately rejects DST gaps and elapsed-duration transitions.
+function wallStart(task){const start=parseTime(task?.startTime);return validPlanningDate(task?.date)&&start!==null?Date.parse(task.date+'T00:00:00Z')+start*60000:null}
+function wallEnd(task){const start=wallStart(task);return start===null?null:start+taskDurationMinutes(task)*60000}
+function clockAfterSession(task,clock){
+ const end=wallEnd(task);if(end===null)throw Error('Schedule the prerequisite session first, or reschedule the whole assignment.');
+ const current=Date.parse(clock.date+'T'+clock.time+':00Z');
+ // findPlanningSlot adds one minute before rounding; allow exact adjacency.
+ const lower=Math.max(current,end-60000),iso=new Date(lower).toISOString();return {date:iso.slice(0,10),time:iso.slice(11,16)};
+}
+function orderedPlacementClock(state,task,clock){
+ const group=task.assignmentId?orderedSessionGroup(state,task.assignmentId):null;if(!group)return clock;
+ const preceding=group.sessions.filter(item=>!item.completed&&item.sessionIndex<task.sessionIndex).at(-1);return preceding?clockAfterSession(preceding,clock):clock;
+}
+function expandOrderedTaskIds(state,ids){
+ const result=new Set(ids),tasks=active(state);
+ for(const id of ids){const task=tasks.find(item=>item.id===id),group=task?.assignmentId?orderedSessionGroup(state,task.assignmentId):null;if(group)for(const later of group.sessions)if(later.sessionIndex>task.sessionIndex&&!later.completed&&!later.scheduleLocked)result.add(later.id)}
+ return [...result];
+}
+function assertAssignmentOrder(state,parentIds=null){
+ for(const parent of active(state).filter(task=>ordered(task)&&(!parentIds||parentIds.has(task.id)))){
+  const group=orderedSessionGroup(state,parent.id);let previous=null;
+  for(const task of group.sessions){if(task.completed)continue;const start=wallStart(task);if(previous&&start!==null&&(wallEnd(previous)===null||start<wallEnd(previous)))throw Error('Session order would be broken for "'+String(parent.title||'Assignment')+'". Review the prerequisite and later sessions in Planning.');previous=task}
+ }
+}
+function validateAssignmentOrderChanges(before,after){
+ const old=new Map(active(before).map(task=>[task.id,task])),affected=new Set(),fields=['date','startTime','endTime','assignmentId','sessionIndex'];
+ for(const task of active(after)){
+  const prior=old.get(task.id);
+  if(task.sessionOrder!==prior?.sessionOrder)affected.add(task.id);
+  if(task.assignmentId&&(!prior||fields.some(key=>task[key]!==prior[key])||taskDurationMinutes(task)!==taskDurationMinutes(prior))){affected.add(task.assignmentId);if(prior?.assignmentId)affected.add(prior.assignmentId)}
+ }
+ assertAssignmentOrder(after,affected);
+}
+
+
+Object.assign(exports,{orderedSessionGroup,assignmentReadiness,clockAfterSession,orderedPlacementClock,expandOrderedTaskIds,assertAssignmentOrder,validateAssignmentOrderChanges});
+};
+modules['occurrence-focus.js']=function(exports,require){
+const {generateTaskOccurrences,normalizeRecurrence}=require('recurrence-utils.js');
+const {stableStringify}=require('plan-merge.js');
+
+function validFocusDate(value){return typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+'T12:00:00Z'))&&new Date(value+'T12:00:00Z').toISOString().slice(0,10)===value}
+function focusRecurrenceSignature(task){const rule=normalizeRecurrence(task,task.date);delete rule.exceptions;return stableStringify(rule)}
+function focusOccurrence(task,date){
+ if(!task?.recurrence?.enabled||!validFocusDate(date))return null;
+ const occurrence=generateTaskOccurrences(task,date,date,{today:date})[0];
+ if(!occurrence||['skipped','deleted'].includes(occurrence.status))return null;
+ return {...occurrence,task:{...occurrence.task,estimatedMinutes:occurrence.durationMinutes,completed:occurrence.status==='completed'}};
+}
+function setOccurrenceFocus(task,date,patch){
+ const existing=task.recurrence?.exceptions?.[date]||{};
+ task.recurrence={...task.recurrence,exceptions:{...task.recurrence?.exceptions,[date]:{...existing,...patch}}};
+}
+
+
+Object.assign(exports,{validFocusDate,focusRecurrenceSignature,focusOccurrence,setOccurrenceFocus});
+};
+
 globalThis.kairosPlanningRequest=function(json){
  const r=JSON.parse(json),state=r.state,model=require('schedule-find-time-model.js'),base=require('planning-model.js'),overdue=require('schedule-overdue.js'),change=require('schedule-change-model.js');
  const clock=base.planningClock(r.now??Date.now(),r.timezone);
@@ -1098,5 +1437,19 @@ globalThis.kairosPlanningRequest=function(json){
  }
  throw Error('Unsupported planning operation.');
 };
+globalThis.kairosSessionRequest=function(json){
+ const r=JSON.parse(json),model=require('planning-commands.js'),undo=require('planning-undo.js'),clock=require('planning-model.js').planningClock(r.now??Date.now(),r.timezone);
+ if(r.mode==='preview'){
+  const ids=[...r.ids],input={...r.input,idFactory:()=>ids.shift()};
+  return JSON.stringify(model.previewSessions(r.state,input,clock));
+ }
+ if(r.mode==='apply'){
+  require('schedule-find-time-model.js').assertFindTimeSettings(r.command.options,r.profile);
+  return JSON.stringify(model.applyPlanningCommand(r.state,r.command,r.expected,{now:r.now??Date.now()}));
+ }
+ if(r.mode==='undo')return JSON.stringify(undo.applyPlanningUndo(r.state,r.record));
+ throw Error('Unsupported session operation.');
+};
+
 })();
 
