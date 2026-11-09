@@ -56,6 +56,9 @@ struct KairosAppearanceSettings: Codable, Equatable {
     var ambientVolume: Int
     var customAmbientYoutubeUrl: String
     var confetti: Bool
+    var timerType: String?
+    var timerTheme: String?
+    var timerBorder: String?
 }
 
 struct KairosNotificationSettings: Codable, Equatable {

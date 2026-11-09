@@ -2,8 +2,13 @@ import SwiftUI
 
 struct FocusSessionControls: View {
     @Environment(SessionStore.self) private var account
+    @Environment(UserProfileRepository.self) private var profileRepo
     let allowsGeneralStart: Bool
     private var timer: FocusTimerCoordinator { .shared }
+    private var appearance: KairosTimerAppearance {
+        let value = profileRepo.appearanceSettings
+        return KairosTimerAppearance(type: value?.timerType, theme: value?.timerTheme, border: value?.timerBorder)
+    }
     @State private var confirmingDiscard = false
     var body: some View {
         if timer.belongs(to: account.userID) {
@@ -12,7 +17,7 @@ struct FocusSessionControls: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(session.target?.title ?? "General focus").font(.subheadline.weight(.semibold)).lineLimit(2)
-                            Text(FocusTimerViewModel.formatHMS(timer.elapsedSeconds)).font(.title2.monospacedDigit()).accessibilityLabel("Elapsed focus time")
+                            FocusTimerFace(seconds: timer.elapsedSeconds, running: timer.isRunning, appearance: appearance)
                         }
                         Spacer()
                         if !timer.hasPendingLog {
@@ -41,6 +46,62 @@ struct FocusSessionControls: View {
             } message: {
                 Text(timer.expiredRequest ? "Clearing does not change logged time. Check your totals or web history first." : "This removes the local timer. Logged focus time stays unchanged.")
             }
+        }
+    }
+}
+
+private struct FocusTimerFace: View {
+    let seconds: Int64
+    let running: Bool
+    let appearance: KairosTimerAppearance
+
+    private var time: String { FocusTimerViewModel.formatHMS(seconds) }
+    private var accent: Color {
+        switch appearance.theme {
+        case "cyan": return Color(red: 0.10, green: 0.70, blue: 0.78)
+        case "green": return Color(red: 0.18, green: 0.68, blue: 0.42)
+        case "amber": return Color(red: 0.88, green: 0.55, blue: 0.08)
+        case "rose": return Color(red: 0.88, green: 0.28, blue: 0.50)
+        default: return Color(red: 0.49, green: 0.27, blue: 0.96)
+        }
+    }
+
+    var body: some View {
+        Group {
+            switch appearance.type {
+            case "watch":
+                ZStack {
+                    Circle().stroke(accent.opacity(0.25), lineWidth: 7)
+                    VStack(spacing: 3) {
+                        KairosIcon("timer", size: 16).foregroundStyle(accent)
+                        Text(time).font(.system(.headline, design: .monospaced).weight(.bold)).minimumScaleFactor(0.65).lineLimit(1)
+                        Text(running ? "FOCUSING" : "READY").font(.caption2.weight(.bold)).tracking(1.5).foregroundStyle(accent)
+                    }.padding(8)
+                }.frame(width: 126, height: 126)
+            case "nuclear":
+                VStack(spacing: 4) {
+                    Text(time).font(.system(.title2, design: .monospaced).weight(.black)).minimumScaleFactor(0.65).lineLimit(1)
+                    Text(running ? "⚠ SEQUENCE ACTIVE ⚠" : "SYSTEM STANDBY").font(.caption2.weight(.bold)).tracking(1.2)
+                }
+                .foregroundStyle(accent).padding(12).background(Color.black, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            default:
+                Text(time).font(.title2.monospacedDigit()).foregroundStyle(accent)
+            }
+        }
+        .padding(appearance.border == "none" ? 0 : 7)
+        .overlay { border }
+        .shadow(color: appearance.border == "glow" ? accent.opacity(0.45) : .clear, radius: 9)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Elapsed focus time (time)")
+    }
+
+    @ViewBuilder private var border: some View {
+        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+        switch appearance.border {
+        case "glow": shape.stroke(accent, lineWidth: 2)
+        case "neon": shape.stroke(LinearGradient(colors: [.cyan, .pink], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 2)
+        case "hazard": shape.stroke(accent, style: StrokeStyle(lineWidth: 3, dash: [7, 4]))
+        default: EmptyView()
         }
     }
 }

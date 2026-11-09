@@ -13,6 +13,9 @@ struct AppearanceSettingsView: View {
     @State private var ambientVolume = 50.0
     @State private var customAmbientURL = ""
     @State private var confetti = true
+    @State private var timerType = "digital"
+    @State private var timerTheme = "violet"
+    @State private var timerBorder = "glow"
     @State private var reduceMotion = false
     @State private var savedMode = "system"
     @State private var savedTheme = "purple"
@@ -24,6 +27,9 @@ struct AppearanceSettingsView: View {
     @State private var savedAmbientVolume = 50.0
     @State private var savedCustomAmbientURL = ""
     @State private var savedConfetti = true
+    @State private var savedTimerType = "digital"
+    @State private var savedTimerTheme = "violet"
+    @State private var savedTimerBorder = "glow"
     @State private var savedReduceMotion = false
     @State private var isSaving = false
     @State private var showingUnsavedChanges = false
@@ -39,11 +45,12 @@ struct AppearanceSettingsView: View {
         mode != savedMode || theme != savedTheme || textColor != savedTextColor || font != savedFont ||
         background != savedBackground || customBackground != savedCustomBackground || ambientSound != savedAmbientSound ||
         Int(ambientVolume.rounded()) != Int(savedAmbientVolume.rounded()) || customAmbientURL != savedCustomAmbientURL ||
-        confetti != savedConfetti || reduceMotion != savedReduceMotion
+        confetti != savedConfetti || timerType != savedTimerType || timerTheme != savedTimerTheme ||
+        timerBorder != savedTimerBorder || reduceMotion != savedReduceMotion
     }
 
     private var draftFingerprint: String {
-        [mode, theme, textColor, font, background, customBackground, ambientSound, String(Int(ambientVolume.rounded())), customAmbientURL, String(confetti), String(reduceMotion)].joined(separator: "|")
+        [mode, theme, textColor, font, background, customBackground, ambientSound, String(Int(ambientVolume.rounded())), customAmbientURL, String(confetti), timerType, timerTheme, timerBorder, String(reduceMotion)].joined(separator: "|")
     }
 
     var body: some View {
@@ -67,6 +74,9 @@ struct AppearanceSettingsView: View {
                 Text("For bundled images, add the file to Kairos/Resources/Backgrounds and enter its filename without the extension.").font(.caption).foregroundStyle(.secondary)
             }
             Section("Focus") {
+                Picker("Timer type", selection: $timerType) { Text("Watch").tag("watch"); Text("Digital clock").tag("digital"); Text("Nuclear").tag("nuclear") }.pickerStyle(.navigationLink)
+                Picker("Timer theme", selection: $timerTheme) { Text("Violet").tag("violet"); Text("Cyan").tag("cyan"); Text("Green").tag("green"); Text("Amber").tag("amber"); Text("Rose").tag("rose") }.pickerStyle(.navigationLink)
+                Picker("Timer border", selection: $timerBorder) { Text("None").tag("none"); Text("Glow").tag("glow"); Text("Neon").tag("neon"); Text("Hazard").tag("hazard") }.pickerStyle(.navigationLink)
                 Picker("Ambient sound", selection: $ambientSound) { Text("None").tag("none"); Text("Rain").tag("rain"); Text("Forest").tag("forest"); Text("Ocean").tag("ocean") }.pickerStyle(.navigationLink)
                 if ambientSound != "none" {
                     VStack(alignment: .leading, spacing: 8) {
@@ -121,7 +131,10 @@ struct AppearanceSettingsView: View {
             ambientSound: ambientSound,
             ambientVolume: Int(ambientVolume.rounded()),
             customAmbientYoutubeUrl: customAmbientURL,
-            confetti: confetti
+            confetti: confetti,
+            timerType: timerType,
+            timerTheme: timerTheme,
+            timerBorder: timerBorder
         )
     }
 
@@ -143,6 +156,8 @@ struct AppearanceSettingsView: View {
             ambientVolume = min(max(Double(settings.ambientVolume), 0), 100)
             customAmbientURL = settings.customAmbientYoutubeUrl
             confetti = settings.confetti
+            let timer = KairosTimerAppearance(type: settings.timerType, theme: settings.timerTheme, border: settings.timerBorder)
+            timerType = timer.type; timerTheme = timer.theme; timerBorder = timer.border
         }
         reduceMotion = profileRepo.accessibilitySettings?.reduceMotion ?? false
         syncSavedValues()
@@ -150,14 +165,16 @@ struct AppearanceSettingsView: View {
 
     private func syncSavedValues() {
         savedMode = mode; savedTheme = theme; savedTextColor = textColor; savedFont = font; savedBackground = background; savedCustomBackground = customBackground
-        savedAmbientSound = ambientSound; savedAmbientVolume = ambientVolume; savedCustomAmbientURL = customAmbientURL; savedConfetti = confetti; savedReduceMotion = reduceMotion
+        savedAmbientSound = ambientSound; savedAmbientVolume = ambientVolume; savedCustomAmbientURL = customAmbientURL; savedConfetti = confetti
+        savedTimerType = timerType; savedTimerTheme = timerTheme; savedTimerBorder = timerBorder; savedReduceMotion = reduceMotion
     }
 
     private func attemptLeave() { guard hasUnsavedChanges else { dismiss(); return }; showingUnsavedChanges = true }
 
     private func discardChanges() {
         mode = savedMode; theme = savedTheme; textColor = savedTextColor; font = savedFont; background = savedBackground; customBackground = savedCustomBackground
-        ambientSound = savedAmbientSound; ambientVolume = savedAmbientVolume; customAmbientURL = savedCustomAmbientURL; confetti = savedConfetti; reduceMotion = savedReduceMotion
+        ambientSound = savedAmbientSound; ambientVolume = savedAmbientVolume; customAmbientURL = savedCustomAmbientURL; confetti = savedConfetti
+        timerType = savedTimerType; timerTheme = savedTimerTheme; timerBorder = savedTimerBorder; reduceMotion = savedReduceMotion
         profileRepo.appearanceSettings = draftAppearance()
     }
 
