@@ -92,7 +92,7 @@ private struct FocusTimerFace: View {
         .overlay { border }
         .shadow(color: appearance.border == "glow" ? accent.opacity(0.45) : .clear, radius: 9)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Elapsed focus time (time)")
+        .accessibilityLabel("Elapsed focus time \(time)")
     }
 
     @ViewBuilder private var border: some View {
