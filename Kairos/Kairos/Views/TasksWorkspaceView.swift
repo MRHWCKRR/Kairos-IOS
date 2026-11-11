@@ -454,8 +454,8 @@ struct TaskDetailView: View {
                         Text("Repeat settings use saved task values. Save other draft changes first.").font(.caption).foregroundStyle(.secondary)
                     }.padding(18).kairosCard(cornerRadius: 22)
                     AssignmentProgressCard(taskID: context.taskID, open: openLinkedTask)
-                    if let task, !task.completed, !task.archived, task.recurrence?.enabled != true, task.assignmentId == nil, task.startTime == nil, task.scheduleLocked != true, !hasSessions {
-                        Button("Break into sessions") { showSessionPlanner = true }
+                    if let task, !task.completed, !task.archived, task.recurrence?.enabled != true, task.assignmentId == nil, task.scheduleLocked != true, (hasSessions || task.startTime == nil) {
+                        Button(hasSessions ? "Revise sessions" : "Break into sessions") { showSessionPlanner = true }
                             .disabled(!contextAvailable)
                             .padding(18).frame(maxWidth: .infinity, alignment: .leading).kairosCard(cornerRadius: 22)
                     }
@@ -481,7 +481,7 @@ struct TaskDetailView: View {
                 TaskCreationSheet(target: .subtask(parentTaskID: context.taskID, sectionID: context.sectionID)).environment(planRepo)
             }
             .sheet(isPresented: $showRepeatEditor) { RecurringTaskEditor(taskID: context.taskID, occurrenceDate: nil) }
-            .sheet(isPresented: $showSessionPlanner) { SessionPlanningSheet(taskID: context.taskID).environment(planRepo).environment(profileRepo) }
+            .sheet(isPresented: $showSessionPlanner) { SessionPlanningSheet(taskID: context.taskID, revising: hasSessions).environment(planRepo).environment(profileRepo) }
               .sheet(item: $linkedTask) { TaskDetailView(context: $0) }
             .alert("Reminder saved", isPresented: Binding(get: { reminderHint != nil }, set: { if !$0 { reminderHint = nil } })) {
                 Button("Done") { reminderHint = nil; dismiss() }
@@ -682,6 +682,7 @@ private struct SessionPlanningSheet: View {
     @Environment(UserProfileRepository.self) private var profileRepo
     @Environment(\.dismiss) private var dismiss
     let taskID: String
+    let revising: Bool
     @State private var total = "120"
     @State private var size = "30"
     @State private var ordered = false
@@ -692,43 +693,49 @@ private struct SessionPlanningSheet: View {
     @State private var busy = false
     @State private var attempted = false
     @State private var scope: String?
+    @State private var revisionSummary: KairosAssignmentSummary?
 
     var body: some View {
         NavigationStack {
             Form {
                 if let review {
                     Section("Review work sessions") {
-                        Text("The assignment and its checklist stay intact. Only these new sessions will be scheduled.")
+                        Text(revising ? "Completed sessions and focus history stay intact. These unfinished sessions will be rescheduled; surplus sessions go to Archive." : "The assignment and its checklist stay intact. Only these new sessions will be scheduled.")
                         ForEach(review.rows) { row in
                             VStack(alignment: .leading) {
-                                Text(row.title)
+                                Text(row.title + (revising && revisionSummary?.sessions.contains(where: { $0.id == row.id }) == false ? " · New" : ""))
                                 Text("\(row.date) · \(row.startTime)–\(row.endTime) · \(row.minutes) min").font(.caption).foregroundStyle(.secondary)
                             }
                         }
-                        Button(attempted ? "Retry same request" : "Apply sessions") { apply(review) }.disabled(busy)
+                        if revising, let command = try? KairosTouchSchedule.object(review.commandJSON), let archiveIDs = command["archiveIds"] as? [String], !archiveIDs.isEmpty {
+                            Text("Archive \(archiveIDs.count) unfinished session\(archiveIDs.count == 1 ? "" : "s"): \(archiveIDs.compactMap { id in revisionSummary?.sessions.first(where: { $0.id == id })?.title }.joined(separator: ", "))").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Button(attempted ? "Retry same request" : revising ? "Apply revision" : "Apply sessions") { apply(review) }.disabled(busy)
                         Button("Discard preview") { self.review = nil; attempted = false; error = nil }.disabled(busy)
                     }
                 } else if let undo {
-                    Section { Text("Sessions created. They now appear in assignment progress.")
-                        Button("Undo session creation") { restore(undo) }.disabled(busy)
+                    Section { Text(revising ? "Session revision saved." : "Sessions created. They now appear in assignment progress.")
+                        Button(revising ? "Undo revision" : "Undo session creation") { restore(undo) }.disabled(busy)
                     }
                 } else {
                     Section("Effort") {
-                        TextField("Total minutes", text: $total).keyboardType(.numberPad)
+                        TextField(revising ? "Remaining minutes" : "Total minutes", text: $total).keyboardType(.numberPad)
                         TextField("Minutes per session", text: $size).keyboardType(.numberPad)
                         Toggle("Keep numbered session order", isOn: $ordered)
-                        TextField("Session titles, one per line (optional)", text: $labels, axis: .vertical).lineLimit(2...5)
+                        if !revising { TextField("Session titles, one per line (optional)", text: $labels, axis: .vertical).lineLimit(2...5) }
                         Text("Times follow your saved availability, deadline, session gap and daily work limit.").font(.caption).foregroundStyle(.secondary)
-                        Button("Preview sessions") { preview() }.disabled(busy || Int(total) == nil || Int(size) == nil)
+                        if revising && revisionSummary == nil { ProgressView("Loading assignment…") }
+                        Button(revising ? "Preview revision" : "Preview sessions") { preview() }.disabled(busy || revising && revisionSummary == nil || Int(total) == nil || Int(size) == nil)
                     }
                 }
                 if let error { Section { Text(error).foregroundStyle(.red) } }
                 if busy { ProgressView("Working…") }
             }
-            .navigationTitle("Break into sessions")
+            .navigationTitle(revising ? "Revise sessions" : "Break into sessions")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() }.disabled(busy || attempted) } }
             .interactiveDismissDisabled(busy || attempted)
             .onAppear { scope = planRepo.searchScope }
+            .task { if revising { await loadRevision() } }
             .onChange(of: planRepo.searchScope) { _, newValue in if newValue != scope { review = nil; undo = nil; dismiss() } }
         }
     }
@@ -736,10 +743,21 @@ private struct SessionPlanningSheet: View {
         guard let settings = profileRepo.planningSettings, let total = Int(total), let size = Int(size), scope == planRepo.searchScope else { error = profileRepo.planningSettingsError ?? "Wait for planning settings and your planner to load."; return }
         busy = true; error = nil
         Task {
-            do { review = try await planRepo.previewSessions(taskID: taskID, total: total, size: size, ordered: ordered, labels: labels.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }, settings: settings) }
+            do { review = try await planRepo.previewSessions(taskID: taskID, total: total, size: size, ordered: ordered, labels: labels.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }, revising: revising, settings: settings) }
             catch { self.error = error.localizedDescription }
             busy = false
         }
+    }
+    private func loadRevision() async {
+        guard let settings = profileRepo.planningSettings, let zone = TimeZone(identifier: settings.timezone) else { error = "Wait for planning settings to load."; return }
+        do {
+            let summary = try await planRepo.assignmentProgress(taskID: taskID, today: KairosDate.dayKey(for: .now, timeZone: zone))
+            guard scope == planRepo.searchScope, let summary else { throw KairosTouchSchedule.Failure("Reopen this assignment to revise its sessions.") }
+            total = String(summary.remainingMinutes)
+            size = String(summary.sessions.first(where: { !$0.completed })?.minutes ?? 30)
+            ordered = summary.ordered
+            revisionSummary = summary
+        } catch { self.error = error.localizedDescription }
     }
     private func apply(_ review: KairosSessionReview) {
         busy = true; attempted = true; error = nil

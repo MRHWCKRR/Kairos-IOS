@@ -400,12 +400,12 @@ final class StudyPlanRepository {
         return result
     }
 
-    func previewSessions(taskID: String, total: Int, size: Int, ordered: Bool, labels: [String], settings: KairosPlanningSettings) async throws -> KairosSessionReview {
+    func previewSessions(taskID: String, total: Int, size: Int, ordered: Bool, labels: [String], revising: Bool = false, settings: KairosPlanningSettings) async throws -> KairosSessionReview {
         guard hasLoadedSnapshot, !isLoading, !isSaving, let user = Auth.auth().currentUser, user.isEmailVerified, user.uid == listeningUserID, let planID = currentPlan?.id, let scope = searchScope else { throw KairosTouchSchedule.Failure("Wait for your verified planner to load.") }
         let revision = plannerRevision, ownerID = user.uid
         let stateJSON = try KairosTouchSchedule.json(KairosFindTime.state(rawPlan))
         let review = try await Task.detached {
-            try KairosSessionPlanning.preview(state: KairosTouchSchedule.object(stateJSON), taskID: taskID, total: total, size: size, ordered: ordered, labels: labels, settings: settings, ownerID: ownerID, planID: planID)
+            try KairosSessionPlanning.preview(state: KairosTouchSchedule.object(stateJSON), taskID: taskID, total: total, size: size, ordered: ordered, labels: labels, revising: revising, settings: settings, ownerID: ownerID, planID: planID)
         }.value
         guard searchScope == scope, plannerRevision == revision else { throw KairosTouchSchedule.Failure("Your planner changed. Review these sessions again.") }
         return review

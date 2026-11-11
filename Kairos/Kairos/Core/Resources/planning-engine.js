@@ -1439,9 +1439,9 @@ globalThis.kairosPlanningRequest=function(json){
 };
 globalThis.kairosSessionRequest=function(json){
  const r=JSON.parse(json),model=require('planning-commands.js'),undo=require('planning-undo.js'),clock=require('planning-model.js').planningClock(r.now??Date.now(),r.timezone);
- if(r.mode==='preview'){
+ if(r.mode==='preview'||r.mode==='preview-revision'){
   const ids=[...r.ids],input={...r.input,idFactory:()=>ids.shift()};
-  return JSON.stringify(model.previewSessions(r.state,input,clock));
+  return JSON.stringify(r.mode==='preview-revision'?model.previewSessionRevision(r.state,input,clock):model.previewSessions(r.state,input,clock));
  }
  if(r.mode==='apply'){
   require('schedule-find-time-model.js').assertFindTimeSettings(r.command.options,r.profile);

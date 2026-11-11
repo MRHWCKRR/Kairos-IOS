@@ -36,6 +36,8 @@ Schedule > Backlog now reaches web-compatible slot suggestions with preview, gua
 
 Unfinished, unscheduled tasks can now be split into linked scheduled sessions from Task details. Preview uses the shared web planning rules and saved settings. Atomic reviewed Apply retains stable session IDs across uncertain retries; guarded Undo archives the created sessions. Existing assignment progress and task editors show the results. See [assignment-sessions.md](assignment-sessions.md).
 
+Existing assignments with linked sessions now preview revisions to remaining effort. The shared planner resizes and reschedules unfinished sessions, creates needed sessions and archives surplus ones; completed sessions and focus history stay intact. Apply, exact retry and Undo use the same guarded receipt path. See [assignment-sessions.md](assignment-sessions.md).
+
 ## Verified native equivalents already present
 
 - Task/board/section creation; task notes, priority, estimates, checklists, scheduled times and deadlines; native subtasks.
