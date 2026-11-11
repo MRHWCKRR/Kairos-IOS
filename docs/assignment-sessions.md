@@ -4,6 +4,8 @@ Task details > Break into sessions accepts total effort, minutes per session, op
 
 Apply checks the reviewed plan and saved settings in a Firestore transaction, then creates every linked session task in the parent's section. The parent task and unknown metadata stay intact. The request and session IDs remain fixed after an uncertain save; a receipt confirms exact retries without duplicates. Guarded Undo archives created sessions while preserving later content changes and rejecting changed completion/scheduling state. Assignment progress and standard task editors show the resulting tasks.
 
+Task details > Revise sessions accepts remaining effort for an assignment with linked sessions. It previews resized and rescheduled unfinished sessions, any new sessions, and surplus sessions that will be archived. Completed sessions remain intact. Apply and Undo use the same reviewed transaction and receipt path, updating only changed scheduling fields so notes, focus history, and unknown metadata survive.
+
 Focused checks cover preview, conflicts, settings, metadata, Undo and completed-session rejection. CI also runs Swift tests in three timezones, app/widget build, bundled-engine and toolbar checks. Manual device interaction remains to verify separately.
 
-Existing-session revision and broader Planning hub workflows remain later work.
+Broader Planning hub workflows remain later work.
