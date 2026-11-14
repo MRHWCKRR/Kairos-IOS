@@ -4,6 +4,7 @@ struct FocusSessionControls: View {
     @Environment(SessionStore.self) private var account
     @Environment(UserProfileRepository.self) private var profileRepo
     let allowsGeneralStart: Bool
+    var compact = false
     private var timer: FocusTimerCoordinator { .shared }
     private var appearance: KairosTimerAppearance {
         let value = profileRepo.appearanceSettings
@@ -12,29 +13,59 @@ struct FocusSessionControls: View {
     @State private var confirmingDiscard = false
     var body: some View {
         if timer.belongs(to: account.userID) {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: compact ? 10 : 16) {
                 if let session = timer.session {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(session.target?.title ?? "General focus").font(.subheadline.weight(.semibold)).lineLimit(2)
-                            FocusTimerFace(seconds: timer.elapsedSeconds, running: timer.isRunning, appearance: appearance)
+                    if compact {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(session.target?.title ?? "General focus").font(.subheadline.weight(.semibold)).lineLimit(1)
+                                Text(timer.isRunning ? "Focusing" : timer.hasPendingLog ? "Ready to log" : "Paused").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 4)
+                            FocusTimerFace(seconds: timer.elapsedSeconds, running: timer.isRunning, appearance: appearance, compact: true)
                         }
-                        Spacer()
-                        if !timer.hasPendingLog {
-                            Button(timer.isRunning ? "Pause" : "Resume") { if timer.isRunning { timer.pause() } else { timer.start() } }.buttonStyle(.bordered)
+                    } else {
+                        HStack {
+                            Text("FOCUS SESSION").font(.caption.weight(.bold)).tracking(1.2).foregroundStyle(KairosColors.accent)
+                            Spacer()
+                            Text(timer.isRunning ? "In progress" : timer.hasPendingLog ? "Ready to log" : "Paused")
+                                .font(.caption.weight(.semibold)).foregroundStyle(KairosColors.accent)
+                                .padding(.horizontal, 10).padding(.vertical, 5)
+                                .background(KairosColors.accent.opacity(0.1), in: Capsule())
                         }
+                        Text(session.target?.title ?? "General focus").font(.title3.weight(.semibold)).lineLimit(2)
+                        FocusTimerFace(seconds: timer.elapsedSeconds, running: timer.isRunning, appearance: appearance)
+                            .frame(maxWidth: .infinity).padding(.vertical, 8)
                     }
-                    HStack {
-                        Button(timer.hasPendingLog ? "Retry log" : "Log time") { timer.log() }.buttonStyle(.borderedProminent).disabled(timer.isSaving || timer.elapsedSeconds < 1)
-                        if !timer.hasPendingLog || timer.expiredRequest {
-                            Button(timer.expiredRequest ? "Clear reviewed request" : "Discard", role: .destructive) { confirmingDiscard = true }.buttonStyle(.bordered).disabled(timer.isSaving)
+                    HStack(spacing: 10) {
+                        if !timer.hasPendingLog {
+                            Button { if timer.isRunning { timer.pause() } else { timer.start() } } label: {
+                                Text(timer.isRunning ? "Pause" : "Resume").frame(maxWidth: .infinity, minHeight: 44)
+                            }.buttonStyle(.bordered)
                         }
+                        Button { timer.log() } label: {
+                            Text(timer.hasPendingLog ? "Retry log" : "Log time").frame(maxWidth: .infinity, minHeight: 44)
+                        }.buttonStyle(.borderedProminent).disabled(timer.isSaving || timer.elapsedSeconds < 1)
+                    }
+                    if !timer.hasPendingLog || timer.expiredRequest {
+                        Button(timer.expiredRequest ? "Clear reviewed request" : "Discard", role: .destructive) { confirmingDiscard = true }
+                            .font(.footnote).frame(maxWidth: .infinity, minHeight: 44).disabled(timer.isSaving)
                     }
                     if timer.hasPendingLog { Text(timer.expiredRequest ? "This request is too old to replay. Review your focus totals or web history before clearing it." : "Your exact log request is retained until the save is confirmed.").font(.caption).foregroundStyle(.secondary) }
-                    else { Text(timer.isRunning ? "The timer keeps elapsed time in the background. Relaunch recovery pauses at the last saved checkpoint." : "Paused. Resume when you are ready.").font(.caption).foregroundStyle(.secondary) }
+                    else if !compact { Text(timer.isRunning ? "The timer keeps elapsed time in the background. Relaunch recovery pauses at the last saved checkpoint." : "Paused. Resume when you are ready.").font(.caption).foregroundStyle(.secondary) }
                 } else if allowsGeneralStart {
-                    Text("Focus session").font(.headline)
-                    Button("Start general focus") { timer.start() }.buttonStyle(.borderedProminent).disabled(!timer.canStart)
+                    HStack(alignment: .top, spacing: 14) {
+                        KairosIcon("timer", size: 22).foregroundStyle(KairosColors.accent)
+                            .frame(width: 50, height: 50)
+                            .background(KairosColors.accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 16))
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("Focus time").font(.title3.weight(.bold))
+                            Text("Settle in and give one thing your attention.").font(.subheadline).foregroundStyle(.secondary)
+                        }
+                    }
+                    Button { timer.start() } label: {
+                        Label("Start focus", sharedIcon: "timer").frame(maxWidth: .infinity).frame(minHeight: 44)
+                    }.buttonStyle(.borderedProminent).disabled(!timer.canStart)
                 }
                 if timer.isSaving { ProgressView("Saving focus…") }
                 if let error = timer.errorMessage { Text(error).font(.footnote).foregroundStyle(.red) }
@@ -54,6 +85,8 @@ private struct FocusTimerFace: View {
     let seconds: Int64
     let running: Bool
     let appearance: KairosTimerAppearance
+    var compact = false
+    @ScaledMetric(relativeTo: .largeTitle) private var clockSize: CGFloat = 48
 
     private var time: String { FocusTimerViewModel.formatHMS(seconds) }
     private var accent: Color {
@@ -68,29 +101,35 @@ private struct FocusTimerFace: View {
 
     var body: some View {
         Group {
-            switch appearance.type {
-            case "watch":
-                ZStack {
-                    Circle().stroke(accent.opacity(0.25), lineWidth: 7)
-                    VStack(spacing: 3) {
-                        KairosIcon("timer", size: 16).foregroundStyle(accent)
-                        Text(time).font(.system(.headline, design: .monospaced).weight(.bold)).minimumScaleFactor(0.65).lineLimit(1)
-                        Text(running ? "FOCUSING" : "READY").font(.caption2.weight(.bold)).tracking(1.5).foregroundStyle(accent)
-                    }.padding(8)
-                }.frame(width: 126, height: 126)
-            case "nuclear":
-                VStack(spacing: 4) {
-                    Text(time).font(.system(.title2, design: .monospaced).weight(.black)).minimumScaleFactor(0.65).lineLimit(1)
-                    Text(running ? "⚠ SEQUENCE ACTIVE ⚠" : "SYSTEM STANDBY").font(.caption2.weight(.bold)).tracking(1.2)
+            if compact {
+                Text(time).font(.title3.monospacedDigit().weight(.semibold)).foregroundStyle(accent)
+            } else {
+                switch appearance.type {
+                case "watch":
+                    ZStack {
+                        Circle().stroke(accent.opacity(0.32), lineWidth: 7)
+                        VStack(spacing: 6) {
+                            Text(time).font(.system(size: clockSize * 0.55, weight: .bold, design: .rounded).monospacedDigit()).minimumScaleFactor(0.7).lineLimit(1)
+                            Text(running ? "FOCUSING" : "PAUSED").font(.caption2.weight(.bold)).tracking(1.3).foregroundStyle(accent)
+                        }.padding(14)
+                    }.frame(width: 172, height: 172)
+                case "nuclear":
+                    VStack(spacing: 4) {
+                        Text(time).font(.system(.title2, design: .monospaced).weight(.black)).minimumScaleFactor(0.65).lineLimit(1)
+                        Text(running ? "⚠ SEQUENCE ACTIVE ⚠" : "SYSTEM STANDBY").font(.caption2.weight(.bold)).tracking(1.2)
+                    }
+                    .foregroundStyle(accent).padding(12).background(Color.black, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                default:
+                    VStack(spacing: 7) {
+                        Text(time).font(.system(size: clockSize, weight: .semibold, design: .rounded).monospacedDigit()).minimumScaleFactor(0.7).lineLimit(1)
+                        Text(running ? "ELAPSED FOCUS" : "PAUSED TIME").font(.caption2.weight(.bold)).tracking(1.3)
+                    }.foregroundStyle(accent).frame(maxWidth: .infinity)
                 }
-                .foregroundStyle(accent).padding(12).background(Color.black, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            default:
-                Text(time).font(.title2.monospacedDigit()).foregroundStyle(accent)
             }
         }
-        .padding(appearance.border == "none" ? 0 : 7)
-        .overlay { border }
-        .shadow(color: appearance.border == "glow" ? accent.opacity(0.45) : .clear, radius: 9)
+        .padding(compact || appearance.border == "none" ? 0 : 10)
+        .overlay { if !compact { border } }
+        .shadow(color: !compact && appearance.border == "glow" ? accent.opacity(0.25) : .clear, radius: 8)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Elapsed focus time \(time)")
     }
@@ -123,7 +162,9 @@ struct TaskFocusView: View {
                 Text("Planned: \(summary.plannedMinutes) min · Logged: \(FocusTimerViewModel.formatHMS(summary.loggedSeconds))").font(.subheadline)
                 Text("Remaining estimate: \(summary.remainingMinutes) min").font(.caption).foregroundStyle(.secondary)
                 if timer.session == nil {
-                    Button("Start focus") { timer.start(target: target, expectedScope: scope) }.buttonStyle(.borderedProminent).disabled(!timer.canStart)
+                    Button { timer.start(target: target, expectedScope: scope) } label: {
+                        Label("Focus on this task", sharedIcon: "timer").frame(maxWidth: .infinity).frame(minHeight: 44)
+                    }.buttonStyle(.borderedProminent).disabled(!timer.canStart)
                     Text("Uses the saved task. Starting focus keeps your editor draft.").font(.caption).foregroundStyle(.secondary)
                 }
                 FocusSessionControls(allowsGeneralStart: false)
